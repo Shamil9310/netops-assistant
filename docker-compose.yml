@@ -1,0 +1,43 @@
+services:
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: netops_assistant
+      POSTGRES_USER: netops
+      POSTGRES_PASSWORD: netops
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  backend:
+    build:
+      context: ./backend
+    environment:
+      NETOPS_ASSISTANT_APP_NAME: NetOps Assistant API
+      NETOPS_ASSISTANT_ENVIRONMENT: development
+      NETOPS_ASSISTANT_DATABASE_URL: postgresql+asyncpg://netops:netops@postgres:5432/netops_assistant
+      NETOPS_ASSISTANT_SECRET_KEY: change-me
+      NETOPS_ASSISTANT_CORS_ORIGINS: '["http://localhost:3000"]'
+      NETOPS_ASSISTANT_SESSION_COOKIE_NAME: netops_session
+      NETOPS_ASSISTANT_SESSION_TTL_HOURS: 12
+      NETOPS_ASSISTANT_BOOTSTRAP_USERNAME: engineer
+      NETOPS_ASSISTANT_BOOTSTRAP_PASSWORD: engineer123
+      NETOPS_ASSISTANT_BOOTSTRAP_FULL_NAME: Шамиль Исаев
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgres
+
+  frontend:
+    build:
+      context: ./frontend
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:

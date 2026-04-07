@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>NetOps — Вариант 3: Dashboard-лента</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+
+:root {
+  --bg:           #070d18;
+  --surface:      rgba(255,255,255,0.033);
+  --surface-md:   rgba(255,255,255,0.052);
+  --surface-hi:   rgba(255,255,255,0.075);
+  --border:       rgba(255,255,255,0.065);
+  --border-md:    rgba(255,255,255,0.11);
+  --text:         #edf0f5;
+  --text-2:       #8892a4;
+  --text-3:       #4e5a6e;
+  --green:        #22d98a;
+  --green-glow:   rgba(34,217,138,0.16);
+  --green-soft:   rgba(34,217,138,0.09);
+  --green-border: rgba(34,217,138,0.2);
+  --blue:         #60a5fa;
+  --blue-soft:    rgba(96,165,250,0.09);
+  --blue-border:  rgba(96,165,250,0.2);
+  --red:          #f87171;
+  --red-soft:     rgba(248,113,113,0.09);
+  --red-border:   rgba(248,113,113,0.2);
+  --amber:        #fbbf24;
+  --amber-soft:   rgba(251,191,36,0.09);
+  --amber-border: rgba(251,191,36,0.2);
+  --purple:       #a78bfa;
+  --purple-soft:  rgba(167,139,250,0.09);
+  --purple-border:rgba(167,139,250,0.2);
+  --r-xs: 8px; --r-sm: 12px; --r-md: 16px; --r-lg: 22px; --r-xl: 28px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 14px; }
+body {
+  font-family: 'Inter', sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+}
+body::before {
+  content: '';
+  position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  background:
+    radial-gradient(ellipse 60% 40% at 70% -5%, rgba(34,217,138,0.05), transparent 50%),
+    radial-gradient(ellipse 50% 35% at 5% 80%, rgba(96,165,250,0.04), transparent 50%);
+}
+a { color: inherit; text-decoration: none; }
+button, input, select, textarea { font: inherit; color: inherit; outline: none; }
+::-webkit-scrollbar { width: 3px; }
+::-webkit-scrollbar-thumb { background: var(--border-md); border-radius: 2px; }
+
+/* ── SHELL ── */
+.shell { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; position: relative; z-index: 1; }
+
+/* ── SIDEBAR ── */
+.sidebar {
+  position: sticky; top: 0; height: 100vh;
+  display: flex; flex-direction: column;
+  padding: 22px 14px;
+  border-right: 1px solid var(--border);
+  background: rgba(7,13,24,0.85);
+  backdrop-filter: blur(24px);
+  overflow-y: auto;
+}
+
+.brand { display: flex; align-items: center; gap: 11px; margin-bottom: 28px; padding-bottom: 20px; border-bottom: 1px solid var(--border); }
+.brand-mark { width: 38px; height: 38px; border-radius: 11px; display: grid; place-items: center; background: var(--green-soft); border: 1px solid var(--green-border); color: var(--green); font-weight: 800; font-size: 13px; }
+.brand-name { font-size: 14px; font-weight: 700; }
+.brand-sub  { font-size: 10px; color: var(--text-3); }
+
+.nav { display: flex; flex-direction: column; gap: 1px; }
+.nav-item { display: flex; align-items: center; gap: 9px; padding: 9px 11px; border-radius: var(--r-sm); color: var(--text-2); font-size: 13px; font-weight: 500; cursor: pointer; border: 1px solid transparent; transition: all 0.15s; position: relative; }
+.nav-item:hover { background: var(--surface); color: var(--text); }
+.nav-item.active { background: var(--green-soft); color: var(--green); border-color: var(--green-border); }
+.nav-item.active::before { content: ''; position: absolute; left: -14px; top: 50%; transform: translateY(-50%); width: 3px; height: 16px; background: var(--green); border-radius: 0 2px 2px 0; box-shadow: 0 0 8px var(--green); }
+
+.spacer { flex: 1; min-height: 20px; }
+
+.lang-sw { display: flex; gap: 2px; padding: 3px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-sm); margin-bottom: 10px; }
+.lang-btn { flex: 1; padding: 5px; border-radius: 9px; border: none; background: transparent; color: var(--text-3); font-size: 11px; font-weight: 700; cursor: pointer; transition: all 0.15s; }
+.lang-btn.active { background: var(--green-soft); color: var(--green); }
+
+.profile { display: flex; align-items: center; gap: 9px; padding: 10px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md); }
+.avatar { width: 30px; height: 30px; border-radius: 9px; background: var(--purple-soft); border: 1px solid var(--purple-border); display: grid; place-items: center; font-size: 11px; font-weight: 700; color: var(--purple); }
+
+/* ── MAIN ── */
+.main { display: flex; flex-direction: column; padding: 0; max-width: 820px; margin: 0 auto; width: 100%; padding: 32px 40px 100px; }
+
+/* ── TOPBAR (inline header) ── */
+.topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; margin-bottom: 36px;
+  padding-bottom: 20px; border-bottom: 1px solid var(--border);
+}
+.topbar-left {}
+.date-badge { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; background: var(--green-soft); border: 1px solid var(--green-border); color: var(--green); font-size: 11px; font-weight: 600; margin-bottom: 8px; }
+.status-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); animation: pulse 2s infinite; }
+@keyframes pulse { 0%,100%{box-shadow:0 0 3px var(--green);}50%{box-shadow:0 0 10px var(--green);} }
+.page-title { font-size: 26px; font-weight: 800; letter-spacing: -0.7px; }
+.page-sub { font-size: 12px; color: var(--text-3); margin-top: 3px; }
+
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: var(--r-sm); border: 1px solid var(--border-md); background: var(--surface-md); color: var(--text-2); font-size: 12px; font-weight: 500; cursor: pointer; transition: all 0.15s; white-space: nowrap; }
+.btn:hover { background: var(--surface-hi); color: var(--text); }
+.btn-primary { background: var(--green); color: #06120e; border-color: transparent; font-weight: 700; box-shadow: 0 2px 10px var(--green-glow); }
+.btn-primary:hover { background: #28eea0; transform: translateY(-1px); }
+.btn-ghost { background: transparent; border-color: transparent; color: var(--text-3); }
+.btn-ghost:hover { background: var(--surface); color: var(--text-2); }
+.btn-danger { background: var(--red-soft); color: var(--red); border-color: var(--red-border); }
+.btn-sm { padding: 5px 10px; font-size: 11px; border-radius: var(--r-xs); }
+
+/* ── SECTION BLOCK ── */
+.section { margin-bottom: 44px; }
+
+.section-header {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 12px; margin-bottom: 16px;
+}
+
+.section-title {
+  font-size: 13px; font-weight: 700; color: var(--text-2);
+  text-transform: uppercase; letter-spacing: 0.09em;
+  display: flex; align-items: center; gap: 8px;
+}
+
+.section-title-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; }
+.section-actions { display: flex; gap: 6px; align-items: center; }
+
+/* ── SUMMARY ROW ── */
+.summary-row {
+  display: flex; align-items: center; gap: 0;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-lg); overflow: hidden; margin-bottom: 20px;
+}
+.summary-cell {
+  flex: 1; padding: 16px 20px;
+  border-right: 1px solid var(--border);
+  transition: background 0.15s;
+}
+.summary-cell:last-child { border-right: none; }
+.summary-cell:hover { background: var(--surface-md); }
+.summary-label { font-size: 10px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.09em; margin-bottom: 5px; }
+.summary-val { font-size: 20px; font-weight: 800; letter-spacing: -0.5px; }
+.summary-note { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+
+/* ── TIMELINE STRIP ── */
+.timeline { display: flex; flex-direction: column; gap: 0; }
+
+.tl-item {
+  display: flex; align-items: stretch;
+  position: relative; padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+}
+.tl-item:last-child { border-bottom: none; }
+
+.tl-time-col {
+  width: 96px; flex-shrink: 0;
+  padding-right: 16px; padding-top: 2px;
+  text-align: right;
+}
+.tl-time { font-size: 11px; color: var(--text-3); font-family: 'JetBrains Mono', monospace; }
+.tl-dur  { font-size: 10px; color: var(--text-3); margin-top: 2px; opacity: 0.7; }
+
+.tl-line-col {
+  width: 24px; flex-shrink: 0;
+  display: flex; flex-direction: column; align-items: center;
+  padding-top: 4px;
+}
+.tl-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; border: 2px solid; }
+.tl-dot.incident    { background: var(--red-soft);    border-color: var(--red);    box-shadow: 0 0 6px var(--red); }
+.tl-dot.task        { background: var(--blue-soft);   border-color: var(--blue);   box-shadow: 0 0 6px var(--blue); }
+.tl-dot.change      { background: var(--green-soft);  border-color: var(--green);  box-shadow: 0 0 6px var(--green); }
+.tl-dot.maintenance { background: var(--surface-md);  border-color: var(--text-3); }
+.tl-connector { flex: 1; width: 1px; background: var(--border); margin-top: 6px; }
+
+.tl-body { flex: 1; padding-left: 16px; }
+.tl-head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; flex-wrap: wrap; }
+.tl-title { font-size: 13.5px; font-weight: 600; }
+.tl-desc  { font-size: 12px; color: var(--text-3); line-height: 1.5; }
+
+.tl-actions { display: flex; gap: 4px; align-items: flex-start; padding-top: 1px; opacity: 0; transition: opacity 0.15s; }
+.tl-item:hover .tl-actions { opacity: 1; }
+
+/* ── BADGES ── */
+.badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 600; border: 1px solid; }
+.badge.incident    { background: var(--red-soft);    color: var(--red);    border-color: var(--red-border); }
+.badge.task        { background: var(--blue-soft);   color: var(--blue);   border-color: var(--blue-border); }
+.badge.change      { background: var(--green-soft);  color: var(--green);  border-color: var(--green-border); }
+.badge.maintenance { background: var(--surface-md);  color: var(--text-2); border-color: var(--border-md); }
+.badge.bgp  { background: var(--green-soft);  color: var(--green);  border-color: var(--green-border); }
+.badge.ospf { background: var(--amber-soft);  color: var(--amber);  border-color: var(--amber-border); }
+.badge.vlan { background: var(--blue-soft);   color: var(--blue);   border-color: var(--blue-border); }
+.badge.acl  { background: var(--purple-soft); color: var(--purple); border-color: var(--purple-border); }
+
+/* ── REPORT BLOCK ── */
+.report-wrap {
+  border: 1px solid var(--border); border-radius: var(--r-lg); overflow: hidden;
+}
+.report-toolbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 18px; border-bottom: 1px solid var(--border);
+  background: rgba(255,255,255,0.018);
+}
+.report-meta { font-size: 11px; color: var(--text-3); }
+.report-tabs { display: flex; gap: 2px; padding: 3px; background: var(--surface); border: 1px solid var(--border); border-radius: 9px; }
+.rtab { padding: 5px 12px; border-radius: 7px; border: none; background: transparent; color: var(--text-3); font-size: 11px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+.rtab.active { background: var(--surface-hi); color: var(--text); }
+pre.export { padding: 18px 20px; font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.9; white-space: pre-wrap; color: var(--text-2); margin: 0; }
+.export-bar { display: flex; gap: 6px; padding: 12px 18px; border-top: 1px solid var(--border); background: rgba(255,255,255,0.015); flex-wrap: wrap; align-items: center; }
+.export-btn { display: inline-flex; align-items: center; gap: 5px; padding: 6px 12px; border-radius: var(--r-xs); border: 1px solid var(--border-md); background: var(--surface-md); color: var(--text-3); font-size: 11px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+.export-btn:hover { color: var(--text); background: var(--surface-hi); }
+.export-label { font-size: 11px; color: var(--text-3); margin-right: 4px; }
+
+/* ── PLAN SECTION ── */
+.plan-list { display: flex; flex-direction: column; }
+
+.plan-item {
+  display: flex; align-items: center; gap: 14px;
+  padding: 14px 0; border-bottom: 1px solid var(--border);
+  transition: background 0.15s;
+}
+.plan-item:last-child { border-bottom: none; }
+
+.plan-icon { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; font-size: 16px; flex-shrink: 0; }
+.plan-icon.bgp  { background: var(--green-soft); border: 1px solid var(--green-border); }
+.plan-icon.ospf { background: var(--amber-soft);  border: 1px solid var(--amber-border); }
+.plan-icon.vlan { background: var(--blue-soft);   border: 1px solid var(--blue-border); }
+.plan-icon.acl  { background: var(--purple-soft); border: 1px solid var(--purple-border); }
+
+.plan-info { flex: 1; min-width: 0; }
+.plan-title { font-size: 13.5px; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.plan-sub   { font-size: 11px; color: var(--text-3); margin-top: 2px; font-family: 'JetBrains Mono', monospace; }
+.plan-actions { display: flex; gap: 5px; }
+
+/* ── NEW PLAN FORM ── */
+.plan-form {
+  border: 1px solid var(--border); border-radius: var(--r-lg); overflow: hidden; margin-top: 16px;
+}
+.plan-form-header {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 14px 20px; border-bottom: 1px solid var(--border);
+  background: rgba(255,255,255,0.018);
+}
+.plan-form-title { font-size: 14px; font-weight: 700; }
+.tpl-tabs { display: flex; gap: 2px; padding: 3px; background: var(--surface); border: 1px solid var(--border); border-radius: 9px; }
+.ttab { padding: 5px 12px; border-radius: 7px; border: none; background: transparent; color: var(--text-3); font-size: 11px; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+.ttab.active { background: var(--green-soft); color: var(--green); }
+
+.plan-form-body { padding: 20px; }
+.form-grid  { display: grid; gap: 12px; margin-bottom: 16px; }
+.field-row  { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.field      { display: grid; gap: 5px; }
+.field-label{ font-size: 11px; font-weight: 500; color: var(--text-3); }
+.field input, .field select {
+  padding: 9px 12px; border-radius: var(--r-sm); border: 1px solid var(--border-md);
+  background: rgba(0,0,0,0.25); color: var(--text); font-size: 13px; transition: all 0.15s;
+}
+.field input:focus, .field select:focus { border-color: var(--green-border); box-shadow: 0 0 0 3px var(--green-soft); }
+select option { background: #0c1525; }
+.form-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
+/* Code panes */
+.plan-panes { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin-bottom: 14px; }
+.code-wrap { background: rgba(0,0,0,0.32); border: 1px solid var(--border); border-radius: var(--r-md); overflow: hidden; }
+.code-head { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+.code-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; }
+.code-label.precheck { color: var(--blue); }
+.code-label.config   { color: var(--green); }
+.code-label.rollback { color: var(--red); }
+.code-dots { display: flex; gap: 4px; }
+.code-dot  { width: 8px; height: 8px; border-radius: 50%; }
+.code-dot.r { background: #ff5f56; } .code-dot.y { background: #ffbd2e; } .code-dot.g { background: #27c93f; }
+pre.code { padding: 12px 14px; font-family: 'JetBrains Mono', monospace; font-size: 12px; line-height: 1.8; white-space: pre-wrap; color: var(--text-2); margin: 0; }
+
+/* ── DIVIDER ── */
+.section-div { height: 1px; background: var(--border); margin: 8px 0 36px; }
+
+/* ── TOOLBAR ── */
+.toolbar { display: flex; gap: 7px; align-items: center; flex-wrap: wrap; }
+.search-input { padding: 8px 12px; border-radius: var(--r-sm); border: 1px solid var(--border-md); background: var(--surface-md); color: var(--text); font-size: 12px; min-width: 200px; transition: all 0.15s; }
+.search-input:focus { border-color: var(--green-border); box-shadow: 0 0 0 3px var(--green-soft); }
+
+</style>
+</head>
+<body>
+<div class="shell">
+
+<!-- ── SIDEBAR ── -->
+<aside class="sidebar">
+  <div class="brand">
+    <div class="brand-mark">NA</div>
+    <div><div class="brand-name">NetOps Assistant</div><div class="brand-sub">Engineer Workspace</div></div>
+  </div>
+  <nav class="nav">
+    <div class="nav-item active">◈ &nbsp;Сегодня</div>
+    <div class="nav-item">☰ &nbsp;Журнал</div>
+    <div class="nav-item">⬡ &nbsp;Отчёты</div>
+    <div class="nav-item">◻ &nbsp;Планы</div>
+  </nav>
+  <div class="spacer"></div>
+  <div class="lang-sw">
+    <button class="lang-btn active">RU</button>
+    <button class="lang-btn">EN</button>
+  </div>
+  <div class="profile">
+    <div class="avatar">ШИ</div>
+    <div><div style="font-size:12px; font-weight:600;">Шамиль Исаев</div><div style="font-size:10px; color:var(--text-3);">engineer</div></div>
+  </div>
+</aside>
+
+<!-- ── MAIN ── -->
+<main class="main">
+
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div class="topbar-left">
+      <div class="date-badge"><span class="status-dot"></span> Понедельник, 7 апреля 2026</div>
+      <div class="page-title">Рабочий день</div>
+      <div class="page-sub">Живая сводка · 4 события · 4ч 20мин</div>
+    </div>
+    <div style="display:flex; gap:8px;">
+      <button class="btn btn-primary">+ Запись</button>
+      <button class="btn">Отчёт</button>
+    </div>
+  </div>
+
+  <!-- SUMMARY ROW -->
+  <div class="summary-row" style="margin-bottom:36px;">
+    <div class="summary-cell">
+      <div class="summary-label">Созвоны</div>
+      <div class="summary-val" style="color:var(--green);">2ч 20м</div>
+      <div class="summary-note">3 события</div>
+    </div>
+    <div class="summary-cell">
+      <div class="summary-label">Заявки</div>
+      <div class="summary-val" style="color:var(--blue);">7</div>
+      <div class="summary-note">4 SR · 1 WA</div>
+    </div>
+    <div class="summary-cell">
+      <div class="summary-label">Заполненность</div>
+      <div class="summary-val" style="color:var(--amber);">82%</div>
+      <div class="summary-note">Черновик готов</div>
+    </div>
+    <div class="summary-cell">
+      <div class="summary-label">Backend</div>
+      <div class="summary-val" style="font-size:14px; display:flex; align-items:center; gap:7px; margin:6px 0 3px;"><span class="status-dot"></span> online</div>
+      <div class="summary-note">v1 · development</div>
+    </div>
+  </div>
+
+  <!-- ЛЕНТА ДНЯ -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-title"><span class="section-title-dot" style="background:var(--green);"></span>Лента дня</div>
+      <div class="section-actions">
+        <button class="btn btn-sm btn-primary">+ Запись</button>
+      </div>
+    </div>
+
+    <div class="timeline">
+      <div class="tl-item">
+        <div class="tl-time-col"><div class="tl-time">10:00</div><div class="tl-dur">30 мин</div></div>
+        <div class="tl-line-col"><div class="tl-dot task"></div><div class="tl-connector"></div></div>
+        <div class="tl-body">
+          <div class="tl-head"><span class="badge task">Задача</span><span class="tl-title">Обновление NetBox — план миграции</span></div>
+          <div class="tl-desc">Обсуждение плана и рисков отката с командой.</div>
+        </div>
+        <div class="tl-actions"><button class="btn btn-sm btn-ghost">✎</button><button class="btn btn-sm btn-danger">✕</button></div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time-col"><div class="tl-time">11:10</div><div class="tl-dur">70 мин</div></div>
+        <div class="tl-line-col"><div class="tl-dot incident"></div><div class="tl-connector"></div></div>
+        <div class="tl-body">
+          <div class="tl-head"><span class="badge incident">Инцидент</span><span class="tl-title">SR11683266 — Разбор BGP-маршрутизации</span></div>
+          <div class="tl-desc">Проверка BGP-соседства и маршрутов в рабочем контуре.</div>
+        </div>
+        <div class="tl-actions"><button class="btn btn-sm btn-ghost">✎</button><button class="btn btn-sm btn-danger">✕</button></div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time-col"><div class="tl-time">13:00</div><div class="tl-dur">100 мин</div></div>
+        <div class="tl-line-col"><div class="tl-dot change"></div><div class="tl-connector"></div></div>
+        <div class="tl-body">
+          <div class="tl-head"><span class="badge change">Изменение</span><span class="tl-title">WA00468580 — Подготовка плана ночных работ</span></div>
+          <div class="tl-desc">Сбор данных, pre-check, rollback и post-check.</div>
+        </div>
+        <div class="tl-actions"><button class="btn btn-sm btn-ghost">✎</button><button class="btn btn-sm btn-danger">✕</button></div>
+      </div>
+      <div class="tl-item">
+        <div class="tl-time-col"><div class="tl-time">15:00</div><div class="tl-dur">60 мин</div></div>
+        <div class="tl-line-col"><div class="tl-dot maintenance"></div></div>
+        <div class="tl-body">
+          <div class="tl-head"><span class="badge maintenance">Обслуживание</span><span class="tl-title">Актуализация тестового стенда NetBox</span></div>
+          <div class="tl-desc">Версия, LDAP и сценарий миграции.</div>
+        </div>
+        <div class="tl-actions"><button class="btn btn-sm btn-ghost">✎</button><button class="btn btn-sm btn-danger">✕</button></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ОТЧЁТ -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-title"><span class="section-title-dot" style="background:var(--blue);"></span>Черновик отчёта</div>
+      <div class="section-actions">
+        <div class="report-tabs">
+          <button class="rtab active">День</button>
+          <button class="rtab">Неделя</button>
+        </div>
+        <input type="date" style="padding:5px 10px; border-radius:var(--r-xs); border:1px solid var(--border-md); background:var(--surface-md); color:var(--text); font-size:11px; color-scheme:dark;" value="2026-04-07" />
+        <button class="btn btn-sm btn-primary">Сформировать</button>
+      </div>
+    </div>
+
+    <div class="report-wrap">
+      <div class="report-toolbar">
+        <div>
+          <div style="font-size:13px; font-weight:600;">7 апреля 2026</div>
+          <div class="report-meta">Автосборка · 4 записи · Шамиль Исаев</div>
+        </div>
+      </div>
+      <pre class="export">Отчёт о проделанной работе
+Дата: 7 апреля 2026 · Инженер: Шамиль Исаев
+
+── ЗАДАЧИ ──────────────────────────────────────
+  10:00–10:30  (30 мин)
+  Обновление NetBox — обсуждение плана миграции.
+
+── ИНЦИДЕНТЫ ───────────────────────────────────
+  11:10–12:20  (70 мин)
+  SR11683266 — Разбор инцидента BGP-маршрутизации.
+
+── ИЗМЕНЕНИЯ ───────────────────────────────────
+  13:00–14:40  (100 мин)
+  WA00468580 — Подготовка плана ночных работ.
+
+── ОБСЛУЖИВАНИЕ ────────────────────────────────
+  15:00–16:00  (60 мин)
+  Актуализация тестового стенда NetBox.
+
+── ИТОГО ───────────────────────────────────────
+  Записей: 4  ·  Время: 4ч 20мин</pre>
+      <div class="export-bar">
+        <span class="export-label">Скачать:</span>
+        <button class="export-btn">📄 TXT</button>
+        <button class="export-btn">📝 MD</button>
+        <button class="export-btn">📘 DOCX</button>
+        <button class="export-btn">📕 PDF</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ПЛАНЫ -->
+  <div class="section">
+    <div class="section-header">
+      <div class="section-title"><span class="section-title-dot" style="background:var(--purple);"></span>Планы изменений</div>
+      <div class="section-actions">
+        <button class="btn btn-sm btn-primary">+ Новый план</button>
+      </div>
+    </div>
+
+    <!-- Saved plans -->
+    <div class="plan-list" style="margin-bottom:20px;">
+      <div class="plan-item">
+        <div class="plan-icon bgp">⇄</div>
+        <div class="plan-info">
+          <div class="plan-title">WA00468580 — RST-DC4-BGW1 BGP Uplink</div>
+          <div class="plan-sub">7 апр 2026 · 01:00–03:00</div>
+        </div>
+        <div class="plan-actions">
+          <button class="export-btn" style="padding:5px 9px;">📕 PDF</button>
+          <button class="btn btn-sm">Открыть</button>
+          <button class="btn btn-sm btn-danger">✕</button>
+        </div>
+      </div>
+      <div class="plan-item">
+        <div class="plan-icon vlan">⛓</div>
+        <div class="plan-info">
+          <div class="plan-title">SR11600012 — VLAN 300 на транке</div>
+          <div class="plan-sub">4 апр 2026 · 23:00–01:00</div>
+        </div>
+        <div class="plan-actions">
+          <button class="export-btn" style="padding:5px 9px;">📕 PDF</button>
+          <button class="btn btn-sm">Открыть</button>
+          <button class="btn btn-sm btn-danger">✕</button>
+        </div>
+      </div>
+      <div class="plan-item">
+        <div class="plan-icon ospf">↺</div>
+        <div class="plan-info">
+          <div class="plan-title">Смена метрики OSPF зоны 0</div>
+          <div class="plan-sub">1 апр 2026 · 02:00–04:00</div>
+        </div>
+        <div class="plan-actions">
+          <button class="export-btn" style="padding:5px 9px;">📕 PDF</button>
+          <button class="btn btn-sm">Открыть</button>
+          <button class="btn btn-sm btn-danger">✕</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- New plan inline form -->
+    <div class="plan-form">
+      <div class="plan-form-header">
+        <div class="plan-form-title">Новый план</div>
+        <div class="tpl-tabs">
+          <button class="ttab active">BGP</button>
+          <button class="ttab">OSPF</button>
+          <button class="ttab">VLAN</button>
+          <button class="ttab">ACL</button>
+        </div>
+      </div>
+      <div class="plan-form-body">
+        <div class="form-grid">
+          <div class="field-row">
+            <div class="field"><label class="field-label">Устройство</label><input type="text" value="RST-DC4-BGW1" /></div>
+            <div class="field"><label class="field-label">Окно работ</label><input type="text" value="01:00–03:00" /></div>
+          </div>
+          <div class="field-row">
+            <div class="field"><label class="field-label">Local AS</label><input type="text" value="65001" /></div>
+            <div class="field"><label class="field-label">Remote AS</label><input type="text" value="65002" /></div>
+          </div>
+          <div class="field-row">
+            <div class="field"><label class="field-label">IP соседа</label><input type="text" value="10.0.0.2" /></div>
+            <div class="field"><label class="field-label">Описание</label><input type="text" value="Uplink to RST-DC5-BGW1" /></div>
+          </div>
+        </div>
+        <div class="form-actions" style="margin-bottom:16px;">
+          <button class="btn btn-ghost">Очистить</button>
+          <button class="btn btn-primary">Сформировать →</button>
+        </div>
+        <div class="plan-panes">
+          <div class="code-wrap">
+            <div class="code-head"><div class="code-dots"><div class="code-dot r"></div><div class="code-dot y"></div><div class="code-dot g"></div></div><span class="code-label precheck">Pre-check</span></div>
+            <pre class="code">show bgp summary
+show bgp neighbors 10.0.0.2
+show ip route bgp</pre>
+          </div>
+          <div class="code-wrap">
+            <div class="code-head"><div class="code-dots"><div class="code-dot r"></div><div class="code-dot y"></div><div class="code-dot g"></div></div><span class="code-label config">Конфигурация</span></div>
+            <pre class="code">router bgp 65001
+ neighbor 10.0.0.2 remote-as 65002
+ neighbor 10.0.0.2 description Uplink
+ neighbor 10.0.0.2 activate
+!</pre>
+          </div>
+          <div class="code-wrap">
+            <div class="code-head"><div class="code-dots"><div class="code-dot r"></div><div class="code-dot y"></div><div class="code-dot g"></div></div><span class="code-label rollback">Rollback</span></div>
+            <pre class="code">router bgp 65001
+ no neighbor 10.0.0.2
+!</pre>
+          </div>
+        </div>
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+          <button class="btn btn-primary btn-sm">Сохранить план</button>
+          <button class="export-btn">📄 TXT</button>
+          <button class="export-btn">📝 MD</button>
+          <button class="export-btn">📘 DOCX</button>
+          <button class="export-btn">📕 PDF</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</main>
+</div>
+
+<script>
+document.querySelectorAll('.lang-btn').forEach(b => b.addEventListener('click', function() {
+  document.querySelectorAll('.lang-btn').forEach(x => x.classList.remove('active'));
+  this.classList.add('active');
+}));
+document.querySelectorAll('.rtab').forEach(b => b.addEventListener('click', function() {
+  this.closest('.report-tabs').querySelectorAll('.rtab').forEach(x => x.classList.remove('active'));
+  this.classList.add('active');
+}));
+document.querySelectorAll('.ttab').forEach(b => b.addEventListener('click', function() {
+  this.closest('.tpl-tabs').querySelectorAll('.ttab').forEach(x => x.classList.remove('active'));
+  this.classList.add('active');
+}));
+document.querySelectorAll('.nav-item').forEach(b => b.addEventListener('click', function() {
+  document.querySelectorAll('.nav-item').forEach(x => x.classList.remove('active'));
+  this.classList.add('active');
+}));
+</script>
+</body>
+</html>
