@@ -1,153 +1,112 @@
 import { Sidebar } from "@/components/sidebar";
+import { JournalCreateForm } from "@/components/journal-create-form";
+import { JournalEntryActions } from "@/components/journal-entry-actions";
+import { getJournalEntries } from "@/lib/api";
 import { requireUser } from "@/lib/auth";
 
-const entries = [
-  { time: "09:30", dur: "60 мин",  cat: "task",        title: "Проверка приоритетных SR",               desc: "Разобрать новые задачи и определить порядок работы." },
-  { time: "10:00", dur: "30 мин",  cat: "task",        title: "TrueConf — созвон по NetBox",            desc: "Фиксация решений по миграции." },
-  { time: "11:10", dur: "70 мин",  cat: "incident",    title: "SR11683266 — Разбор инцидента BGP",      desc: "Проверка сессии, маршрутов и соседей." },
-  { time: "13:00", dur: "100 мин", cat: "change",      title: "WA00468580 — Подготовка плана работ",   desc: "Pre-check, config, rollback, пост-проверки." },
-];
+type SearchParams = Record<string, string | string[] | undefined>;
 
-const prevEntries = [
-  { time: "09:30", dur: "90 мин",  cat: "task",     title: "Аудит конфигурации BGP RST-DC3",            desc: "Проверка peer-группы и route-map политик." },
-  { time: "14:15", dur: "45 мин",  cat: "incident", title: "SR11679841 — Потеря связи с MPLS-сегментом", desc: "Диагностика и восстановление MPLS-тоннеля." },
-];
+function toSingleValue(value: string | string[] | undefined): string {
+  if (Array.isArray(value)) {
+    return value[0] ?? "";
+  }
+  return value ?? "";
+}
 
-const catLabel: Record<string, string> = {
-  incident: "Инцидент", task: "Задача", change: "Изменение", maintenance: "Обслуживание",
-};
+function getTodayIsoDate(): string {
+  return new Date().toISOString().slice(0, 10);
+}
 
-export default async function JournalPage() {
+function labelForActivityType(value: string): string {
+  const labels: Record<string, string> = {
+    call: "Звонок",
+    ticket: "Заявка",
+    meeting: "Встреча",
+    task: "Задача",
+    escalation: "Эскалация",
+    other: "Прочее",
+  };
+  return labels[value] ?? value;
+}
+
+function labelForStatus(value: string): string {
+  const labels: Record<string, string> = {
+    open: "Открыта",
+    in_progress: "В работе",
+    closed: "Закрыта",
+    cancelled: "Отменена",
+  };
+  return labels[value] ?? value;
+}
+
+function formatTime(value: string | null): string {
+  if (!value) {
+    return "—";
+  }
+  return value.slice(0, 5);
+}
+
+export default async function JournalPage({ searchParams }: { searchParams?: SearchParams }) {
   const user = await requireUser();
+  const selectedWorkDate = toSingleValue(searchParams?.work_date) || getTodayIsoDate();
+  const journal = await getJournalEntries(selectedWorkDate);
+  const items = journal?.items ?? [];
 
   return (
     <div className="shell">
       <Sidebar user={user} />
 
-      {/* Filter col */}
       <aside className="filter-col">
-        <div className="filter-col-title">Фильтры</div>
-
-        <div style={{ marginBottom: 20 }}>
-          <div className="filter-date-label">Дата</div>
-          <input type="date" className="filter-date-input" defaultValue="2026-04-07" />
-        </div>
-
-        <div className="filter-group">
-          <div className="filter-group-title">Категория</div>
-          <button className="filter-chip active">
-            <span className="chip-dot" style={{ background: "var(--text-2)" }} /> Все записи
-            <span className="chip-count">6</span>
-          </button>
-          <button className="filter-chip">
-            <span className="chip-dot" style={{ background: "var(--red)" }} /> Инциденты
-            <span className="chip-count">2</span>
-          </button>
-          <button className="filter-chip">
-            <span className="chip-dot" style={{ background: "var(--blue)" }} /> Задачи
-            <span className="chip-count">3</span>
-          </button>
-          <button className="filter-chip">
-            <span className="chip-dot" style={{ background: "var(--green)" }} /> Изменения
-            <span className="chip-count">1</span>
-          </button>
-          <button className="filter-chip">
-            <span className="chip-dot" style={{ background: "var(--text-3)" }} /> Обслуживание
-            <span className="chip-count">0</span>
-          </button>
-        </div>
-
-        <div className="filter-divider" />
-
-        <div className="filter-group">
-          <div className="filter-group-title">Статистика дня</div>
-          <div className="filter-stat-row">
-            <span className="filter-stat-label">Записей</span>
-            <span className="filter-stat-val">4</span>
-          </div>
-          <div className="filter-stat-row">
-            <span className="filter-stat-label">Время</span>
-            <span className="filter-stat-val" style={{ color: "var(--green)" }}>4ч 20м</span>
-          </div>
-        </div>
-
-        <div className="focus-note">
-          <div className="focus-note-label">Фокус дня</div>
-          <p>Завершить WA00468580 и собрать дневной отчёт.</p>
-        </div>
+        <div className="filter-col-title">Журнал</div>
+        <JournalCreateForm initialWorkDate={selectedWorkDate} />
       </aside>
 
-      {/* Content */}
       <main className="content-col">
         <div className="page-header">
           <div>
             <div className="page-title">Журнал</div>
-            <div className="page-sub">История записей по дням</div>
+            <div className="page-sub">Записи за рабочую дату {selectedWorkDate}</div>
           </div>
           <div className="toolbar">
-            <input className="search-input" placeholder="🔍  Поиск..." />
-            <button className="btn btn-primary">+ Запись</button>
+            <form method="GET">
+              <input name="work_date" type="date" className="filter-date-input" defaultValue={selectedWorkDate} />
+              <button className="btn btn-sm" type="submit">Показать</button>
+            </form>
           </div>
         </div>
 
-        {/* Today */}
-        <div className="day-group">
-          <div className="day-label">
-            Сегодня, 7 апреля
-            <span className="day-label-count">4 записи</span>
-          </div>
-          <div className="entry-list">
-            {entries.map((e) => (
-              <div key={e.title} className="entry-item">
-                <div className={`entry-accent-bar ${e.cat}`} />
-                <div className="entry-body">
-                  <div className="entry-head">
-                    <span className={`badge ${e.cat}`}>
-                      <span className={`badge-dot ${e.cat}`} />
-                      {catLabel[e.cat]}
-                    </span>
-                    <span className="entry-title">{e.title}</span>
-                    <span className="entry-time">{e.time} · {e.dur}</span>
-                  </div>
-                  <div className="entry-desc">{e.desc}</div>
-                </div>
-                <div className="entry-actions">
-                  <button className="btn btn-sm btn-ghost">✎</button>
-                  <button className="btn btn-sm btn-danger">✕</button>
-                </div>
+        <div className="section-label">Записей: {items.length}</div>
+        <div className="plan-list">
+          {items.length === 0 && (
+            <div className="plan-item">
+              <div className="plan-info">
+                <div className="plan-title">Нет записей за выбранную дату</div>
+                <div className="plan-sub">Создай первую запись через форму слева.</div>
               </div>
-            ))}
-          </div>
-        </div>
+            </div>
+          )}
 
-        {/* Yesterday */}
-        <div className="day-group">
-          <div className="day-label">
-            Вчера, 6 апреля
-            <span className="day-label-count">2 записи</span>
-          </div>
-          <div className="entry-list">
-            {prevEntries.map((e) => (
-              <div key={e.title} className="entry-item">
-                <div className={`entry-accent-bar ${e.cat}`} />
-                <div className="entry-body">
-                  <div className="entry-head">
-                    <span className={`badge ${e.cat}`}>
-                      <span className={`badge-dot ${e.cat}`} />
-                      {catLabel[e.cat]}
-                    </span>
-                    <span className="entry-title">{e.title}</span>
-                    <span className="entry-time">{e.time} · {e.dur}</span>
-                  </div>
-                  <div className="entry-desc">{e.desc}</div>
+          {items.map((item) => (
+            <div key={item.id} className="plan-item">
+              <div className="plan-icon status">●</div>
+              <div className="plan-info">
+                <div className="plan-title">{item.title}</div>
+                <div className="plan-sub">
+                  {labelForActivityType(item.activity_type)} · {labelForStatus(item.status)} · {formatTime(item.started_at)}-{formatTime(item.ended_at)}
                 </div>
-                <div className="entry-actions">
-                  <button className="btn btn-sm btn-ghost">✎</button>
-                  <button className="btn btn-sm btn-danger">✕</button>
-                </div>
+                {item.is_backdated && <div className="plan-sub">Добавлено задним числом</div>}
+                {item.ticket_number && <div className="plan-sub">Ticket: {item.ticket_number}</div>}
+                {item.description && <div className="plan-sub">{item.description}</div>}
               </div>
-            ))}
-          </div>
+              <div className="plan-actions">
+                <JournalEntryActions
+                  entryId={item.id}
+                  currentTitle={item.title}
+                  currentDescription={item.description}
+                />
+              </div>
+            </div>
+          ))}
         </div>
       </main>
     </div>

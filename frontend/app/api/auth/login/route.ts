@@ -1,30 +1,56 @@
-import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
 import { SESSION_COOKIE_NAME } from "@/lib/constants";
-import { loginWithBackend, type LoginResponse } from "@/lib/api";
+import { loginWithBackend, type LoginPayload, type LoginResponse } from "@/lib/api";
+
+type ErrorResponse = {
+  detail?: string;
+};
 
 export async function POST(request: Request) {
-  const payload = await request.json();
-  const backendResponse = await loginWithBackend(payload);
-  const body = (await backendResponse.json()) as LoginResponse | { detail?: string };
+  const content_type = request.headers.get("content-type") ?? "";
+  const is_html_form = content_type.includes("application/x-www-form-urlencoded")
+    || content_type.includes("multipart/form-data");
 
-  if (!backendResponse.ok) {
+  const payload = await read_login_payload(request, is_html_form);
+  const backend_response = await loginWithBackend(payload);
+
+  const response_body = (await backend_response.json()) as LoginResponse | ErrorResponse;
+
+  if (!backend_response.ok) {
+    if (is_html_form) {
+      return NextResponse.redirect(new URL("/login?error=1", request.url), { status: 303 });
+    }
+
     return NextResponse.json(
-      { detail: ("detail" in body && body.detail) ? body.detail : "Ошибка входа" },
-      { status: backendResponse.status },
+      {
+        detail: "detail" in response_body && response_body.detail
+          ? response_body.detail
+          : "Ошибка входа",
+      },
+      { status: backend_response.status },
     );
   }
 
-  const setCookieHeader = backendResponse.headers.get("set-cookie");
-  const sessionToken = extractCookieValue(setCookieHeader, SESSION_COOKIE_NAME);
+  const set_cookie_header = backend_response.headers.get("set-cookie");
+  const session_token = extract_cookie_value(set_cookie_header, SESSION_COOKIE_NAME);
 
-  if (!sessionToken) {
-    return NextResponse.json({ detail: "Backend не вернул сессию" }, { status: 502 });
+  if (!session_token) {
+    if (is_html_form) {
+      return NextResponse.redirect(new URL("/login?error=1", request.url), { status: 303 });
+    }
+
+    return NextResponse.json(
+      { detail: "Backend не вернул сессию" },
+      { status: 502 },
+    );
   }
 
-  const cookieStore = await cookies();
-  cookieStore.set(SESSION_COOKIE_NAME, sessionToken, {
+  const response = is_html_form
+    ? NextResponse.redirect(new URL("/", request.url), { status: 303 })
+    : NextResponse.json(response_body);
+
+  response.cookies.set(SESSION_COOKIE_NAME, session_token, {
     httpOnly: true,
     sameSite: "lax",
     secure: false,
@@ -32,14 +58,33 @@ export async function POST(request: Request) {
     maxAge: 60 * 60 * 12,
   });
 
-  return NextResponse.json(body);
+  return response;
 }
 
-function extractCookieValue(setCookieHeader: string | null, cookieName: string): string | null {
-  if (!setCookieHeader) {
+async function read_login_payload(
+  request: Request,
+  is_html_form: boolean,
+): Promise<LoginPayload> {
+  if (is_html_form) {
+    const form_data = await request.formData();
+
+    return {
+      username: String(form_data.get("username") ?? ""),
+      password: String(form_data.get("password") ?? ""),
+    };
+  }
+
+  return (await request.json()) as LoginPayload;
+}
+
+function extract_cookie_value(
+  set_cookie_header: string | null,
+  cookie_name: string,
+): string | null {
+  if (!set_cookie_header) {
     return null;
   }
 
-  const match = setCookieHeader.match(new RegExp(`${cookieName}=([^;]+)`));
-  return match?.[1] ?? null;
+  const cookie_match = set_cookie_header.match(new RegExp(`${cookie_name}=([^;]+)`));
+  return cookie_match?.[1] ?? null;
 }

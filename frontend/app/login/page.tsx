@@ -3,9 +3,20 @@ import { redirect } from "next/navigation";
 import { getCurrentUser } from "@/lib/api";
 import { LoginForm } from "@/components/login-form";
 
-export default async function LoginPage() {
+type LoginPageProps = {
+  searchParams?: Promise<{
+    error?: string;
+  }>;
+};
+
+export default async function LoginPage({ searchParams }: LoginPageProps) {
   const user = await getCurrentUser();
-  if (user) redirect("/");
+  if (user) {
+    redirect("/");
+  }
+
+  const resolved_search_params = searchParams ? await searchParams : undefined;
+  const has_error = resolved_search_params?.error === "1";
 
   return (
     <main className="auth-shell">
@@ -23,7 +34,7 @@ export default async function LoginPage() {
           Используй локальную учётную запись для доступа к журналу, отчётам и планам изменений.
         </div>
 
-        <LoginForm />
+        <LoginForm has_error={has_error} />
       </section>
     </main>
   );

@@ -1,30 +1,51 @@
 import { Sidebar } from "@/components/sidebar";
+import { ReportFinalizeButton } from "@/components/report-finalize-button";
+import { ReportGenerateForm } from "@/components/report-generate-form";
+import { ReportRegenerateDraftButton } from "@/components/report-regenerate-draft-button";
+import { ReportRefreshButton } from "@/components/report-refresh-button";
+import { getReportHistory, getReportPreview } from "@/lib/api";
 import { requireUser } from "@/lib/auth";
 
-const dailyReport = `Отчёт о проделанной работе
-Дата: 7 апреля 2026 · Инженер: Шамиль Исаев
+type SearchParams = Record<string, string | string[] | undefined>;
 
-── ЗАДАЧИ ──────────────────────────────────────
-  10:00–10:30  (30 мин)
-  Обновление NetBox — обсуждение плана миграции.
+function toSingleValue(value: string | string[] | undefined): string {
+  if (Array.isArray(value)) {
+    return value[0] ?? "";
+  }
+  return value ?? "";
+}
 
-── ИНЦИДЕНТЫ ───────────────────────────────────
-  11:10–12:20  (70 мин)
-  SR11683266 — Разбор инцидента BGP-маршрутизации.
+function formatDate(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  return new Intl.DateTimeFormat("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
 
-── ИЗМЕНЕНИЯ ───────────────────────────────────
-  13:00–14:40  (100 мин)
-  WA00468580 — Подготовка плана ночных работ.
+function mapReportType(type: string): string {
+  const labels: Record<string, string> = {
+    daily: "День",
+    weekly: "Неделя",
+    range: "Период",
+    night_work_result: "Ночные работы",
+  };
+  return labels[type] ?? type;
+}
 
-── ОБСЛУЖИВАНИЕ ────────────────────────────────
-  15:00–16:00  (60 мин)
-  Актуализация тестового стенда NetBox.
-
-── ИТОГО ───────────────────────────────────────
-  Записей: 4  ·  Время: 4ч 20мин`;
-
-export default async function ReportsPage() {
+export default async function ReportsPage({ searchParams }: { searchParams?: SearchParams }) {
   const user = await requireUser();
+  const history = await getReportHistory();
+  const reportIdFromUrl = toSingleValue(searchParams?.report_id);
+  const selectedReportId = reportIdFromUrl || history?.[0]?.id || "";
+  const preview = selectedReportId ? await getReportPreview(selectedReportId) : null;
+  const publicApiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 
   return (
     <div className="shell">
@@ -34,44 +55,39 @@ export default async function ReportsPage() {
       <aside className="filter-col">
         <div className="filter-col-title">Параметры</div>
 
-        <div style={{ marginBottom: 16 }}>
-          <div className="filter-date-label">Тип отчёта</div>
-          <div className="tab-bar" style={{ display: "flex", width: "100%" }}>
-            <button className="tab active" style={{ flex: 1 }}>День</button>
-            <button className="tab" style={{ flex: 1 }}>Неделя</button>
-          </div>
-        </div>
-
-        <div style={{ marginBottom: 20 }}>
-          <div className="filter-date-label">Дата</div>
-          <input type="date" className="filter-date-input" defaultValue="2026-04-07" />
+        <div className="filter-group" style={{ marginBottom: 20 }}>
+          <ReportGenerateForm />
         </div>
 
         <div className="filter-divider" />
 
-        <div className="filter-group">
-          <div className="filter-group-title">Статистика недели</div>
-          <div className="filter-stat-row">
-            <span className="filter-stat-label" style={{ color: "var(--red)" }}>Инцидентов</span>
-            <span className="filter-stat-val" style={{ color: "var(--red)" }}>8</span>
-          </div>
-          <div className="filter-stat-row">
-            <span className="filter-stat-label" style={{ color: "var(--blue)" }}>Задач</span>
-            <span className="filter-stat-val" style={{ color: "var(--blue)" }}>14</span>
-          </div>
-          <div className="filter-stat-row">
-            <span className="filter-stat-label" style={{ color: "var(--green)" }}>Изменений</span>
-            <span className="filter-stat-val" style={{ color: "var(--green)" }}>5</span>
-          </div>
-          <div className="filter-stat-row">
-            <span className="filter-stat-label">Обслуживание</span>
-            <span className="filter-stat-val">3</span>
+        <div className="filter-group" style={{ marginBottom: 20 }}>
+          <div className="filter-group-title">История генераций</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {(history ?? []).slice(0, 20).map((record) => (
+              <a
+                key={record.id}
+                href={`/reports?report_id=${record.id}`}
+                className={record.id === selectedReportId ? "filter-chip active" : "filter-chip"}
+                style={{ textAlign: "left" }}
+              >
+                <span className="chip-dot" style={{ background: "var(--blue)" }} />
+                {mapReportType(record.report_type)}
+                <span className="chip-count">{record.period_from}</span>
+              </a>
+            ))}
+            {(history ?? []).length === 0 && (
+              <div className="focus-note">
+                <div className="focus-note-label">Нет данных</div>
+                <p>Сначала сгенерируй отчёт через backend API.</p>
+              </div>
+            )}
           </div>
         </div>
 
         <div className="focus-note">
-          <div className="focus-note-label">Подсказка</div>
-          <p>Выбери период и нажми «Сформировать» — отчёт соберётся из журнала.</p>
+          <div className="focus-note-label">Примечание</div>
+          <p>UI работает с уже сгенерированными отчётами: предпросмотр, история и экспорт.</p>
         </div>
       </aside>
 
@@ -80,30 +96,53 @@ export default async function ReportsPage() {
         <div className="page-header">
           <div>
             <div className="page-title">Отчёты</div>
-            <div className="page-sub">Дневные и недельные сводки из журнала</div>
-          </div>
-          <div className="toolbar">
-            <button className="btn btn-primary">Сформировать</button>
+            <div className="page-sub">Предпросмотр, история и экспорт сгенерированных отчётов</div>
           </div>
         </div>
 
-        <div className="section-label">Дневной отчёт · 7 апреля 2026</div>
+        <div className="section-label">
+          {preview ? `${mapReportType(preview.report_type)} · ${preview.period_from} — ${preview.period_to}` : "Отчёт не выбран"}
+        </div>
 
         <div className="report-block">
-          <div className="report-header">
-            <div>
-              <div className="report-header-title">7 апреля 2026</div>
-              <div className="report-header-sub">Автосборка · 4 записи · Шамиль Исаев</div>
+          {preview ? (
+            <>
+              <div className="report-header">
+                <div>
+                  <div className="report-header-title">
+                    {mapReportType(preview.report_type)} · {preview.period_from} — {preview.period_to}
+                  </div>
+                  <div className="report-header-sub">Сформирован: {formatDate(preview.generated_at)} · {user.full_name}</div>
+                  <div className="report-header-sub">Статус: {preview.report_status}</div>
+                  {preview.report_status === "final" && preview.updates_after_finalization > 0 && (
+                    <div className="report-header-sub">
+                      После фиксации добавлено новых записей: {preview.updates_after_finalization}
+                    </div>
+                  )}
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  {preview.report_status === "draft" && <ReportRefreshButton reportId={preview.report_id} />}
+                  {preview.report_status === "draft" && <ReportFinalizeButton reportId={preview.report_id} />}
+                  {preview.report_status === "final" && preview.updates_after_finalization > 0 && (
+                    <ReportRegenerateDraftButton reportId={preview.report_id} />
+                  )}
+                </div>
+              </div>
+              <pre className="export">{preview.content_md}</pre>
+              <div className="export-bar">
+                <span className="export-label">Скачать:</span>
+                <a className="export-btn" href={`${publicApiBaseUrl}/api/v1/reports/${preview.report_id}/export/txt`}>📄 TXT</a>
+                <a className="export-btn" href={`${publicApiBaseUrl}/api/v1/reports/${preview.report_id}/export/md`}>📝 MD</a>
+                <a className="export-btn" href={`${publicApiBaseUrl}/api/v1/reports/${preview.report_id}/export/docx`}>DOCX</a>
+                <a className="export-btn" href={`${publicApiBaseUrl}/api/v1/reports/${preview.report_id}/export/pdf`}>PDF</a>
+              </div>
+            </>
+          ) : (
+            <div className="focus-note">
+              <div className="focus-note-label">Нет выбранного отчёта</div>
+              <p>Сгенерируй отчёт через backend API и открой его из истории.</p>
             </div>
-          </div>
-          <pre className="export">{dailyReport}</pre>
-          <div className="export-bar">
-            <span className="export-label">Скачать:</span>
-            <button className="export-btn">📄 TXT</button>
-            <button className="export-btn">📝 MD</button>
-            <button className="export-btn">📘 DOCX</button>
-            <button className="export-btn">📕 PDF</button>
-          </div>
+          )}
         </div>
       </main>
     </div>

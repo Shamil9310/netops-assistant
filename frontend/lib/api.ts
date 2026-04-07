@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 
-import { SESSION_COOKIE_NAME } from "@/lib/constants";
+import { CSRF_COOKIE_NAME, SESSION_COOKIE_NAME } from "@/lib/constants";
+import { SERVER_API_BASE_URL } from "@/lib/api-url";
 
 export type HealthResponse = {
   status: string;
@@ -9,11 +10,29 @@ export type HealthResponse = {
   timestamp: string;
 };
 
+export type DashboardActivityCounters = {
+  total: number;
+  call: number;
+  ticket: number;
+  meeting: number;
+  task: number;
+  escalation: number;
+  other: number;
+};
+
+export type DashboardStatusCounters = {
+  open: number;
+  in_progress: number;
+  closed: number;
+  cancelled: number;
+};
+
 export type CurrentUser = {
   id: string;
   username: string;
   full_name: string;
   is_active: boolean;
+  role: string;
 };
 
 export type LoginPayload = {
@@ -26,7 +45,207 @@ export type LoginResponse = {
   user: CurrentUser;
 };
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+export type ActivityEntry = {
+  id: string;
+  user_id: string;
+  work_date: string;
+  activity_type: string;
+  status: string;
+  title: string;
+  description: string | null;
+  ticket_number: string | null;
+  started_at: string | null;
+  ended_at: string | null;
+  is_backdated: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type ArchiveResponse = {
+  total: number;
+  limit: number;
+  offset: number;
+  results: ActivityEntry[];
+};
+
+export type ArchiveQueryParams = {
+  q?: string;
+  activity_type?: string;
+  external_ref?: string;
+  ticket_number?: string;
+  date_from?: string;
+  date_to?: string;
+  limit?: number;
+  offset?: number;
+};
+
+export type ReportRecord = {
+  id: string;
+  report_type: string;
+  report_status: string;
+  period_from: string;
+  period_to: string;
+  generated_at: string;
+};
+
+export type ReportPreview = {
+  report_id: string;
+  report_type: string;
+  report_status: string;
+  period_from: string;
+  period_to: string;
+  content_md: string;
+  generated_at: string;
+  updates_after_finalization: number;
+};
+
+export type GenerateReportPayload =
+  | { report_type: "daily"; report_date: string; format_profile?: "engineer" | "manager" }
+  | { report_type: "weekly"; week_start: string; format_profile?: "engineer" | "manager" }
+  | { report_type: "range"; date_from: string; date_to: string; format_profile?: "engineer" | "manager" }
+  | { report_type: "night_work_result"; plan_id: string; format_profile?: "engineer" | "manager" };
+
+export type NightWorkStep = {
+  id: string;
+  block_id: string;
+  title: string;
+  description: string | null;
+  status: string;
+  order_index: number;
+  is_rollback: boolean;
+  is_post_action: boolean;
+  actual_result: string | null;
+  executor_comment: string | null;
+  collaborators: string[];
+  handoff_to: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+  created_at: string;
+};
+
+export type NightWorkBlock = {
+  id: string;
+  plan_id: string;
+  sr_number: string | null;
+  title: string;
+  description: string | null;
+  status: string;
+  order_index: number;
+  started_at: string | null;
+  finished_at: string | null;
+  result_comment: string | null;
+  created_at: string;
+  steps: NightWorkStep[];
+};
+
+export type NightWorkPlan = {
+  id: string;
+  user_id: string;
+  title: string;
+  description: string | null;
+  status: string;
+  scheduled_at: string | null;
+  participants: string[];
+  started_at: string | null;
+  finished_at: string | null;
+  created_at: string;
+  updated_at: string;
+  blocks: NightWorkBlock[];
+};
+
+export type PlanTemplate = {
+  id: string;
+  user_id: string;
+  key: string;
+  name: string;
+  category: string;
+  description: string | null;
+  template_payload: Record<string, unknown>;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type TeamMember = {
+  id: string;
+  username: string;
+  full_name: string;
+  role: string;
+  is_active: boolean;
+  teams: string[];
+};
+
+export type TeamWeeklySummary = {
+  user_id: string;
+  username: string;
+  full_name: string;
+  total_entries: number;
+  by_status: Record<string, number>;
+  by_activity_type: Record<string, number>;
+};
+
+export type JournalActivityType = "call" | "ticket" | "meeting" | "task" | "escalation" | "other";
+export type JournalActivityStatus = "open" | "in_progress" | "closed" | "cancelled";
+
+export type JournalEntry = {
+  id: string;
+  user_id: string;
+  work_date: string;
+  activity_type: JournalActivityType;
+  status: JournalActivityStatus;
+  title: string;
+  description: string | null;
+  ticket_number: string | null;
+  started_at: string | null;
+  ended_at: string | null;
+  is_backdated: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type PlannedEvent = {
+  id: string;
+  user_id: string;
+  event_type: string;
+  title: string;
+  description: string | null;
+  external_ref: string | null;
+  scheduled_at: string;
+  is_completed: boolean;
+  linked_journal_entry_id: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type DayDashboardResponse = {
+  date: string;
+  generated_at: string;
+  activity_counters: DashboardActivityCounters;
+  status_counters: DashboardStatusCounters;
+  timeline: JournalEntry[];
+  planned_today: PlannedEvent[];
+};
+
+export type JournalEntriesResponse = {
+  work_date: string;
+  total: number;
+  items: JournalEntry[];
+};
+
+export type CreateJournalEntryPayload = {
+  work_date: string;
+  activity_type: JournalActivityType;
+  status?: JournalActivityStatus;
+  title: string;
+  description?: string | null;
+  ticket_number?: string | null;
+  started_at?: string | null;
+  ended_at?: string | null;
+};
+
+// Все функции в этом файле выполняются только на сервере (SSR / Route Handlers),
+// поэтому используем SERVER_API_BASE_URL с внутренним адресом backend.
+const API_BASE_URL = SERVER_API_BASE_URL;
 
 export async function getHealth(): Promise<HealthResponse | null> {
   try {
@@ -35,6 +254,29 @@ export async function getHealth(): Promise<HealthResponse | null> {
       return null;
     }
     return (await response.json()) as HealthResponse;
+  } catch {
+    return null;
+  }
+}
+
+export async function getDayDashboard(workDate: string): Promise<DayDashboardResponse | null> {
+  const cookieStore = await cookies();
+  const sessionToken = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+  if (!sessionToken) {
+    return null;
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/v1/dashboard/day?work_date=${workDate}`, {
+      headers: {
+        Cookie: `${SESSION_COOKIE_NAME}=${sessionToken}`,
+      },
+      cache: "no-store",
+    });
+    if (!response.ok) {
+      return null;
+    }
+    return (await response.json()) as DayDashboardResponse;
   } catch {
     return null;
   }
@@ -49,12 +291,16 @@ export async function loginWithBackend(payload: LoginPayload): Promise<Response>
   });
 }
 
-export async function logoutWithBackend(sessionToken: string): Promise<void> {
+export async function logoutWithBackend(sessionToken: string, csrfToken: string | null): Promise<void> {
+  const headers: HeadersInit = {
+    Cookie: `${SESSION_COOKIE_NAME}=${sessionToken}`,
+  };
+  if (csrfToken) {
+    headers["X-CSRF-Token"] = csrfToken;
+  }
   await fetch(`${API_BASE_URL}/api/v1/auth/logout`, {
     method: "POST",
-    headers: {
-      Cookie: `${SESSION_COOKIE_NAME}=${sessionToken}`,
-    },
+    headers,
     cache: "no-store",
   });
 }
@@ -83,4 +329,358 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
   } catch {
     return null;
   }
+}
+
+export async function getArchiveEntries(params: ArchiveQueryParams): Promise<ArchiveResponse | null> {
+  const cookieStore = await cookies();
+  const sessionToken = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+  if (!sessionToken) {
+    return null;
+  }
+
+  const searchParams = new URLSearchParams();
+  if (params.q) searchParams.set("q", params.q);
+  if (params.activity_type) searchParams.set("activity_type", params.activity_type);
+  if (params.external_ref) searchParams.set("external_ref", params.external_ref);
+  if (params.ticket_number) searchParams.set("ticket_number", params.ticket_number);
+  if (params.date_from) searchParams.set("date_from", params.date_from);
+  if (params.date_to) searchParams.set("date_to", params.date_to);
+  if (typeof params.limit === "number") searchParams.set("limit", String(params.limit));
+  if (typeof params.offset === "number") searchParams.set("offset", String(params.offset));
+
+  const queryString = searchParams.toString();
+  const url = `${API_BASE_URL}/api/v1/search/archive${queryString ? `?${queryString}` : ""}`;
+
+  try {
+    const response = await fetch(url, {
+      headers: {
+        Cookie: `${SESSION_COOKIE_NAME}=${sessionToken}`,
+      },
+      cache: "no-store",
+    });
+    if (!response.ok) {
+      return null;
+    }
+    return (await response.json()) as ArchiveResponse;
+  } catch {
+    return null;
+  }
+}
+
+export async function getReportHistory(): Promise<ReportRecord[] | null> {
+  const cookieStore = await cookies();
+  const sessionToken = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+  if (!sessionToken) {
+    return null;
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/v1/reports/history`, {
+      headers: {
+        Cookie: `${SESSION_COOKIE_NAME}=${sessionToken}`,
+      },
+      cache: "no-store",
+    });
+    if (!response.ok) {
+      return null;
+    }
+    return (await response.json()) as ReportRecord[];
+  } catch {
+    return null;
+  }
+}
+
+export async function getReportPreview(reportId: string): Promise<ReportPreview | null> {
+  const cookieStore = await cookies();
+  const sessionToken = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+  if (!sessionToken) {
+    return null;
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/v1/reports/${reportId}`, {
+      headers: {
+        Cookie: `${SESSION_COOKIE_NAME}=${sessionToken}`,
+      },
+      cache: "no-store",
+    });
+    if (!response.ok) {
+      return null;
+    }
+    return (await response.json()) as ReportPreview;
+  } catch {
+    return null;
+  }
+}
+
+export async function refreshReportWithBackend(reportId: string): Promise<Response> {
+  const cookieStore = await cookies();
+  const sessionToken = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+  const csrfToken = cookieStore.get(CSRF_COOKIE_NAME)?.value;
+  if (!sessionToken) {
+    return new Response(JSON.stringify({ detail: "Требуется авторизация" }), {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  const headers: HeadersInit = {
+    "Content-Type": "application/json",
+    Cookie: `${SESSION_COOKIE_NAME}=${sessionToken}`,
+  };
+  if (csrfToken) {
+    headers["X-CSRF-Token"] = csrfToken;
+  }
+
+  return fetch(`${API_BASE_URL}/api/v1/reports/${reportId}/refresh`, {
+    method: "POST",
+    headers,
+    cache: "no-store",
+  });
+}
+
+export async function finalizeReportWithBackend(reportId: string): Promise<Response> {
+  const cookieStore = await cookies();
+  const sessionToken = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+  const csrfToken = cookieStore.get(CSRF_COOKIE_NAME)?.value;
+  if (!sessionToken) {
+    return new Response(JSON.stringify({ detail: "Требуется авторизация" }), {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  const headers: HeadersInit = {
+    "Content-Type": "application/json",
+    Cookie: `${SESSION_COOKIE_NAME}=${sessionToken}`,
+  };
+  if (csrfToken) {
+    headers["X-CSRF-Token"] = csrfToken;
+  }
+
+  return fetch(`${API_BASE_URL}/api/v1/reports/${reportId}/finalize`, {
+    method: "POST",
+    headers,
+    cache: "no-store",
+  });
+}
+
+export async function regenerateDraftReportWithBackend(reportId: string): Promise<Response> {
+  const cookieStore = await cookies();
+  const sessionToken = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+  const csrfToken = cookieStore.get(CSRF_COOKIE_NAME)?.value;
+  if (!sessionToken) {
+    return new Response(JSON.stringify({ detail: "Требуется авторизация" }), {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  const headers: HeadersInit = {
+    "Content-Type": "application/json",
+    Cookie: `${SESSION_COOKIE_NAME}=${sessionToken}`,
+  };
+  if (csrfToken) {
+    headers["X-CSRF-Token"] = csrfToken;
+  }
+
+  return fetch(`${API_BASE_URL}/api/v1/reports/${reportId}/regenerate-draft`, {
+    method: "POST",
+    headers,
+    cache: "no-store",
+  });
+}
+
+export async function generateReportWithBackend(payload: GenerateReportPayload): Promise<Response> {
+  let path = "/api/v1/reports/daily";
+  let body: Record<string, string> = {};
+
+  if (payload.report_type === "daily") {
+    path = "/api/v1/reports/daily";
+    body = { report_date: payload.report_date, format_profile: payload.format_profile ?? "engineer" };
+  } else if (payload.report_type === "weekly") {
+    path = "/api/v1/reports/weekly";
+    body = { week_start: payload.week_start, format_profile: payload.format_profile ?? "engineer" };
+  } else if (payload.report_type === "range") {
+    path = "/api/v1/reports/range";
+    body = {
+      date_from: payload.date_from,
+      date_to: payload.date_to,
+      format_profile: payload.format_profile ?? "engineer",
+    };
+  } else {
+    const formatProfile = payload.format_profile ?? "engineer";
+    path = `/api/v1/reports/night-work/${payload.plan_id}?format_profile=${formatProfile}`;
+    body = {};
+  }
+
+  const cookieStore = await cookies();
+  const sessionToken = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+  const csrfToken = cookieStore.get(CSRF_COOKIE_NAME)?.value;
+  if (!sessionToken) {
+    return new Response(JSON.stringify({ detail: "Требуется авторизация" }), {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  const headers: HeadersInit = {
+    "Content-Type": "application/json",
+    Cookie: `${SESSION_COOKIE_NAME}=${sessionToken}`,
+  };
+  if (csrfToken) {
+    headers["X-CSRF-Token"] = csrfToken;
+  }
+
+  return fetch(`${API_BASE_URL}${path}`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body),
+    cache: "no-store",
+  });
+}
+
+export async function getNightWorkPlans(): Promise<NightWorkPlan[] | null> {
+  const cookieStore = await cookies();
+  const sessionToken = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+  if (!sessionToken) {
+    return null;
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/v1/plans`, {
+      headers: {
+        Cookie: `${SESSION_COOKIE_NAME}=${sessionToken}`,
+      },
+      cache: "no-store",
+    });
+    if (!response.ok) {
+      return null;
+    }
+    return (await response.json()) as NightWorkPlan[];
+  } catch {
+    return null;
+  }
+}
+
+export async function getPlanTemplates(): Promise<PlanTemplate[] | null> {
+  const cookieStore = await cookies();
+  const sessionToken = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+  if (!sessionToken) {
+    return null;
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/v1/templates`, {
+      headers: {
+        Cookie: `${SESSION_COOKIE_NAME}=${sessionToken}`,
+      },
+      cache: "no-store",
+    });
+    if (!response.ok) {
+      return null;
+    }
+    return (await response.json()) as PlanTemplate[];
+  } catch {
+    return null;
+  }
+}
+
+export async function getMyTeamMembers(): Promise<TeamMember[] | null> {
+  const cookieStore = await cookies();
+  const sessionToken = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+  if (!sessionToken) {
+    return null;
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/v1/team/users/my-team`, {
+      headers: {
+        Cookie: `${SESSION_COOKIE_NAME}=${sessionToken}`,
+      },
+      cache: "no-store",
+    });
+    if (!response.ok) {
+      return null;
+    }
+    return (await response.json()) as TeamMember[];
+  } catch {
+    return null;
+  }
+}
+
+export async function getTeamWeeklySummary(weekStart: string): Promise<TeamWeeklySummary[] | null> {
+  const cookieStore = await cookies();
+  const sessionToken = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+  if (!sessionToken) {
+    return null;
+  }
+
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/api/v1/team/users/my-team/summary/weekly?week_start=${weekStart}`,
+      {
+        headers: {
+          Cookie: `${SESSION_COOKIE_NAME}=${sessionToken}`,
+        },
+        cache: "no-store",
+      },
+    );
+    if (!response.ok) {
+      return null;
+    }
+    return (await response.json()) as TeamWeeklySummary[];
+  } catch {
+    return null;
+  }
+}
+
+export async function getJournalEntries(workDate: string): Promise<JournalEntriesResponse | null> {
+  const cookieStore = await cookies();
+  const sessionToken = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+  if (!sessionToken) {
+    return null;
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/v1/journal/entries?work_date=${workDate}`, {
+      headers: {
+        Cookie: `${SESSION_COOKIE_NAME}=${sessionToken}`,
+      },
+      cache: "no-store",
+    });
+    if (!response.ok) {
+      return null;
+    }
+    return (await response.json()) as JournalEntriesResponse;
+  } catch {
+    return null;
+  }
+}
+
+export async function createJournalEntryWithBackend(payload: CreateJournalEntryPayload): Promise<Response> {
+  const cookieStore = await cookies();
+  const sessionToken = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+  const csrfToken = cookieStore.get(CSRF_COOKIE_NAME)?.value;
+  if (!sessionToken) {
+    return new Response(JSON.stringify({ detail: "Требуется авторизация" }), {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+    });
+  }
+
+  const headers: HeadersInit = {
+    "Content-Type": "application/json",
+    Cookie: `${SESSION_COOKIE_NAME}=${sessionToken}`,
+  };
+  if (csrfToken) {
+    headers["X-CSRF-Token"] = csrfToken;
+  }
+
+  return fetch(`${API_BASE_URL}/api/v1/journal/entries`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  });
 }

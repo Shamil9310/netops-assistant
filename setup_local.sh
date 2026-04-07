@@ -84,6 +84,10 @@ else
   ok "Backend .env уже существует"
 fi
 
+# --- Apply DB migrations ---
+alembic upgrade head
+ok "Миграции Alembic применены"
+
 deactivate
 cd ..
 

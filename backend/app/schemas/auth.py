@@ -1,11 +1,17 @@
+from __future__ import annotations
+
 from pydantic import BaseModel, Field
 
 
 class CurrentUserResponse(BaseModel):
+    """Публичное представление пользователя в API-ответах."""
+
     id: str
     username: str
     full_name: str
     is_active: bool
+    # Роль возвращаем фронтенду для управления навигацией и видимостью разделов.
+    role: str
 
 
 class ErrorResponse(BaseModel):

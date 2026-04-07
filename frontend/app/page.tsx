@@ -1,73 +1,104 @@
 import { Sidebar } from "@/components/sidebar";
-import { getHealth } from "@/lib/api";
+import { PlannedEventConvertButton } from "@/components/planned-event-convert-button";
+import { PlannedEventCreateForm } from "@/components/planned-event-create-form";
+import { getDayDashboard, getHealth } from "@/lib/api";
 import { requireUser } from "@/lib/auth";
 
-const timeline = [
-  { time: "10:00", dur: "30 мин", cat: "task",        title: "Обновление NetBox — план миграции",       desc: "Обсуждение плана миграции и рисков отката." },
-  { time: "11:10", dur: "70 мин", cat: "incident",     title: "SR11683266 — Разбор инцидента BGP",       desc: "Проверка BGP-соседства и маршрутов в рабочем контуре." },
-  { time: "13:00", dur: "100 мин", cat: "change",      title: "WA00468580 — Подготовка плана работ",    desc: "Pre-check, rollback и post-check команды." },
-  { time: "15:00", dur: "60 мин",  cat: "maintenance", title: "Актуализация тестового стенда NetBox",    desc: "Версия, LDAP и сценарий миграции." },
-];
+type SearchParams = Record<string, string | string[] | undefined>;
 
-const catLabel: Record<string, string> = {
-  incident:    "Инцидент",
-  task:        "Задача",
-  change:      "Изменение",
-  maintenance: "Обслуживание",
-};
+function toSingleValue(value: string | string[] | undefined): string {
+  if (Array.isArray(value)) {
+    return value[0] ?? "";
+  }
+  return value ?? "";
+}
 
-const reportDraft = `Отчёт за 7 апреля 2026
-Инженер: Шамиль Исаев
+function getTodayIsoDate(): string {
+  return new Date().toISOString().slice(0, 10);
+}
 
-── ЗАДАЧИ ──────────────────────────────────
-  10:00–10:30  (30 мин)
-  Обновление NetBox — план миграции.
+function labelForActivityType(value: string): string {
+  const labels: Record<string, string> = {
+    call: "Звонок",
+    ticket: "Заявка",
+    meeting: "Встреча",
+    task: "Задача",
+    escalation: "Эскалация",
+    other: "Прочее",
+  };
+  return labels[value] ?? value;
+}
 
-── ИНЦИДЕНТЫ ───────────────────────────────
-  11:10–12:20  (70 мин)
-  SR11683266 — Разбор инцидента BGP.
+function labelForStatus(value: string): string {
+  const labels: Record<string, string> = {
+    open: "Открыта",
+    in_progress: "В работе",
+    closed: "Закрыта",
+    cancelled: "Отменена",
+  };
+  return labels[value] ?? value;
+}
 
-── ИЗМЕНЕНИЯ ───────────────────────────────
-  13:00–14:40  (100 мин)
-  WA00468580 — Подготовка плана ночных работ.
+function formatTime(value: string | null): string {
+  if (!value) {
+    return "—";
+  }
+  return value.slice(0, 5);
+}
 
-── ОБСЛУЖИВАНИЕ ────────────────────────────
-  15:00–16:00  (60 мин)
-  Актуализация стенда NetBox.
+function formatDateTime(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+  return new Intl.DateTimeFormat("ru-RU", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
 
-── ИТОГО ───────────────────────────────────
-  Записей: 4  ·  Время: 4ч 20мин`;
-
-export default async function HomePage() {
+export default async function HomePage({ searchParams }: { searchParams?: SearchParams }) {
   const user = await requireUser();
+  const selectedWorkDate = toSingleValue(searchParams?.work_date) || getTodayIsoDate();
   const health = await getHealth();
+  const dashboard = await getDayDashboard(selectedWorkDate);
 
   return (
     <div className="shell">
       <Sidebar user={user} />
 
-      {/* Filter col */}
       <aside className="filter-col">
-        <div className="filter-col-title">Сегодня</div>
+        <div className="filter-col-title">День</div>
+        <form method="GET">
+          <div className="filter-date-label">Рабочая дата</div>
+          <input name="work_date" type="date" className="filter-date-input" defaultValue={selectedWorkDate} />
+          <button className="btn btn-sm" type="submit">Показать</button>
+        </form>
 
-        <div style={{ marginBottom: 20 }}>
-          <div className="filter-date-label">Дата</div>
-          <input type="date" className="filter-date-input" defaultValue="2026-04-07" />
-        </div>
+        <div className="filter-divider" />
+        <PlannedEventCreateForm initialWorkDate={selectedWorkDate} />
 
+        <div className="filter-divider" />
         <div className="filter-group">
-          <div className="filter-group-title">Статистика</div>
+          <div className="filter-group-title">Счётчики</div>
           <div className="filter-stat-row">
-            <span className="filter-stat-label">Созвоны</span>
-            <span className="filter-stat-val" style={{ color: "var(--green)" }}>2ч 20м</span>
+            <span className="filter-stat-label">Всего</span>
+            <span className="filter-stat-val">{dashboard?.activity_counters.total ?? 0}</span>
           </div>
           <div className="filter-stat-row">
-            <span className="filter-stat-label">Заявки</span>
-            <span className="filter-stat-val" style={{ color: "var(--blue)" }}>7</span>
+            <span className="filter-stat-label">Ticket</span>
+            <span className="filter-stat-val">{dashboard?.activity_counters.ticket ?? 0}</span>
           </div>
           <div className="filter-stat-row">
-            <span className="filter-stat-label">Заполненность</span>
-            <span className="filter-stat-val" style={{ color: "var(--amber)" }}>82%</span>
+            <span className="filter-stat-label">Task</span>
+            <span className="filter-stat-val">{dashboard?.activity_counters.task ?? 0}</span>
+          </div>
+          <div className="filter-stat-row">
+            <span className="filter-stat-label">Открыто</span>
+            <span className="filter-stat-val">{dashboard?.status_counters.open ?? 0}</span>
           </div>
           <div className="filter-stat-row" style={{ marginTop: 6 }}>
             <span className="filter-stat-label">Backend</span>
@@ -77,70 +108,71 @@ export default async function HomePage() {
             </span>
           </div>
         </div>
-
-        <div className="focus-note">
-          <div className="focus-note-label">Фокус дня</div>
-          <p>Завершить WA00468580, проверить rollback, собрать дневной отчёт.</p>
-        </div>
       </aside>
 
-      {/* Content */}
       <main className="content-col">
         <div className="page-header">
           <div>
             <div className="page-title">Рабочий день</div>
-            <div className="page-sub">Понедельник, 7 апреля 2026</div>
+            <div className="page-sub">Реальные данные по work_date: {selectedWorkDate}</div>
           </div>
           <div className="toolbar">
-            <button className="btn btn-primary">+ Запись</button>
-            <button className="btn">Отчёт</button>
+            <a className="btn btn-primary" href={`/journal?work_date=${selectedWorkDate}`}>+ Запись</a>
+            <a className="btn" href="/reports">Отчёт</a>
           </div>
         </div>
 
-        {/* Timeline */}
         <div className="section-label">Лента дня</div>
-        <div className="day-group">
-          <div className="entry-list">
-            {timeline.map((e) => (
-              <div key={e.title} className="entry-item">
-                <div className={`entry-accent-bar ${e.cat}`} />
-                <div className="entry-body">
-                  <div className="entry-head">
-                    <span className={`badge ${e.cat}`}>
-                      <span className={`badge-dot ${e.cat}`} />
-                      {catLabel[e.cat]}
-                    </span>
-                    <span className="entry-title">{e.title}</span>
-                    <span className="entry-time">{e.time} · {e.dur}</span>
-                  </div>
-                  <div className="entry-desc">{e.desc}</div>
-                </div>
-                <div className="entry-actions">
-                  <button className="btn btn-sm btn-ghost">✎</button>
-                  <button className="btn btn-sm btn-danger">✕</button>
-                </div>
+        <div className="plan-list">
+          {(dashboard?.timeline ?? []).length === 0 && (
+            <div className="plan-item">
+              <div className="plan-info">
+                <div className="plan-title">Записей за выбранную дату нет</div>
+                <div className="plan-sub">Создай запись через журнал.</div>
               </div>
-            ))}
-          </div>
+            </div>
+          )}
+          {(dashboard?.timeline ?? []).map((entry) => (
+            <div key={entry.id} className="plan-item">
+              <div className="plan-icon status">●</div>
+              <div className="plan-info">
+                <div className="plan-title">{entry.title}</div>
+                <div className="plan-sub">
+                  {labelForActivityType(entry.activity_type)} · {labelForStatus(entry.status)} · {formatTime(entry.started_at)}-{formatTime(entry.ended_at)}
+                </div>
+                {entry.ticket_number && <div className="plan-sub">Ticket: {entry.ticket_number}</div>}
+                {entry.description && <div className="plan-sub">{entry.description}</div>}
+              </div>
+            </div>
+          ))}
         </div>
 
-        {/* Report draft */}
-        <div className="section-label">Черновик отчёта</div>
-        <div className="report-block">
-          <div className="report-header">
-            <div>
-              <div className="report-header-title">7 апреля 2026</div>
-              <div className="report-header-sub">Автосборка · 4 записи</div>
+        <div className="section-label">Плановые события дня</div>
+        <div className="plan-list">
+          {(dashboard?.planned_today ?? []).length === 0 && (
+            <div className="plan-item">
+              <div className="plan-info">
+                <div className="plan-title">Плановых событий нет</div>
+                <div className="plan-sub">На эту рабочую дату ещё ничего не запланировано.</div>
+              </div>
             </div>
-          </div>
-          <pre className="export">{reportDraft}</pre>
-          <div className="export-bar">
-            <span className="export-label">Скачать:</span>
-            <button className="export-btn">📄 TXT</button>
-            <button className="export-btn">📝 MD</button>
-            <button className="export-btn">📘 DOCX</button>
-            <button className="export-btn">📕 PDF</button>
-          </div>
+          )}
+          {(dashboard?.planned_today ?? []).map((event) => (
+            <div key={event.id} className="plan-item">
+              <div className="plan-icon plan">◉</div>
+              <div className="plan-info">
+                <div className="plan-title">{event.title}</div>
+                <div className="plan-sub">
+                  {event.event_type} · {formatDateTime(event.scheduled_at)} · completed: {String(event.is_completed)}
+                </div>
+                {event.external_ref && <div className="plan-sub">Ref: {event.external_ref}</div>}
+                {event.description && <div className="plan-sub">{event.description}</div>}
+              </div>
+              <div className="plan-actions">
+                <PlannedEventConvertButton eventId={event.id} />
+              </div>
+            </div>
+          ))}
         </div>
       </main>
     </div>

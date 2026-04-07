@@ -13,11 +13,19 @@ services:
   backend:
     build:
       context: ./backend
+    env_file:
+      # Локальный .env с секретами — не коммитится в репозиторий.
+      # Скопируй для старта: cp backend/.env.development backend/.env
+      - path: ./backend/.env
+        required: false
     environment:
+      # Значения ниже — дефолты для локального docker-compose (development).
+      # Переменные из env_file выше имеют меньший приоритет, чем environment.
       NETOPS_ASSISTANT_APP_NAME: NetOps Assistant API
       NETOPS_ASSISTANT_ENVIRONMENT: development
+      # DATABASE_URL использует имя сервиса postgres — это внутренний адрес docker-сети.
       NETOPS_ASSISTANT_DATABASE_URL: postgresql+asyncpg://netops:netops@postgres:5432/netops_assistant
-      NETOPS_ASSISTANT_SECRET_KEY: change-me
+      NETOPS_ASSISTANT_SECRET_KEY: dev-only-change-me
       NETOPS_ASSISTANT_CORS_ORIGINS: '["http://localhost:3000"]'
       NETOPS_ASSISTANT_SESSION_COOKIE_NAME: netops_session
       NETOPS_ASSISTANT_SESSION_TTL_HOURS: 12
@@ -32,7 +40,19 @@ services:
   frontend:
     build:
       context: ./frontend
+    env_file:
+      # Локальный .env.local с настройками frontend — не коммитится в репозиторий.
+      # Скопируй для старта: cp frontend/.env.development frontend/.env.local
+      - path: ./frontend/.env.local
+        required: false
     environment:
+      # INTERNAL_API_BASE_URL — адрес backend внутри docker-сети.
+      # Используется для SSR-запросов: frontend-контейнер обращается к backend
+      # напрямую по имени сервиса, не выходя в публичный интернет.
+      INTERNAL_API_BASE_URL: http://backend:8000
+      # NEXT_PUBLIC_API_BASE_URL — публичный адрес backend, доступный из браузера.
+      # Встраивается в JS-бандл при сборке Next.js. Должен быть доступен
+      # с машины конечного пользователя (не из контейнера).
       NEXT_PUBLIC_API_BASE_URL: http://localhost:8000
     ports:
       - "3000:3000"

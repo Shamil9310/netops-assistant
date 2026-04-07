@@ -1,49 +1,15 @@
-"use client";
+type LoginFormProps = {
+  has_error?: boolean;
+};
 
-import { useRouter } from "next/navigation";
-import { FormEvent, useState } from "react";
-
-export function LoginForm() {
-  const router = useRouter();
-  const [username, setUsername] = useState("engineer");
-  const [password, setPassword] = useState("engineer123");
-  const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError(null);
-    setIsLoading(true);
-
-    try {
-      const response = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
-      });
-
-      if (!response.ok) {
-        const body = (await response.json()) as { detail?: string };
-        setError(body.detail ?? "Не удалось выполнить вход");
-        return;
-      }
-
-      router.push("/");
-      router.refresh();
-    } catch {
-      setError("Не удалось подключиться к приложению");
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
+export function LoginForm({ has_error = false }: LoginFormProps) {
   return (
-    <form className="auth-form" onSubmit={handleSubmit}>
+    <form className="auth-form" method="post" action="/api/auth/login">
       <label className="field">
         <span className="field-label">Логин</span>
         <input
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
+          name="username"
+          defaultValue="engineer"
           placeholder="engineer"
           autoComplete="username"
         />
@@ -52,18 +18,22 @@ export function LoginForm() {
       <label className="field">
         <span className="field-label">Пароль</span>
         <input
+          name="password"
           type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
+          defaultValue="engineer123"
           placeholder="Введите пароль"
           autoComplete="current-password"
         />
       </label>
 
-      {error && <div className="form-error">{error}</div>}
+      {has_error && (
+        <div className="form-error">
+          Не удалось выполнить вход. Проверь логин и пароль.
+        </div>
+      )}
 
-      <button className="btn btn-primary auth-submit" type="submit" disabled={isLoading}>
-        {isLoading ? "Вход..." : "Войти"}
+      <button className="btn btn-primary auth-submit" type="submit">
+        Войти
       </button>
     </form>
   );

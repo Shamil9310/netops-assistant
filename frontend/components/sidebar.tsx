@@ -6,15 +6,37 @@ import { usePathname } from "next/navigation";
 import type { CurrentUser } from "@/lib/api";
 import { LogoutButton } from "@/components/logout-button";
 
-const items = [
-  { href: "/",        icon: "◈", label: "Сегодня"  },
-  { href: "/journal", icon: "☰", label: "Журнал"   },
-  { href: "/reports", icon: "⬡", label: "Отчёты"   },
-  { href: "/plans",   icon: "◻", label: "Планы"    },
-];
+function getSections(role: string) {
+  const baseSections = [
+    {
+      title: "Работа",
+      items: [
+        { href: "/", icon: "◈", label: "Сегодня" },
+        { href: "/journal", icon: "☰", label: "Журнал" },
+        { href: "/reports", icon: "⬡", label: "Отчёты" },
+        { href: "/plans", icon: "◻", label: "Ночные работы" },
+        { href: "/templates", icon: "◎", label: "Шаблоны" },
+        { href: "/archive", icon: "▣", label: "Архив" },
+      ],
+    },
+    {
+      title: "Команда",
+      items: [{ href: "/team", icon: "◉", label: "Команда" }],
+    },
+  ];
+
+  if (role === "developer") {
+    baseSections.push({
+      title: "Сервис",
+      items: [{ href: "/developer", icon: "◌", label: "Developer" }],
+    });
+  }
+  return baseSections;
+}
 
 export function Sidebar({ user }: { user: CurrentUser }) {
   const pathname = usePathname();
+  const sections = getSections(user.role);
   const initials = user.full_name
     .split(" ")
     .slice(0, 2)
@@ -32,15 +54,16 @@ export function Sidebar({ user }: { user: CurrentUser }) {
       </div>
 
       <nav className="nav">
-        {items.map(({ href, icon, label }) => (
-          <Link
-            key={href}
-            href={href}
-            className={pathname === href ? "active" : ""}
-          >
-            <span className="nav-icon">{icon}</span>
-            {label}
-          </Link>
+        {sections.map((section) => (
+          <div key={section.title}>
+            <div className="nav-section">{section.title}</div>
+            {section.items.map(({ href, icon, label }) => (
+              <Link key={href} href={href} className={pathname === href ? "active" : ""}>
+                <span className="nav-icon">{icon}</span>
+                {label}
+              </Link>
+            ))}
+          </div>
         ))}
       </nav>
 
