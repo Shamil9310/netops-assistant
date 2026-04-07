@@ -12,9 +12,11 @@ tests/test_config.py
 tests/test_dashboard_service.py
 tests/test_developer_metrics_service.py
 tests/test_export_service.py
+tests/test_journal_schemas.py
 tests/test_journal_service.py
 tests/test_manager_dashboard_service.py
 tests/test_night_work_service.py
+tests/test_planned_event_conversion_service.py
 tests/test_planned_event_service.py
 tests/test_rbac.py
 tests/test_reports_service.py
