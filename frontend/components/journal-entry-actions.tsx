@@ -16,6 +16,7 @@ type Props = {
   currentDescription: string | null;
   currentResolution: string | null;
   currentContact: string | null;
+  currentTaskUrl: string | null;
 };
 
 export function JournalEntryActions({
@@ -28,6 +29,7 @@ export function JournalEntryActions({
   currentDescription,
   currentResolution,
   currentContact,
+  currentTaskUrl,
 }: Props) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
@@ -76,6 +78,7 @@ export function JournalEntryActions({
           description={currentDescription}
           resolution={currentResolution}
           contact={currentContact}
+          taskUrl={currentTaskUrl}
           onClose={() => setIsModalOpen(false)}
         />
       )}

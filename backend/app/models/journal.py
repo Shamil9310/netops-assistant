@@ -79,11 +79,9 @@ class ActivityEntry(Base):
 
     # Описание — детали, действия, результаты. Опционально.
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
-
-    # Решение — что было сделано для устранения проблемы/выполнения заявки.
+    # Что было сделано для решения задачи.
     resolution: Mapped[str | None] = mapped_column(Text, nullable=True)
-
-    # Контакт — от кого пришла заявка/задача (имя, отдел, email).
+    # От кого пришла задача: имя, отдел, email, телефон.
     contact: Mapped[str | None] = mapped_column(String(256), nullable=True)
 
     # Номер заявки/SR/тикета во внешней системе — для привязки к ITSM.
@@ -91,6 +89,8 @@ class ActivityEntry(Base):
     # Явное поле тикета для нового контракта journal API.
     # На этапе миграции поддерживаем оба поля: ticket_number и external_ref.
     ticket_number: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
+    # Ссылка на карточку задачи во внешней системе, например в BPM.
+    task_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
 
     # Время фактического начала активности (может отличаться от created_at).
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

@@ -36,6 +36,7 @@ class ActivityEntryCreateRequest(BaseModel):
     resolution: str | None = Field(default=None, max_length=5000)
     contact: str | None = Field(default=None, max_length=256)
     ticket_number: str | None = Field(default=None, max_length=64)
+    task_url: str | None = Field(default=None, max_length=2048)
     started_at: time | None = None
     ended_at: time | None = None
 
@@ -47,7 +48,7 @@ class ActivityEntryCreateRequest(BaseModel):
         если указано и начало, и окончание, окончание не может быть раньше начала.
         """
         if self.started_at and self.ended_at and self.ended_at < self.started_at:
-            raise ValueError("Время окончания не может быть раньше времени начала")
+            raise ValueError("Время окончания не может быть раньше начала")
 
         return self
 
@@ -63,6 +64,7 @@ class ActivityEntryUpdateRequest(BaseModel):
     resolution: str | None = Field(default=None, max_length=5000)
     contact: str | None = Field(default=None, max_length=256)
     ticket_number: str | None = Field(default=None, max_length=64)
+    task_url: str | None = Field(default=None, max_length=2048)
     started_at: time | None = None
     ended_at: time | None = None
 
@@ -87,6 +89,7 @@ class ActivityEntryResponse(BaseModel):
     resolution: str | None
     contact: str | None
     ticket_number: str | None
+    task_url: str | None
     started_at: time | None
     ended_at: time | None
     is_backdated: bool

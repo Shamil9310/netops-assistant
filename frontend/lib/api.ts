@@ -53,7 +53,10 @@ export type ActivityEntry = {
   status: string;
   title: string;
   description: string | null;
+  resolution: string | null;
+  contact: string | null;
   ticket_number: string | null;
+  task_url: string | null;
   started_at: string | null;
   ended_at: string | null;
   is_backdated: boolean;
@@ -198,6 +201,7 @@ export type JournalEntry = {
   resolution: string | null;
   contact: string | null;
   ticket_number: string | null;
+  task_url: string | null;
   started_at: string | null;
   ended_at: string | null;
   is_backdated: boolean;
@@ -243,6 +247,7 @@ export type CreateJournalEntryPayload = {
   resolution?: string | null;
   contact?: string | null;
   ticket_number?: string | null;
+  task_url?: string | null;
   started_at?: string | null;
   ended_at?: string | null;
 };

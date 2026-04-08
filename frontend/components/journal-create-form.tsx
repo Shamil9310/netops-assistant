@@ -42,6 +42,7 @@ export function JournalCreateForm({ initialWorkDate, lastEndedAt }: Props) {
   const [resolution, setResolution] = useState("");
   const [contact, setContact] = useState("");
   const [ticketNumber, setTicketNumber] = useState("");
+  const [taskUrl, setTaskUrl] = useState("");
   const [startedAt, setStartedAt] = useState(toTimeInputValue(lastEndedAt));
   const [endedAt, setEndedAt] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -101,6 +102,7 @@ export function JournalCreateForm({ initialWorkDate, lastEndedAt }: Props) {
           resolution: resolution || null,
           contact: contact || null,
           ticket_number: ticketNumber || null,
+          task_url: taskUrl || null,
           started_at: startedAt || null,
           ended_at: endedAt || null,
         }),
@@ -115,6 +117,7 @@ export function JournalCreateForm({ initialWorkDate, lastEndedAt }: Props) {
       setResolution("");
       setContact("");
       setTicketNumber("");
+      setTaskUrl("");
       setStartedAt(endedAt || startedAt);
       setEndedAt("");
       router.push(`/journal?work_date=${workDate}`);
@@ -149,6 +152,7 @@ export function JournalCreateForm({ initialWorkDate, lastEndedAt }: Props) {
 
       <input className="filter-date-input" placeholder="SR / Ticket" value={ticketNumber} onChange={(event) => setTicketNumber(event.target.value)} />
       <input className="filter-date-input" placeholder="Контакт (от кого пришло)" value={contact} onChange={(event) => setContact(event.target.value)} />
+      <input className="filter-date-input" placeholder="Ссылка на задачу (BPM и т.п.)" value={taskUrl} onChange={(event) => setTaskUrl(event.target.value)} />
       <input type="time" className="filter-date-input" value={startedAt} onChange={(event) => setStartedAt(event.target.value)} />
       <input type="time" className="filter-date-input" value={endedAt} onChange={(event) => setEndedAt(event.target.value)} />
       <textarea className="filter-date-input" placeholder="Описание" value={description} onChange={(event) => setDescription(event.target.value)} />

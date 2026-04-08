@@ -15,6 +15,7 @@ type Props = {
   description: string | null;
   resolution: string | null;
   contact: string | null;
+  taskUrl: string | null;
   onClose: () => void;
 };
 
@@ -32,12 +33,11 @@ const STATUS_COLORS: Record<JournalActivityStatus, string> = {
   cancelled: "var(--text-3)",
 };
 
-// Статусы в которые можно перейти из текущего
 const ALLOWED_TRANSITIONS: Record<JournalActivityStatus, JournalActivityStatus[]> = {
-  open:        ["in_progress", "closed", "cancelled"],
+  open: ["in_progress", "closed", "cancelled"],
   in_progress: ["closed", "cancelled"],
-  closed:      [],
-  cancelled:   [],
+  closed: [],
+  cancelled: [],
 };
 
 export function JournalEntryModal({
@@ -50,6 +50,7 @@ export function JournalEntryModal({
   description,
   resolution,
   contact,
+  taskUrl,
   onClose,
 }: Props) {
   const router = useRouter();
@@ -57,6 +58,7 @@ export function JournalEntryModal({
   const [editDescription, setEditDescription] = useState(description ?? "");
   const [editResolution, setEditResolution] = useState(resolution ?? "");
   const [editContact, setEditContact] = useState(contact ?? "");
+  const [editTaskUrl, setEditTaskUrl] = useState(taskUrl ?? "");
   const [editStatus, setEditStatus] = useState<JournalActivityStatus>(status);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -81,6 +83,7 @@ export function JournalEntryModal({
           description: editDescription || null,
           resolution: editResolution || null,
           contact: editContact || null,
+          task_url: editTaskUrl || null,
         }),
       });
       if (!response.ok) {
@@ -142,7 +145,6 @@ export function JournalEntryModal({
         </div>
 
         <div className="modal-body">
-          {/* Быстрая смена статуса */}
           {transitions.length > 0 && !isEditing && (
             <div>
               <div className="modal-field-label">Перевести в статус</div>
@@ -162,7 +164,36 @@ export function JournalEntryModal({
             </div>
           )}
 
-          {/* Контакт */}
+          <div>
+            <div className="modal-field-label">Ссылка на задачу</div>
+            {!isEditing && (
+              <div className="modal-field-hint">Ссылка на BPM, SR, карточку заявки или внешний источник задачи.</div>
+            )}
+            {isEditing ? (
+              <input
+                className="filter-date-input"
+                value={editTaskUrl}
+                onChange={(e) => setEditTaskUrl(e.target.value)}
+                placeholder="https://..."
+                style={{ marginBottom: 0 }}
+              />
+            ) : (
+              taskUrl ? (
+                <a
+                  className="modal-field-text"
+                  href={taskUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ wordBreak: "break-all" }}
+                >
+                  {taskUrl}
+                </a>
+              ) : (
+                <div className="modal-field-empty">Не заполнено</div>
+              )
+            )}
+          </div>
+
           <div>
             <div className="modal-field-label">Контакт</div>
             {!isEditing && (
@@ -183,7 +214,6 @@ export function JournalEntryModal({
             )}
           </div>
 
-          {/* Описание */}
           <div>
             <div className="modal-field-label">Описание</div>
             {!isEditing && (
@@ -205,7 +235,6 @@ export function JournalEntryModal({
             )}
           </div>
 
-          {/* Решение */}
           <div>
             <div className="modal-field-label">Решение</div>
             {!isEditing && (
@@ -227,7 +256,6 @@ export function JournalEntryModal({
             )}
           </div>
 
-          {/* Статус в режиме редактирования */}
           {isEditing && (
             <div>
               <div className="modal-field-label">Статус</div>
@@ -251,7 +279,18 @@ export function JournalEntryModal({
         <div className="modal-footer">
           {isEditing ? (
             <>
-              <button className="btn btn-sm" onClick={() => { setIsEditing(false); setEditStatus(status); }} disabled={isLoading}>
+              <button
+                className="btn btn-sm"
+                onClick={() => {
+                  setIsEditing(false);
+                  setEditStatus(status);
+                  setEditDescription(description ?? "");
+                  setEditResolution(resolution ?? "");
+                  setEditContact(contact ?? "");
+                  setEditTaskUrl(taskUrl ?? "");
+                }}
+                disabled={isLoading}
+              >
                 Отмена
               </button>
               <button className="btn btn-sm btn-primary" onClick={onSave} disabled={isLoading}>
@@ -259,9 +298,14 @@ export function JournalEntryModal({
               </button>
             </>
           ) : (
-            <button className="btn btn-sm" onClick={() => setIsEditing(true)}>
-              Редактировать
-            </button>
+            <>
+              <button className="btn btn-sm" onClick={onClose}>
+                Закрыть
+              </button>
+              <button className="btn btn-sm btn-primary" onClick={() => setIsEditing(true)}>
+                Редактировать
+              </button>
+            </>
           )}
         </div>
       </div>

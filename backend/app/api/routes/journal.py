@@ -60,6 +60,7 @@ def to_activity_entry_response(activity_entry) -> ActivityEntryResponse:
         resolution=activity_entry.resolution,
         contact=activity_entry.contact,
         ticket_number=activity_entry.ticket_number,
+        task_url=activity_entry.task_url,
         started_at=activity_entry.started_at.timetz().replace(tzinfo=None) if activity_entry.started_at else None,
         ended_at=activity_entry.finished_at.timetz().replace(tzinfo=None) if activity_entry.finished_at else None,
         is_backdated=activity_entry.created_at.date() > activity_entry.work_date,

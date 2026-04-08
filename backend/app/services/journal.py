@@ -62,6 +62,7 @@ async def create_activity_entry(
         contact=payload.contact.strip() if payload.contact else None,
         external_ref=payload.ticket_number.strip() if payload.ticket_number else None,
         ticket_number=payload.ticket_number.strip() if payload.ticket_number else None,
+        task_url=payload.task_url.strip() if payload.task_url else None,
         started_at=started_at_dt,
         finished_at=ended_at_dt,
     )
@@ -111,6 +112,8 @@ async def update_activity_entry(
         normalized_ticket = payload.ticket_number.strip() if payload.ticket_number else None
         entry.ticket_number = normalized_ticket
         entry.external_ref = normalized_ticket
+    if payload.task_url is not None:
+        entry.task_url = payload.task_url.strip() if payload.task_url else None
 
     effective_work_date = payload.work_date if payload.work_date is not None else entry.work_date
     if payload.started_at is not None:

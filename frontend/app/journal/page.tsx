@@ -97,6 +97,13 @@ export default async function JournalPage({ searchParams }: { searchParams?: Sea
                 </div>
                 {item.is_backdated && <div className="plan-sub">Добавлено задним числом</div>}
                 {item.ticket_number && <div className="plan-sub">Ticket: {item.ticket_number}</div>}
+                {item.task_url && (
+                  <div className="plan-sub">
+                    <a href={item.task_url} target="_blank" rel="noreferrer">
+                      Открыть задачу
+                    </a>
+                  </div>
+                )}
                 {item.description && <div className="plan-sub">{item.description}</div>}
                 {item.resolution && <div className="plan-sub"><strong>Решение:</strong> {item.resolution}</div>}
               </div>
@@ -111,6 +118,7 @@ export default async function JournalPage({ searchParams }: { searchParams?: Sea
                   currentDescription={item.description}
                   currentResolution={item.resolution}
                   currentContact={item.contact}
+                  currentTaskUrl={item.task_url}
                 />
               </div>
             </div>
