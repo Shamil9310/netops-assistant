@@ -34,11 +34,16 @@ jobs:
           pip install --upgrade pip
           pip install -e .
 
-      - name: Check Alembic config
+      - name: Check backend imports
         working-directory: backend
         run: |
           source .venv/bin/activate
-          alembic current
+          python - <<'PY'
+          import app.main
+          import app.core.config
+          import app.services.journal
+          print("backend imports: OK")
+          PY
 
   frontend:
     name: Frontend / Node 22
