@@ -1,17 +1,25 @@
-"""Тесты auth provider abstraction и LDAP group-to-role mapping."""
+"""Тесты слоя аутентификации и сопоставления LDAP-групп с ролями приложения."""
 
 from __future__ import annotations
 
 from app.models.user import UserRole
-from app.services.auth_provider import parse_ldap_group_role_map, resolve_role_from_ldap_groups
+from app.services.auth_provider import (
+    parse_ldap_group_role_map,
+    resolve_role_from_ldap_groups,
+)
 
 
 def test_parse_ldap_group_role_map_happy_path() -> None:
-    """Проверяет корректный разбор строки маппинга LDAP групп в роли."""
+    """Проверяет корректный разбор строки сопоставления LDAP-групп и ролей."""
     raw = "cn=netops-managers,ou=groups,dc=corp,dc=local:manager; cn=netops-dev,ou=groups,dc=corp,dc=local:developer"
     parsed = parse_ldap_group_role_map(raw)
-    assert parsed["cn=netops-managers,ou=groups,dc=corp,dc=local"] == UserRole.MANAGER.value
-    assert parsed["cn=netops-dev,ou=groups,dc=corp,dc=local"] == UserRole.DEVELOPER.value
+    assert (
+        parsed["cn=netops-managers,ou=groups,dc=corp,dc=local"]
+        == UserRole.MANAGER.value
+    )
+    assert (
+        parsed["cn=netops-dev,ou=groups,dc=corp,dc=local"] == UserRole.DEVELOPER.value
+    )
 
 
 def test_parse_ldap_group_role_map_ignores_invalid_role() -> None:
@@ -40,7 +48,7 @@ def test_resolve_role_from_ldap_groups_fallback_to_default() -> None:
 
 
 def test_resolve_role_from_ldap_groups_invalid_default() -> None:
-    """Некорректный default_role заменяется на employee (least privilege)."""
+    """Некорректная роль по умолчанию заменяется на employee с минимальными правами."""
     groups = []
     role = resolve_role_from_ldap_groups(groups, "", default_role="superadmin")
     assert role == UserRole.EMPLOYEE.value

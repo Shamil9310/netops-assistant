@@ -5,6 +5,7 @@ __pycache__/
 .venv/
 .pytest_cache/
 .mypy_cache/
+*.egg-info/
 
 # Node
 node_modules/
@@ -20,3 +21,6 @@ out/
 .DS_Store
 .vscode/
 .idea/
+
+# Local runtime
+.dev_runtime/

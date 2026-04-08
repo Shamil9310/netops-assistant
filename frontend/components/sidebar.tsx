@@ -28,7 +28,10 @@ function getSections(role: string) {
   if (role === "developer") {
     baseSections.push({
       title: "Сервис",
-      items: [{ href: "/developer", icon: "◌", label: "Developer" }],
+      items: [
+        { href: "/developer", icon: "◌", label: "Разработчик" },
+        { href: "/developer/users", icon: "◎", label: "Учётные записи" },
+      ],
     });
   }
   return baseSections;
@@ -47,11 +50,11 @@ export function Sidebar({ user }: { user: CurrentUser }) {
     <aside className="nav-col">
       <div className="brand">
         <div className="brand-mark">NA</div>
-        <div>
-          <div className="brand-title">NetOps Assistant</div>
-          <div className="brand-subtitle">Engineer Workspace</div>
+          <div>
+            <div className="brand-title">NetOps Assistant</div>
+            <div className="brand-subtitle">Рабочее пространство инженера</div>
+          </div>
         </div>
-      </div>
 
       <nav className="nav">
         {sections.map((section) => (

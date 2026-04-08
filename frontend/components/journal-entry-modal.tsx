@@ -10,8 +10,10 @@ type Props = {
   ticketNumber: string | null;
   activityType: string;
   status: JournalActivityStatus;
+  workDate: string;
   startedAt: string | null;
   endedAt: string | null;
+  endedDate: string | null;
   description: string | null;
   resolution: string | null;
   contact: string | null;
@@ -45,8 +47,10 @@ export function JournalEntryModal({
   ticketNumber,
   activityType,
   status,
+  workDate,
   startedAt,
   endedAt,
+  endedDate,
   description,
   resolution,
   contact,
@@ -60,8 +64,15 @@ export function JournalEntryModal({
   const [editContact, setEditContact] = useState(contact ?? "");
   const [editTaskUrl, setEditTaskUrl] = useState(taskUrl ?? "");
   const [editStatus, setEditStatus] = useState<JournalActivityStatus>(status);
+  const [editStartedAt, setEditStartedAt] = useState(startedAt ? startedAt.slice(11, 16) : "");
+  const [editEndedAt, setEditEndedAt] = useState(endedAt ? endedAt.slice(11, 16) : "");
+  const [editEndedDate, setEditEndedDate] = useState(endedDate ?? workDate);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const hasCrossMidnightRange = Boolean(
+    editStartedAt && editEndedAt && editEndedDate === workDate && editEndedAt < editStartedAt,
+  );
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
@@ -74,6 +85,21 @@ export function JournalEntryModal({
   async function onSave() {
     setError(null);
     setIsLoading(true);
+
+    if (editEndedDate < workDate) {
+      setError("Дата окончания не может быть раньше рабочей даты");
+      setIsLoading(false);
+      return;
+    }
+
+    // В модалке действуют те же правила, что и при создании записи:
+    // для одной даты окончание не может быть раньше начала.
+    if (hasCrossMidnightRange) {
+      setError("Время окончания не может быть раньше времени начала");
+      setIsLoading(false);
+      return;
+    }
+
     try {
       const response = await fetch(`/api/journal/entries/${entryId}`, {
         method: "PATCH",
@@ -84,11 +110,14 @@ export function JournalEntryModal({
           resolution: editResolution || null,
           contact: editContact || null,
           task_url: editTaskUrl || null,
+          started_at: editStartedAt || null,
+          ended_at: editEndedAt || null,
+          ended_date: editEndedAt ? editEndedDate : null,
         }),
       });
       if (!response.ok) {
-        const body = (await response.json()) as { detail?: string };
-        setError(body.detail ?? "Ошибка обновления");
+        const responsePayload = (await response.json()) as { detail?: string };
+        setError(responsePayload.detail ?? "Ошибка обновления");
         return;
       }
       setIsEditing(false);
@@ -105,14 +134,16 @@ export function JournalEntryModal({
     setIsLoading(true);
     setError(null);
     try {
+      // Быстрое изменение статуса не меняет остальные поля записи
+      // и используется как короткое действие прямо из карточки.
       const response = await fetch(`/api/journal/entries/${entryId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status: newStatus }),
       });
       if (!response.ok) {
-        const body = (await response.json()) as { detail?: string };
-        setError(body.detail ?? "Ошибка обновления статуса");
+        const responsePayload = (await response.json()) as { detail?: string };
+        setError(responsePayload.detail ?? "Ошибка обновления статуса");
         return;
       }
       router.refresh();
@@ -124,7 +155,8 @@ export function JournalEntryModal({
     }
   }
 
-  const formatTime = (t: string | null) => (t ? t.slice(0, 5) : "—");
+  const formatClockTime = (timeValue: string | null) =>
+    timeValue ? timeValue.slice(0, 5) : "—";
   const transitions = ALLOWED_TRANSITIONS[status];
 
   return (
@@ -138,7 +170,7 @@ export function JournalEntryModal({
               <span>·</span>
               <span style={{ color: STATUS_COLORS[status], fontWeight: 600 }}>{STATUS_LABELS[status]}</span>
               <span>·</span>
-              <span>{formatTime(startedAt)}–{formatTime(endedAt)}</span>
+              <span>{formatClockTime(startedAt)}–{formatClockTime(endedAt)}</span>
             </div>
           </div>
           <button className="modal-close" onClick={onClose}>✕</button>
@@ -163,6 +195,58 @@ export function JournalEntryModal({
               </div>
             </div>
           )}
+
+          <div>
+            <div className="modal-field-label">Время</div>
+            {!isEditing && (
+              <div className="modal-field-hint">
+                Для той же даты время окончания не должно быть раньше времени начала.
+              </div>
+            )}
+            {isEditing ? (
+              <>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                  <input
+                    type="time"
+                    className="filter-date-input"
+                    value={editStartedAt}
+                    onChange={(e) => setEditStartedAt(e.target.value)}
+                    style={{ marginBottom: 0 }}
+                  />
+                  <input
+                    type="time"
+                    className="filter-date-input"
+                    value={editEndedAt}
+                    onChange={(e) => setEditEndedAt(e.target.value)}
+                    style={{ marginBottom: 0 }}
+                  />
+                </div>
+                <input
+                  type="date"
+                  className="filter-date-input"
+                  value={editEndedDate}
+                  onChange={(e) => setEditEndedDate(e.target.value)}
+                  style={{ marginBottom: 0, marginTop: 8 }}
+                />
+                {hasCrossMidnightRange && (
+                  <div className="focus-note" style={{ marginTop: 10 }}>
+                    <div className="focus-note-label">Предупреждение</div>
+                    <p>
+                      Для той же даты время окончания не может быть раньше
+                      времени начала. Если задача закрыта на следующий день,
+                      укажи другую дату окончания.
+                    </p>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="modal-field-text">
+                {workDate === (endedDate ?? workDate)
+                  ? `${formatClockTime(startedAt)}–${formatClockTime(endedAt)}`
+                  : `${workDate} ${formatClockTime(startedAt)} → ${endedDate ?? workDate} ${formatClockTime(endedAt)}`}
+              </div>
+            )}
+          </div>
 
           <div>
             <div className="modal-field-label">Ссылка на задачу</div>
@@ -288,6 +372,9 @@ export function JournalEntryModal({
                   setEditResolution(resolution ?? "");
                   setEditContact(contact ?? "");
                   setEditTaskUrl(taskUrl ?? "");
+                  setEditStartedAt(startedAt ? startedAt.slice(11, 16) : "");
+                  setEditEndedAt(endedAt ? endedAt.slice(11, 16) : "");
+                  setEditEndedDate(endedDate ?? workDate);
                 }}
                 disabled={isLoading}
               >

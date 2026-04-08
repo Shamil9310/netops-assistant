@@ -88,6 +88,10 @@ button, input, select, textarea { font: inherit; color: inherit; outline: none; 
   z-index: 1;
 }
 
+.shell-developer {
+  grid-template-columns: 220px 320px minmax(0, 1fr);
+}
+
 /* ── Auth shell ── */
 .auth-shell {
   min-height: 100vh;
@@ -208,6 +212,10 @@ button, input, select, textarea { font: inherit; color: inherit; outline: none; 
   border-right: 1px solid var(--border);
   background: rgba(8,14,26,0.5);
   overflow-y: auto;
+}
+
+.developer-filter-col {
+  gap: 12px;
 }
 
 .filter-col-title {
@@ -831,6 +839,57 @@ select option   { background: #0d1e35; }
 
 .form-actions { display: flex; gap: 8px; justify-content: flex-end; padding-top: 4px; }
 
+.developer-form-block {
+  overflow: visible;
+}
+
+.developer-form-body {
+  padding: 16px;
+  background: rgba(255,255,255,0.012);
+}
+
+.developer-form {
+  gap: 12px;
+}
+
+.developer-inline-fields {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  align-items: end;
+}
+
+.developer-password-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.developer-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  color: var(--text-2);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.developer-checkbox input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--green);
+}
+
+.developer-submit {
+  width: 100%;
+  justify-content: center;
+  white-space: normal;
+  text-align: center;
+  min-height: 42px;
+}
+
 /* ═══════════════════════════════════════════
    CODE BLOCKS
 ═══════════════════════════════════════════ */
@@ -1091,4 +1150,6 @@ pre.code {
   .content-col { padding: 20px 16px 60px; }
   .plan-panes { grid-template-columns: 1fr; }
   .field-row { grid-template-columns: 1fr; }
+  .developer-inline-fields { grid-template-columns: 1fr; align-items: stretch; }
+  .developer-password-row { grid-template-columns: 1fr; }
 }

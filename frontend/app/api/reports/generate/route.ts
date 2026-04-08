@@ -36,17 +36,22 @@ function isValidPayload(payload: unknown): payload is GenerateReportPayload {
 }
 
 export async function POST(request: Request) {
-  const payload = await request.json();
-  if (!isValidPayload(payload)) {
+  const requestPayload = await request.json();
+  if (!isValidPayload(requestPayload)) {
     return NextResponse.json({ detail: "Некорректный формат запроса" }, { status: 400 });
   }
 
-  const backendResponse = await generateReportWithBackend(payload);
-  const body = (await backendResponse.json()) as ReportPreview | { detail?: string };
+  const backendResponse = await generateReportWithBackend(requestPayload);
+  const responsePayload = (await backendResponse.json()) as
+    | ReportPreview
+    | { detail?: string };
   if (!backendResponse.ok) {
-    const detail = "detail" in body && body.detail ? body.detail : "Не удалось сгенерировать отчёт";
+    const detail =
+      "detail" in responsePayload && responsePayload.detail
+        ? responsePayload.detail
+        : "Не удалось сгенерировать отчёт";
     return NextResponse.json({ detail }, { status: backendResponse.status });
   }
 
-  return NextResponse.json(body, { status: 201 });
+  return NextResponse.json(responsePayload, { status: 201 });
 }

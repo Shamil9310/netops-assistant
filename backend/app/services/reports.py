@@ -33,14 +33,15 @@ _STATUS_LABELS: dict[str, str] = {
 }
 
 _NIGHT_WORK_STATUS_LABELS: dict[str, str] = {
-    "draft": "draft",
-    "approved": "approved",
-    "in_progress": "in_progress",
-    "completed": "completed",
-    "cancelled": "cancelled",
-    "pending": "pending",
-    "failed": "failed",
-    "skipped": "skipped",
+    "draft": "Черновик",
+    "approved": "Согласован",
+    "in_progress": "В работе",
+    "completed": "Завершён",
+    "cancelled": "Отменён",
+    "pending": "Ожидает выполнения",
+    "failed": "Ошибка",
+    "skipped": "Пропущен",
+    "blocked": "Заблокирован",
 }
 
 _REPORT_FORMAT_PROFILES: set[str] = {"engineer", "manager"}
@@ -70,6 +71,7 @@ def _format_entry(entry: ActivityEntry, index: int) -> str:
 def _build_summary_section(entries: list[ActivityEntry]) -> str:
     """Формирует раздел итоговой статистики для отчёта."""
     from collections import Counter
+
     type_counts = Counter(e.activity_type for e in entries)
     status_counts = Counter(e.status for e in entries)
 
@@ -93,7 +95,7 @@ def _build_summary_section(entries: list[ActivityEntry]) -> str:
 
 
 def _format_total_duration(entries: list[ActivityEntry]) -> str:
-    """Считает суммарное время по записям, где указаны start/finish."""
+    """Считает суммарное время по записям, где указаны начало и завершение."""
     total_minutes = 0
     for entry in entries:
         if entry.started_at is None or entry.finished_at is None:
@@ -119,7 +121,9 @@ async def generate_daily_report(
     Включает все записи журнала за указанный день, сгруппированные
     в хронологическом порядке, плюс итоговую статистику.
     """
-    day_start = datetime(report_date.year, report_date.month, report_date.day, 0, 0, 0, tzinfo=UTC)
+    day_start = datetime(
+        report_date.year, report_date.month, report_date.day, 0, 0, 0, tzinfo=UTC
+    )
     day_end = day_start + timedelta(days=1) - timedelta(microseconds=1)
 
     entries = await list_entries_for_date(session, user_id, day_start, day_end)
@@ -158,8 +162,12 @@ async def generate_weekly_report(
     Внутри группирует записи по дням для удобного чтения.
     """
     week_end = week_start + timedelta(days=6)
-    range_start = datetime(week_start.year, week_start.month, week_start.day, 0, 0, 0, tzinfo=UTC)
-    range_end = datetime(week_end.year, week_end.month, week_end.day, 23, 59, 59, tzinfo=UTC)
+    range_start = datetime(
+        week_start.year, week_start.month, week_start.day, 0, 0, 0, tzinfo=UTC
+    )
+    range_end = datetime(
+        week_end.year, week_end.month, week_end.day, 23, 59, 59, tzinfo=UTC
+    )
 
     entries = await list_entries_for_date(session, user_id, range_start, range_end)
 
@@ -192,7 +200,9 @@ async def generate_weekly_report(
         lines.append(_build_summary_section(entries))
 
     report = "\n".join(lines)
-    logger.info("Сформирован недельный отчёт: user_id=%s, week_start=%s", user_id, week_start)
+    logger.info(
+        "Сформирован недельный отчёт: user_id=%s, week_start=%s", user_id, week_start
+    )
     return report
 
 
@@ -205,11 +215,15 @@ async def generate_range_report(
 ) -> str:
     """Генерирует отчёт за произвольный период в формате Markdown.
 
-    Аналог weekly report, но с произвольными датами начала и конца.
-    Группирует записи по дням внутри периода.
+    Логика та же, что и у недельного отчёта, но даты начала и конца
+    задаются явно.
     """
-    range_start = datetime(date_from.year, date_from.month, date_from.day, 0, 0, 0, tzinfo=UTC)
-    range_end = datetime(date_to.year, date_to.month, date_to.day, 23, 59, 59, tzinfo=UTC)
+    range_start = datetime(
+        date_from.year, date_from.month, date_from.day, 0, 0, 0, tzinfo=UTC
+    )
+    range_end = datetime(
+        date_to.year, date_to.month, date_to.day, 23, 59, 59, tzinfo=UTC
+    )
 
     entries = await list_entries_for_date(session, user_id, range_start, range_end)
 
@@ -241,18 +255,31 @@ async def generate_range_report(
         lines.append(_build_summary_section(entries))
 
     report = "\n".join(lines)
-    logger.info("Сформирован отчёт за период: user_id=%s, %s – %s", user_id, date_from, date_to)
+    logger.info(
+        "Сформирован отчёт за период: user_id=%s, %s – %s", user_id, date_from, date_to
+    )
     return report
 
 
 def _build_night_work_follow_up_summary(plan: NightWorkPlan) -> str:
-    """Формирует краткий утренний summary по результатам ночного окна."""
+    """Формирует краткую сводку по итогам ночных работ."""
     total_blocks = len(plan.blocks)
     total_steps = sum(len(block.steps) for block in plan.blocks)
-    failed_blocks = sum(1 for block in plan.blocks if block.status in {"failed", "blocked"})
-    failed_steps = sum(1 for block in plan.blocks for step in block.steps if step.status in {"failed", "blocked"})
-    completed_steps = sum(1 for block in plan.blocks for step in block.steps if step.status == "completed")
-    deferred_steps = sum(1 for block in plan.blocks for step in block.steps if step.status == "skipped")
+    failed_blocks = sum(
+        1 for block in plan.blocks if block.status in {"failed", "blocked"}
+    )
+    failed_steps = sum(
+        1
+        for block in plan.blocks
+        for step in block.steps
+        if step.status in {"failed", "blocked"}
+    )
+    completed_steps = sum(
+        1 for block in plan.blocks for step in block.steps if step.status == "completed"
+    )
+    deferred_steps = sum(
+        1 for block in plan.blocks for step in block.steps if step.status == "skipped"
+    )
     handed_off_steps = sum(
         1
         for block in plan.blocks
@@ -270,7 +297,7 @@ def _build_night_work_follow_up_summary(plan: NightWorkPlan) -> str:
 
 
 def _build_night_work_report(plan: NightWorkPlan, author_name: str) -> str:
-    """Формирует markdown-отчёт по ночным работам на основе фактического исполнения."""
+    """Формирует Markdown-отчёт по ночным работам по фактическим данным."""
     lines = [
         f"# Итог ночных работ — {plan.title}",
         f"\n**Сотрудник:** {author_name}",
@@ -292,7 +319,7 @@ def _build_night_work_report(plan: NightWorkPlan, author_name: str) -> str:
         for block_index, block in enumerate(plan.blocks, 1):
             lines.append(
                 f"### {block_index}. {block.title} "
-                f"(SR: {block.sr_number or '—'}, status: {_NIGHT_WORK_STATUS_LABELS.get(block.status, block.status)})"
+                f"(SR: {block.sr_number or '—'}, статус: {_NIGHT_WORK_STATUS_LABELS.get(block.status, block.status)})"
             )
             if block.description:
                 lines.append(block.description)
@@ -307,9 +334,9 @@ def _build_night_work_report(plan: NightWorkPlan, author_name: str) -> str:
             for step_index, step in enumerate(block.steps, 1):
                 flags: list[str] = []
                 if step.is_rollback:
-                    flags.append("rollback")
+                    flags.append("откат")
                 if step.is_post_action:
-                    flags.append("post-action")
+                    flags.append("пост-действие")
                 flags_text = f" ({', '.join(flags)})" if flags else ""
                 lines.append(
                     f"- {step_index}. {step.title}{flags_text} "
@@ -327,20 +354,24 @@ def _build_night_work_report(plan: NightWorkPlan, author_name: str) -> str:
                     lines.append(f"  - Передано в: {step.handoff_to}")
             lines.append("")
 
-    lines.append("## Morning follow-up summary\n")
+    lines.append("## Краткая сводка по итогам\n")
     lines.append(_build_night_work_follow_up_summary(plan))
     return "\n".join(lines)
 
 
-async def _save_follow_up_entry(session: AsyncSession, plan: NightWorkPlan, summary: str) -> None:
-    """Сохраняет follow-up результат ночных работ в дневной журнал."""
-    first_sr_number = next((block.sr_number for block in plan.blocks if block.sr_number), None)
+async def _save_follow_up_entry(
+    session: AsyncSession, plan: NightWorkPlan, summary: str
+) -> None:
+    """Сохраняет итог ночных работ в дневной журнал отдельной записью."""
+    first_sr_number = next(
+        (block.sr_number for block in plan.blocks if block.sr_number), None
+    )
     journal_entry = ActivityEntry(
         user_id=plan.user_id,
         work_date=(plan.started_at or datetime.now(UTC)).date(),
         activity_type=ActivityType.TASK.value,
         status=ActivityStatus.CLOSED.value,
-        title=f"Follow-up после ночных работ: {plan.title}",
+        title=f"Итог после ночных работ: {plan.title}",
         description=summary,
         external_ref=first_sr_number,
         ticket_number=first_sr_number,
@@ -357,7 +388,7 @@ async def generate_night_work_result_report(
     plan_id: UUID,
     author_name: str,
 ) -> str:
-    """Генерирует итоговый отчёт по ночным работам и создаёт follow-up запись в журнале."""
+    """Генерирует итоговый отчёт по ночным работам и создаёт запись в журнале."""
     result = await session.execute(
         select(NightWorkPlan)
         .where(NightWorkPlan.id == plan_id)
@@ -371,12 +402,16 @@ async def generate_night_work_result_report(
     report = _build_night_work_report(plan, author_name)
     summary = _build_night_work_follow_up_summary(plan)
     await _save_follow_up_entry(session, plan, summary)
-    logger.info("Сформирован итоговый отчёт ночных работ: user_id=%s, plan_id=%s", user_id, plan_id)
+    logger.info(
+        "Сформирован итоговый отчёт ночных работ: user_id=%s, plan_id=%s",
+        user_id,
+        plan_id,
+    )
     return report
 
 
 def format_report_content(content_md: str, profile: str) -> str:
-    """Применяет формат-профиль отчёта (engineer/manager)."""
+    """Применяет вариант оформления отчёта под нужную аудиторию."""
     if profile not in _REPORT_FORMAT_PROFILES:
         raise ValueError(f"Недопустимый format_profile: {profile}")
     if profile == "engineer":
@@ -394,17 +429,23 @@ def _to_manager_format(content_md: str) -> str:
         if line.startswith("# "):
             result.append(line)
             continue
-        if "## Итоги" in line or "## Morning follow-up summary" in line:
+        if "## Итоги" in line or "## Краткая сводка по итогам" in line:
             summary_started = True
             result.append(line)
             continue
         if summary_started:
-            if line.startswith("## ") and "Итоги" not in line and "Morning follow-up summary" not in line:
+            if (
+                line.startswith("## ")
+                and "Итоги" not in line
+                and "Краткая сводка по итогам" not in line
+            ):
                 summary_started = False
                 continue
             result.append(line)
 
     if len(result) <= 1:
         header = lines[0] if lines else "# Отчёт"
-        return "\n".join([header, "", "_Executive summary недоступен для выбранного документа._"])
+        return "\n".join(
+            [header, "", "_Краткая версия недоступна для выбранного документа._"]
+        )
     return "\n".join(result)

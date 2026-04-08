@@ -6,8 +6,8 @@ from typing import Literal
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# Дефолтные небезопасные значения, которые запрещено использовать в test и production.
-# Вынесены в константы, чтобы не было магических строк в валидаторе.
+# Небезопасные значения по умолчанию, которые запрещено использовать
+# в тестовой и боевой среде. Вынесены в константы, чтобы не было "магических строк".
 _UNSAFE_SECRET_KEY = "dev-only-change-me"
 _UNSAFE_BOOTSTRAP_PASSWORD = "engineer123"
 _UNSAFE_BOOTSTRAP_USERNAME = "engineer"
@@ -16,8 +16,8 @@ _BACKEND_ENV_FILE = _BACKEND_ROOT_DIR / ".env"
 
 
 class Settings(BaseSettings):
-    # Используем абсолютный путь к backend/.env, чтобы настройки не зависели
-    # от текущей рабочей директории процесса (uvicorn/alembic/test runner).
+    # Используем абсолютный путь к файлу backend/.env, чтобы настройки не зависели
+    # от текущей рабочей директории процесса.
     model_config = SettingsConfigDict(
         env_prefix="NETOPS_ASSISTANT_",
         env_file=_BACKEND_ENV_FILE,
@@ -26,7 +26,9 @@ class Settings(BaseSettings):
 
     app_name: str = "NetOps Assistant API"
     environment: Literal["development", "test", "production"] = "development"
-    database_url: str = "postgresql+asyncpg://netops:netops@localhost:5432/netops_assistant"
+    database_url: str = (
+        "postgresql+asyncpg://netops:netops@localhost:5432/netops_assistant"
+    )
     secret_key: str = _UNSAFE_SECRET_KEY
     cors_origins: list[str] = ["http://localhost:3000"]
     cors_methods: list[str] = ["GET", "POST", "PATCH", "DELETE", "OPTIONS"]
@@ -70,10 +72,11 @@ class Settings(BaseSettings):
         к компрометации данных или утечке сессий.
         """
         if self.environment == "development":
-            # В development ограничений нет — разработчик работает локально
+            # В локальной среде эти ограничения не применяем:
+            # локальная среда нужна для быстрого старта.
             return self
 
-        # Блок проверок для test и production окружений
+        # Общие проверки для тестовой и боевой среды.
         errors: list[str] = []
 
         if self.secret_key == _UNSAFE_SECRET_KEY:
@@ -84,32 +87,46 @@ class Settings(BaseSettings):
 
         if self.bootstrap_password == _UNSAFE_BOOTSTRAP_PASSWORD:
             errors.append(
-                f"NETOPS_ASSISTANT_BOOTSTRAP_PASSWORD не может быть '{_UNSAFE_BOOTSTRAP_PASSWORD}' "
+                "NETOPS_ASSISTANT_BOOTSTRAP_PASSWORD не может быть "
+                f"'{_UNSAFE_BOOTSTRAP_PASSWORD}' "
                 f"в окружении '{self.environment}' — задайте надёжный пароль"
             )
 
         if self.bootstrap_username == _UNSAFE_BOOTSTRAP_USERNAME:
             errors.append(
-                f"NETOPS_ASSISTANT_BOOTSTRAP_USERNAME не может быть '{_UNSAFE_BOOTSTRAP_USERNAME}' "
-                f"в окружении '{self.environment}' — задайте уникальное имя пользователя"
+                "NETOPS_ASSISTANT_BOOTSTRAP_USERNAME не может быть "
+                f"'{_UNSAFE_BOOTSTRAP_USERNAME}' "
+                f"в окружении '{self.environment}' — задайте "
+                "уникальное имя пользователя"
             )
 
-        # Дополнительные проверки только для production
+        # Дополнительные требования только для боевой среды.
         if self.environment == "production":
             if not self.effective_session_cookie_secure:
                 errors.append(
-                    "NETOPS_ASSISTANT_SESSION_COOKIE_SECURE должен быть true в production — "
+                    "NETOPS_ASSISTANT_SESSION_COOKIE_SECURE должен быть true "
+                    "в production — "
                     "передача cookie без HTTPS небезопасна"
                 )
             if self.auth_provider == "ldap":
                 if not self.ldap_server_url:
-                    errors.append("NETOPS_ASSISTANT_LDAP_SERVER_URL обязателен для LDAP режима в production")
+                    errors.append(
+                        "NETOPS_ASSISTANT_LDAP_SERVER_URL обязателен "
+                        "для LDAP режима в production"
+                    )
                 if not self.ldap_base_dn:
-                    errors.append("NETOPS_ASSISTANT_LDAP_BASE_DN обязателен для LDAP режима в production")
+                    errors.append(
+                        "NETOPS_ASSISTANT_LDAP_BASE_DN обязателен "
+                        "для LDAP режима в production"
+                    )
 
         if errors:
-            # Объединяем все ошибки в одно сообщение, чтобы разработчик исправил всё за один раз
-            raise ValueError("Ошибки конфигурации безопасности:\n" + "\n".join(f"  - {e}" for e in errors))
+            # Объединяем все ошибки в одно сообщение,
+            # чтобы можно было исправить всё за один проход.
+            raise ValueError(
+                "Ошибки конфигурации безопасности:\n"
+                + "\n".join(f"  - {e}" for e in errors)
+            )
 
         return self
 

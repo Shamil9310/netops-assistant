@@ -26,27 +26,30 @@ export async function GET(request: Request) {
     return NextResponse.json({ detail: "Параметр work_date обязателен" }, { status: 400 });
   }
 
-  const result = await getJournalEntries(workDate);
-  if (!result) {
+  const journalEntriesResponse = await getJournalEntries(workDate);
+  if (!journalEntriesResponse) {
     return NextResponse.json(
       { work_date: workDate, total: 0, items: [] satisfies JournalEntry[] } as JournalEntriesResponse,
       { status: 200 },
     );
   }
-  return NextResponse.json(result);
+  return NextResponse.json(journalEntriesResponse);
 }
 
 export async function POST(request: Request) {
-  const payload = await request.json();
-  if (!isValidCreatePayload(payload)) {
+  const requestPayload = await request.json();
+  if (!isValidCreatePayload(requestPayload)) {
     return NextResponse.json({ detail: "Некорректный формат запроса" }, { status: 400 });
   }
 
-  const backendResponse = await createJournalEntryWithBackend(payload);
-  const body = (await backendResponse.json()) as JournalEntry | { detail?: string };
+  const backendResponse = await createJournalEntryWithBackend(requestPayload);
+  const responsePayload = (await backendResponse.json()) as JournalEntry | { detail?: string };
   if (!backendResponse.ok) {
-    const detail = "detail" in body && body.detail ? body.detail : "Не удалось создать запись";
+    const detail =
+      "detail" in responsePayload && responsePayload.detail
+        ? responsePayload.detail
+        : "Не удалось создать запись";
     return NextResponse.json({ detail }, { status: backendResponse.status });
   }
-  return NextResponse.json(body, { status: 201 });
+  return NextResponse.json(responsePayload, { status: 201 });
 }

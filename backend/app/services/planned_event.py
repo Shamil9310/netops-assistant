@@ -35,7 +35,9 @@ async def list_events(
     return list(result.scalars().all())
 
 
-async def list_events_for_today(session: AsyncSession, user_id: UUID) -> list[PlannedEvent]:
+async def list_events_for_today(
+    session: AsyncSession, user_id: UUID
+) -> list[PlannedEvent]:
     """Возвращает плановые события на сегодня (UTC).
 
     Используется для auto-include в дашборд текущего дня:
@@ -55,9 +57,13 @@ async def list_events_for_today(session: AsyncSession, user_id: UUID) -> list[Pl
     return list(result.scalars().all())
 
 
-async def list_events_for_date(session: AsyncSession, user_id: UUID, work_date: date) -> list[PlannedEvent]:
+async def list_events_for_date(
+    session: AsyncSession, user_id: UUID, work_date: date
+) -> list[PlannedEvent]:
     """Возвращает плановые события на указанную рабочую дату."""
-    day_start = datetime(work_date.year, work_date.month, work_date.day, 0, 0, 0, tzinfo=UTC)
+    day_start = datetime(
+        work_date.year, work_date.month, work_date.day, 0, 0, 0, tzinfo=UTC
+    )
     day_end = day_start + timedelta(days=1) - timedelta(microseconds=1)
 
     result = await session.execute(
@@ -70,7 +76,9 @@ async def list_events_for_date(session: AsyncSession, user_id: UUID, work_date: 
     return list(result.scalars().all())
 
 
-async def get_event_by_id(session: AsyncSession, event_id: UUID, user_id: UUID) -> PlannedEvent | None:
+async def get_event_by_id(
+    session: AsyncSession, event_id: UUID, user_id: UUID
+) -> PlannedEvent | None:
     """Возвращает событие по ID, только если оно принадлежит пользователю.
 
     Двойная проверка защищает от IDOR — нельзя получить чужое событие по ID.
@@ -104,7 +112,12 @@ async def create_event(
     session.add(event)
     await session.commit()
     await session.refresh(event)
-    logger.info("Создано плановое событие: id=%s, user_id=%s, type=%s", event.id, user_id, event_type)
+    logger.info(
+        "Создано плановое событие: id=%s, user_id=%s, type=%s",
+        event.id,
+        user_id,
+        event_type,
+    )
     return event
 
 
@@ -147,7 +160,9 @@ async def delete_event(session: AsyncSession, event: PlannedEvent) -> None:
     logger.info("Удалено плановое событие: id=%s", event.id)
 
 
-async def convert_event_to_activity_entry(session: AsyncSession, event: PlannedEvent) -> ActivityEntry:
+async def convert_event_to_activity_entry(
+    session: AsyncSession, event: PlannedEvent
+) -> ActivityEntry:
     """Конвертирует planned event в запись журнала и связывает сущности.
 
     Бизнес-смысл:
@@ -163,7 +178,11 @@ async def convert_event_to_activity_entry(session: AsyncSession, event: PlannedE
         user_id=event.user_id,
         work_date=event.scheduled_at.date(),
         activity_type=ActivityType.TASK.value,
-        status=ActivityStatus.CLOSED.value if event.is_completed else ActivityStatus.OPEN.value,
+        status=(
+            ActivityStatus.CLOSED.value
+            if event.is_completed
+            else ActivityStatus.OPEN.value
+        ),
         title=event.title,
         description=event.description,
         external_ref=event.external_ref,

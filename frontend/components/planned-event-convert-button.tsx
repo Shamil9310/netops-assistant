@@ -19,9 +19,9 @@ export function PlannedEventConvertButton({ eventId }: Props) {
       const response = await fetch(`/api/planned-events/${eventId}/convert`, {
         method: "POST",
       });
-      const body = (await response.json()) as { detail?: string };
+      const responsePayload = (await response.json()) as { detail?: string };
       if (!response.ok) {
-        setError(body.detail ?? "Не удалось конвертировать");
+        setError(responsePayload.detail ?? "Не удалось конвертировать");
         return;
       }
       router.refresh();
@@ -41,8 +41,8 @@ export function PlannedEventConvertButton({ eventId }: Props) {
         method: "DELETE",
       });
       if (!response.ok) {
-        const body = (await response.json()) as { detail?: string };
-        setError(body.detail ?? "Ошибка удаления");
+        const responsePayload = (await response.json()) as { detail?: string };
+        setError(responsePayload.detail ?? "Ошибка удаления");
         return;
       }
       router.refresh();

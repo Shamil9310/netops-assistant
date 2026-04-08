@@ -91,13 +91,21 @@ class NightWorkPlan(Base):
     )
 
     # Плановое время начала ночных работ.
-    scheduled_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    scheduled_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     # Участники окна (ФИО/логины коллег, участвующих в работах).
-    participants: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list, server_default="[]")
+    participants: Mapped[list[str]] = mapped_column(
+        JSON, nullable=False, default=list, server_default="[]"
+    )
 
     # Фактическое время начала и завершения.
-    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    finished_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -140,7 +148,9 @@ class NightWorkBlock(Base):
     )
 
     # Номер SR или внешний идентификатор изменения.
-    sr_number: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
+    sr_number: Mapped[str | None] = mapped_column(
+        String(128), nullable=True, index=True
+    )
 
     title: Mapped[str] = mapped_column(String(256), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -155,8 +165,12 @@ class NightWorkBlock(Base):
     # Порядок исполнения блоков внутри плана.
     order_index: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
-    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    finished_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     # Комментарий исполнителя по результатам блока.
     result_comment: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -196,7 +210,7 @@ class NightWorkStep(Base):
 
     title: Mapped[str] = mapped_column(String(256), nullable=False)
 
-    # Детали шага: команда, URL, описание проверки.
+    # Детали шага: команда, ссылка и описание проверки.
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     status: Mapped[str] = mapped_column(
@@ -209,11 +223,15 @@ class NightWorkStep(Base):
     # Порядок исполнения шагов внутри блока.
     order_index: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
-    # Флаг: является ли этот шаг rollback-действием.
-    is_rollback: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    # Показывает, является ли этот шаг действием отката.
+    is_rollback: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
 
-    # Флаг: является ли этот шаг post-action (проверка после основного изменения).
-    is_post_action: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    # Показывает, относится ли шаг к проверкам после основного изменения.
+    is_post_action: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
 
     # Фактический результат шага — заполняется при исполнении.
     actual_result: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -221,13 +239,19 @@ class NightWorkStep(Base):
     # Комментарий исполнителя (ошибки, отклонения от плана).
     executor_comment: Mapped[str | None] = mapped_column(Text, nullable=True)
     # С кем выполнялся шаг (для передачи контекста смен и кросс-командной работы).
-    collaborators: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list, server_default="[]")
+    collaborators: Mapped[list[str]] = mapped_column(
+        JSON, nullable=False, default=list, server_default="[]"
+    )
     # Куда передан шаг/проблема (смежная команда), если выполнение делегировано.
     handoff_to: Mapped[str | None] = mapped_column(String(128), nullable=True)
 
     # Фактическое время начала и завершения шага.
-    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
-    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    finished_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -235,4 +259,6 @@ class NightWorkStep(Base):
         nullable=False,
     )
 
-    block: Mapped[NightWorkBlock] = relationship("NightWorkBlock", back_populates="steps")
+    block: Mapped[NightWorkBlock] = relationship(
+        "NightWorkBlock", back_populates="steps"
+    )

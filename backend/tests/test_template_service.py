@@ -1,4 +1,4 @@
-"""Тесты helper-логики для шаблонов планов."""
+"""Тесты вспомогательной логики для шаблонов планов."""
 
 from __future__ import annotations
 
@@ -13,12 +13,12 @@ from app.services.template import (
 
 
 def test_normalize_template_key_happy_path() -> None:
-    """Проверяет нормализацию ключа: trim + lower + spaces->underscore."""
+    """Проверяет нормализацию ключа: обрезка, нижний регистр и замена пробелов."""
     assert normalize_template_key("  BGP Peer Template  ") == "bgp_peer_template"
 
 
 def test_validate_template_key_rejects_invalid_symbols() -> None:
-    """Проверяет edge-case: запрещённые символы должны приводить к ошибке."""
+    """Проверяет, что запрещённые символы приводят к ошибке."""
     with pytest.raises(ValueError):
         validate_template_key("bgp@template")
 
@@ -41,7 +41,7 @@ def test_validate_template_payload_rejects_invalid_blocks_type() -> None:
 
 
 def test_validate_template_payload_happy_path() -> None:
-    """Проверяет валидный payload шаблона."""
+    """Проверяет корректные данные шаблона."""
     validate_template_payload(
         {
             "variables": ["site", "neighbor_ip"],

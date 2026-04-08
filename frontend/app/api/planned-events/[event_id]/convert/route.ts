@@ -36,9 +36,9 @@ export async function POST(
     },
   );
 
-  const body = await response.json();
+  const responsePayload = await response.json();
   if (!response.ok) {
-    return NextResponse.json(body, { status: response.status });
+    return NextResponse.json(responsePayload, { status: response.status });
   }
-  return NextResponse.json(body);
+  return NextResponse.json(responsePayload);
 }

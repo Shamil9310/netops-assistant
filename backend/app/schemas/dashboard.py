@@ -30,21 +30,21 @@ class StatusCounters(BaseModel):
 
 
 class TodayDashboardResponse(BaseModel):
-    """Данные дашборда текущего дня.
+    """Данные панели за текущий день.
 
     Агрегирует активности сотрудника за сегодня:
-    счётчики, статусы, timeline записей и плановые события дня.
+    счётчики, статусы, ленту записей и плановые события дня.
     """
 
     date: str  # ISO дата дня (YYYY-MM-DD)
     generated_at: datetime
 
-    # Счётчики по типам и статусам — для виджетов дашборда.
+    # Счётчики по типам и статусам для карточек на экране.
     activity_counters: ActivityCounters
     status_counters: StatusCounters
 
-    # Timeline — список всех записей журнала за день.
+    # Лента всех записей журнала за день.
     timeline: list[ActivityEntryResponse]
 
-    # Плановые события на сегодня — auto-include из planned_events.
+    # Плановые события на сегодня, которые подтягиваются из отдельного сервиса событий.
     planned_today: list[PlannedEventResponse]

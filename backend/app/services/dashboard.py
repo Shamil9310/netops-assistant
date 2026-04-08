@@ -8,7 +8,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.journal import ActivityEntry, ActivityStatus, ActivityType
 from app.models.planned_event import PlannedEvent
-from app.schemas.dashboard import ActivityCounters, StatusCounters, TodayDashboardResponse
+from app.schemas.dashboard import (
+    ActivityCounters,
+    StatusCounters,
+    TodayDashboardResponse,
+)
 from app.schemas.journal import ActivityEntryResponse
 from app.schemas.planned_event import PlannedEventResponse
 from app.services.journal import list_entries_for_date
@@ -25,8 +29,14 @@ def _to_entry_response(entry: ActivityEntry) -> ActivityEntryResponse:
         title=entry.title,
         description=entry.description,
         ticket_number=entry.ticket_number or entry.external_ref,
-        started_at=entry.started_at.timetz().replace(tzinfo=None) if entry.started_at else None,
-        ended_at=entry.finished_at.timetz().replace(tzinfo=None) if entry.finished_at else None,
+        started_at=(
+            entry.started_at.timetz().replace(tzinfo=None) if entry.started_at else None
+        ),
+        ended_at=(
+            entry.finished_at.timetz().replace(tzinfo=None)
+            if entry.finished_at
+            else None
+        ),
         created_at=entry.created_at,
         updated_at=entry.updated_at,
     )
@@ -42,13 +52,19 @@ def _to_planned_response(event: PlannedEvent) -> PlannedEventResponse:
         external_ref=event.external_ref,
         scheduled_at=event.scheduled_at,
         is_completed=event.is_completed,
-        linked_journal_entry_id=str(event.linked_journal_entry_id) if event.linked_journal_entry_id else None,
+        linked_journal_entry_id=(
+            str(event.linked_journal_entry_id)
+            if event.linked_journal_entry_id
+            else None
+        ),
         created_at=event.created_at,
         updated_at=event.updated_at,
     )
 
 
-async def build_today_dashboard(session: AsyncSession, user_id: UUID) -> TodayDashboardResponse:
+async def build_today_dashboard(
+    session: AsyncSession, user_id: UUID
+) -> TodayDashboardResponse:
     """Строит данные дашборда текущего дня для пользователя.
 
     День определяется как UTC [00:00:00, 23:59:59] текущей даты.
@@ -65,7 +81,9 @@ async def build_day_dashboard(
     work_date: date,
 ) -> TodayDashboardResponse:
     """Строит дашборд за выбранную рабочую дату."""
-    day_start = datetime(work_date.year, work_date.month, work_date.day, 0, 0, 0, tzinfo=UTC)
+    day_start = datetime(
+        work_date.year, work_date.month, work_date.day, 0, 0, 0, tzinfo=UTC
+    )
     day_end = day_start + timedelta(days=1) - timedelta(microseconds=1)
 
     entries = await list_entries_for_date(session, user_id, day_start, day_end)

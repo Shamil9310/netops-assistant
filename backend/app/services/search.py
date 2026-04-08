@@ -101,10 +101,12 @@ def _build_archive_status_filter() -> ColumnElement[bool]:
     - CLOSED
     - CANCELLED
     """
-    return ActivityEntry.status.in_([
-        ActivityStatus.CLOSED.value,
-        ActivityStatus.CANCELLED.value,
-    ])
+    return ActivityEntry.status.in_(
+        [
+            ActivityStatus.CLOSED.value,
+            ActivityStatus.CANCELLED.value,
+        ]
+    )
 
 
 async def _execute_paginated_query(
@@ -114,11 +116,17 @@ async def _execute_paginated_query(
     offset: int,
 ) -> tuple[list[ActivityEntry], int]:
     """Выполняет пагинированный запрос и корректно считает total."""
-    count_statement = select(func.count()).select_from(base_statement.order_by(None).subquery())
+    count_statement = select(func.count()).select_from(
+        base_statement.order_by(None).subquery()
+    )
     count_result = await session.execute(count_statement)
     total = int(count_result.scalar_one())
 
-    data_statement = base_statement.order_by(ActivityEntry.created_at.desc()).offset(offset).limit(limit)
+    data_statement = (
+        base_statement.order_by(ActivityEntry.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+    )
     data_result = await session.execute(data_statement)
     rows = list(data_result.scalars().all())
     return rows, total
@@ -146,7 +154,9 @@ async def search_entries(
     Возвращает кортеж (результаты, total_count) для поддержки пагинации.
     Пользователь видит только свои записи — изоляция по user_id.
     """
-    _validate_search_arguments(date_from=date_from, date_to=date_to, limit=limit, offset=offset)
+    _validate_search_arguments(
+        date_from=date_from, date_to=date_to, limit=limit, offset=offset
+    )
     filters = _build_activity_search_filters(
         user_id=user_id,
         query=query,
@@ -158,11 +168,15 @@ async def search_entries(
         date_to=date_to,
     )
     statement = select(ActivityEntry).where(and_(*filters))
-    rows, total = await _execute_paginated_query(session, statement, limit=limit, offset=offset)
+    rows, total = await _execute_paginated_query(
+        session, statement, limit=limit, offset=offset
+    )
 
     logger.info(
         "Поиск по журналу: user_id=%s, query=%r, total=%d",
-        user_id, query, total,
+        user_id,
+        query,
+        total,
     )
     return rows, total
 
@@ -184,7 +198,9 @@ async def get_archive_entries(
     Архив отличается от поиска тем, что по умолчанию показывает только
     завершённые записи (CLOSED + CANCELLED) — исторические данные.
     """
-    _validate_search_arguments(date_from=date_from, date_to=date_to, limit=limit, offset=offset)
+    _validate_search_arguments(
+        date_from=date_from, date_to=date_to, limit=limit, offset=offset
+    )
     filters = _build_activity_search_filters(
         user_id=user_id,
         query=query,
@@ -197,5 +213,7 @@ async def get_archive_entries(
     filters.append(_build_archive_status_filter())
 
     statement = select(ActivityEntry).where(and_(*filters))
-    rows, total = await _execute_paginated_query(session, statement, limit=limit, offset=offset)
+    rows, total = await _execute_paginated_query(
+        session, statement, limit=limit, offset=offset
+    )
     return rows, total

@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 import logging
+import string
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from hashlib import sha256
-from secrets import token_urlsafe
+from secrets import choice, token_urlsafe
+from uuid import UUID
 
 from pwdlib import PasswordHash
 from sqlalchemy import Select, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -18,14 +22,35 @@ from app.services.auth_provider import LocalAuthProvider, build_auth_provider
 
 logger = logging.getLogger(__name__)
 
-# Рекомендованный алгоритм хэширования паролей (argon2 по умолчанию в pwdlib).
-# Вынесен на уровень модуля — создаём один раз, переиспользуем везде.
+# Рекомендованный алгоритм хэширования паролей.
+# Создаём объект один раз на уровне модуля и используем повторно.
 _password_hasher = PasswordHash.recommended()
+
+
+class LocalUserCreateError(ValueError):
+    """Ошибка создания локального пользователя с HTTP-совместимым статусом."""
+
+    def __init__(self, detail: str, status_code: int) -> None:
+        super().__init__(detail)
+        self.detail = detail
+        self.status_code = status_code
+
+
+@dataclass(slots=True)
+class LocalUserCreateResult:
+    user: User
+    generated_password: str | None
 
 
 def hash_password(password: str) -> str:
     """Хэширует пароль для безопасного хранения в БД."""
     return _password_hasher.hash(password)
+
+
+def generate_local_user_password(length: int = 16) -> str:
+    """Генерирует пароль для локальной УЗ, если оператор не ввёл его вручную."""
+    alphabet = string.ascii_letters + string.digits + "!@#$%^&*()-_=+"
+    return "".join(choice(alphabet) for _ in range(length))
 
 
 def verify_password(plain_password: str, stored_hash: str) -> bool:
@@ -63,8 +88,15 @@ async def authenticate_user(
     provider = build_auth_provider()
     identity = await provider.authenticate(session, username, password)
 
-    if identity is None and settings.auth_provider == "ldap" and settings.ldap_fallback_to_local:
-        logger.warning("LDAP auth неуспешен, пробуем fallback в local provider: username=%s", username)
+    if (
+        identity is None
+        and settings.auth_provider == "ldap"
+        and settings.ldap_fallback_to_local
+    ):
+        logger.warning(
+            "LDAP auth неуспешен, пробуем fallback в local provider: username=%s",
+            username,
+        )
         local_provider = LocalAuthProvider()
         identity = await local_provider.authenticate(session, username, password)
 
@@ -78,7 +110,9 @@ async def authenticate_user(
             client_ip=client_ip,
         )
         await session.commit()
-        logger.warning("Неудачная попытка входа: username=%s, ip=%s", username, client_ip)
+        logger.warning(
+            "Неудачная попытка входа: username=%s, ip=%s", username, client_ip
+        )
         return None
 
     user = await _ensure_user_from_identity(session, identity)
@@ -91,7 +125,9 @@ async def authenticate_user(
             client_ip=client_ip,
         )
         await session.commit()
-        logger.warning("Не удалось разрешить user после аутентификации: username=%s", username)
+        logger.warning(
+            "Не удалось разрешить user после аутентификации: username=%s", username
+        )
         return None
 
     await _write_audit_event(
@@ -123,7 +159,9 @@ async def create_session(session: AsyncSession, user: User) -> str:
     return raw_token
 
 
-async def revoke_session(session: AsyncSession, raw_token: str, client_ip: str | None = None) -> None:
+async def revoke_session(
+    session: AsyncSession, raw_token: str, client_ip: str | None = None
+) -> None:
     """Отзывает сессию (logout) — помечает revoked_at текущим временем.
 
     Сессия не удаляется из БД для сохранения истории (аудит).
@@ -134,7 +172,7 @@ async def revoke_session(session: AsyncSession, raw_token: str, client_ip: str |
 
     db_session.revoked_at = datetime.now(UTC)
 
-    # Записываем logout в аудит — важно для анализа жизненного цикла сессий.
+    # Записываем выход в аудит, чтобы не терять историю работы сессий.
     if db_session.user_id is not None:
         user = await session.get(User, db_session.user_id)
         username = user.username if user else "unknown"
@@ -150,7 +188,9 @@ async def revoke_session(session: AsyncSession, raw_token: str, client_ip: str |
     logger.info("Logout: user_id=%s, ip=%s", db_session.user_id, client_ip)
 
 
-async def get_active_session(session: AsyncSession, raw_token: str) -> UserSession | None:
+async def get_active_session(
+    session: AsyncSession, raw_token: str
+) -> UserSession | None:
     """Возвращает активную (не истёкшую, не отозванную) сессию по raw token."""
     now = datetime.now(UTC)
     statement: Select[tuple[UserSession]] = (
@@ -165,9 +205,9 @@ async def get_active_session(session: AsyncSession, raw_token: str) -> UserSessi
 
 
 async def get_current_user(session: AsyncSession, raw_token: str | None) -> User | None:
-    """Возвращает текущего активного пользователя по token из cookie.
+    """Возвращает текущего активного пользователя по токену из cookie.
 
-    Используется как FastAPI dependency и в SSR-запросах с фронтенда.
+    Используется как зависимость FastAPI и в серверных запросах фронтенда.
     """
     if not raw_token:
         return None
@@ -181,13 +221,14 @@ async def ensure_bootstrap_user(session: AsyncSession) -> None:
     """Создаёт начального пользователя при первом запуске, если его ещё нет.
 
     Bootstrap-пользователь нужен для первого входа в систему после развёртывания.
-    В production рекомендуется сменить пароль сразу после первого входа.
+    В production пароль нужно сменить сразу после первого входа.
     """
     existing_user = await get_user_by_username(session, settings.bootstrap_username)
     if existing_user is not None:
         return
 
-    # Bootstrap-пользователь получает роль DEVELOPER — он технический администратор.
+    # Начальный пользователь получает роль разработчика,
+    # потому что он нужен для первичной настройки системы.
     session.add(
         User(
             username=settings.bootstrap_username,
@@ -198,17 +239,121 @@ async def ensure_bootstrap_user(session: AsyncSession) -> None:
         )
     )
     await session.commit()
-    logger.info("Bootstrap-пользователь создан: username=%s", settings.bootstrap_username)
+    logger.info(
+        "Bootstrap-пользователь создан: username=%s", settings.bootstrap_username
+    )
+
+
+async def create_local_user(
+    session: AsyncSession,
+    username: str,
+    full_name: str,
+    password: str | None,
+    role: str,
+    is_active: bool = True,
+) -> LocalUserCreateResult:
+    """Создаёт локального пользователя с явно заданной ролью."""
+    normalized_username = username.strip()
+    normalized_full_name = full_name.strip()
+    normalized_role = role.strip().lower()
+    normalized_password = password.strip() if password is not None else ""
+    generated_password: str | None = None
+
+    if len(normalized_username) < 3:
+        raise LocalUserCreateError(
+            detail="Логин должен содержать минимум 3 символа",
+            status_code=400,
+        )
+    if len(normalized_full_name) < 3:
+        raise LocalUserCreateError(
+            detail="ФИО должно содержать минимум 3 символа",
+            status_code=400,
+        )
+    if not normalized_password:
+        generated_password = generate_local_user_password()
+        normalized_password = generated_password
+    if len(normalized_password) < 8:
+        raise LocalUserCreateError(
+            detail="Пароль должен содержать минимум 8 символов",
+            status_code=400,
+        )
+
+    valid_roles = {role_item.value for role_item in UserRole}
+    if normalized_role not in valid_roles:
+        raise LocalUserCreateError(
+            detail=f"Некорректная роль: {role}",
+            status_code=400,
+        )
+
+    existing_user = await get_user_by_username(session, normalized_username)
+    if existing_user is not None:
+        raise LocalUserCreateError(
+            detail=f"Пользователь '{normalized_username}' уже существует",
+            status_code=409,
+        )
+
+    user = User(
+        username=normalized_username,
+        full_name=normalized_full_name,
+        password_hash=hash_password(normalized_password),
+        is_active=is_active,
+        role=normalized_role,
+    )
+    session.add(user)
+    await session.commit()
+    await session.refresh(user)
+    logger.info(
+        "Создан локальный пользователь: username=%s role=%s is_active=%s",
+        user.username,
+        user.role,
+        user.is_active,
+    )
+    return LocalUserCreateResult(
+        user=user,
+        generated_password=generated_password,
+    )
+
+
+async def delete_local_user(
+    session: AsyncSession,
+    target_user_id: UUID,
+    actor_user_id: UUID,
+) -> User:
+    """Удаляет локальную УЗ, если это не собственная учётная запись оператора."""
+    user = await session.get(User, target_user_id)
+    if user is None:
+        raise LocalUserCreateError(
+            detail="Пользователь не найден",
+            status_code=404,
+        )
+    if user.id == actor_user_id:
+        raise LocalUserCreateError(
+            detail="Нельзя удалить собственную учётную запись",
+            status_code=409,
+        )
+
+    await session.delete(user)
+    try:
+        await session.commit()
+    except IntegrityError as exc:
+        await session.rollback()
+        raise LocalUserCreateError(
+            detail="Нельзя удалить пользователя: у него есть связанные данные",
+            status_code=409,
+        ) from exc
+
+    logger.info("Удалён локальный пользователь: username=%s", user.username)
+    return user
 
 
 async def _ensure_user_from_identity(
     session: AsyncSession,
     identity: object,
 ) -> User | None:
-    """Создаёт или обновляет локального пользователя по результату provider-аутентификации.
+    """Создаёт или обновляет локального пользователя по результату аутентификации.
 
     Для LDAP это точка синхронизации корпоративного пользователя в локальную БД.
-    Для local provider обновлений обычно не требуется, но функция остаётся общей.
+    Для локального входа обновления обычно не нужны, но функция остаётся общей.
     """
     username = getattr(identity, "username", "")
     full_name = getattr(identity, "full_name", "")

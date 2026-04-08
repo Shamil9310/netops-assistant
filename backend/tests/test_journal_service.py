@@ -1,8 +1,12 @@
-"""Тесты для сервисного слоя журнала (без БД — только бизнес-логика)."""
+"""Тесты для сервисного слоя журнала.
+
+Здесь проверяем только бизнес-логику.
+Настоящая база данных не используется: вместо неё подставляем простые заглушки.
+"""
 
 from __future__ import annotations
 
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, time
 from types import SimpleNamespace
 from uuid import uuid4
 
@@ -12,9 +16,8 @@ from app.models.journal import ActivityStatus, ActivityType
 from app.schemas.journal import ActivityEntryCreateRequest
 from app.services.journal import create_activity_entry
 
-
 # ---------------------------------------------------------------------------
-# ActivityType
+# Типы активности
 # ---------------------------------------------------------------------------
 
 
@@ -40,7 +43,7 @@ def test_activity_type_count() -> None:
 
 
 # ---------------------------------------------------------------------------
-# ActivityStatus
+# Статусы активности
 # ---------------------------------------------------------------------------
 
 
@@ -117,3 +120,40 @@ async def test_create_activity_entry_uses_previous_ended_at_as_started_at() -> N
 
     assert created.started_at == datetime(2026, 4, 7, 12, 45, tzinfo=UTC)
     assert created.finished_at is None
+
+
+@pytest.mark.asyncio
+async def test_create_activity_entry_uses_explicit_next_day_for_finished_at() -> None:
+    class FakeSession:
+        def __init__(self) -> None:
+            self.added = None
+
+        async def execute(self, statement):
+            return SimpleNamespace(scalar_one_or_none=lambda: None)
+
+        def add(self, entry) -> None:
+            self.added = entry
+
+        async def commit(self) -> None:
+            return None
+
+        async def refresh(self, entry) -> None:
+            return None
+
+    session = FakeSession()
+
+    payload = ActivityEntryCreateRequest(
+        work_date=date(2026, 4, 7),
+        activity_type="ticket",
+        status="open",
+        title="Ночная заявка",
+        started_at=time(23, 40),
+        ended_at=time(1, 10),
+        ended_date=date(2026, 4, 8),
+    )
+    user = SimpleNamespace(id=uuid4())
+
+    created = await create_activity_entry(session=session, user=user, payload=payload)
+
+    assert created.started_at == datetime(2026, 4, 7, 23, 40, tzinfo=UTC)
+    assert created.finished_at == datetime(2026, 4, 8, 1, 10, tzinfo=UTC)

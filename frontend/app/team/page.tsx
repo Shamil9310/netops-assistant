@@ -19,6 +19,15 @@ export default async function TeamPage() {
   const weeklySummary = await getTeamWeeklySummary(weekStart);
   const publicApiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 
+  function getRoleLabel(role: string): string {
+    const labels: Record<string, string> = {
+      developer: "разработчик",
+      manager: "начальник",
+      employee: "пользователь",
+    };
+    return labels[role] ?? role;
+  }
+
   return (
     <div className="shell">
       <Sidebar user={user} />
@@ -26,14 +35,14 @@ export default async function TeamPage() {
       <aside className="filter-col">
         <div className="filter-col-title">Командный контур</div>
         <div className="focus-note">
-          <div className="focus-note-label">Read-only</div>
-          <p>Страница показывает сотрудников команды для manager role без редактирования чужих данных.</p>
+          <div className="focus-note-label">Только просмотр</div>
+          <p>Страница показывает сотрудников команды для роли начальника без редактирования чужих данных.</p>
         </div>
 
         <div className="filter-divider" />
 
         <div className="focus-note">
-          <div className="focus-note-label">Weekly summary</div>
+          <div className="focus-note-label">Недельная сводка</div>
           <p>Текущая неделя: {weekStart}. Сводка собирается по дневному журналу всей команды.</p>
         </div>
       </aside>
@@ -52,7 +61,7 @@ export default async function TeamPage() {
             <div className="plan-item">
               <div className="plan-info">
                 <div className="plan-title">Сотрудники не найдены</div>
-                <div className="plan-sub">Возможно, у текущего пользователя нет manager scope.</div>
+                <div className="plan-sub">Возможно, у текущего пользователя нет доступа к контуру начальника.</div>
               </div>
             </div>
           )}
@@ -63,7 +72,7 @@ export default async function TeamPage() {
               <div className="plan-info">
                 <div className="plan-title">{member.full_name}</div>
                 <div className="plan-sub">
-                  {member.username} · role: {member.role} · active: {String(member.is_active)}
+                  {member.username} · роль: {getRoleLabel(member.role)} · статус: {member.is_active ? "активен" : "отключён"}
                 </div>
                 {member.teams.length > 0 && (
                   <div className="plan-sub">Команды: {member.teams.join(", ")}</div>
@@ -81,7 +90,7 @@ export default async function TeamPage() {
                   className="btn btn-sm"
                   href={`${publicApiBaseUrl}/api/v1/team/users/${member.id}/reports/weekly/export/md?week_start=${weekStart}`}
                 >
-                  Weekly MD
+                  Недельный MD
                 </a>
               </div>
             </div>

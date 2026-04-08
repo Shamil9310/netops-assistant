@@ -20,7 +20,12 @@ from app.schemas.reports import (
     WeeklyReportRequest,
 )
 from app.services.access_audit import log_access_event
-from app.services.export import calculate_export_expiration, render_docx_bytes, render_pdf_bytes, strip_markdown
+from app.services.export import (
+    calculate_export_expiration,
+    render_docx_bytes,
+    render_pdf_bytes,
+    strip_markdown,
+)
 from app.services.reports import (
     format_report_content,
     generate_daily_report,
@@ -55,7 +60,9 @@ async def _save_report(
     return record
 
 
-def _to_preview(record: ReportRecord, updates_after_finalization: int = 0) -> ReportPreviewResponse:
+def _to_preview(
+    record: ReportRecord, updates_after_finalization: int = 0
+) -> ReportPreviewResponse:
     return ReportPreviewResponse(
         report_id=str(record.id),
         report_type=record.report_type,
@@ -84,7 +91,9 @@ def _to_record_response(record: ReportRecord) -> ReportRecordResponse:
 # ---------------------------------------------------------------------------
 
 
-@router.post("/daily", response_model=ReportPreviewResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/daily", response_model=ReportPreviewResponse, status_code=status.HTTP_201_CREATED
+)
 async def generate_daily(
     payload: DailyReportRequest,
     current_user: CurrentUser,
@@ -100,13 +109,19 @@ async def generate_daily(
     try:
         content = format_report_content(content, payload.format_profile)
     except ValueError as error:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(error)) from error
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(error)
+        ) from error
     date_str = payload.report_date.isoformat()
-    record = await _save_report(db, current_user.id, ReportType.DAILY, date_str, date_str, content)
+    record = await _save_report(
+        db, current_user.id, ReportType.DAILY, date_str, date_str, content
+    )
     return _to_preview(record)
 
 
-@router.post("/weekly", response_model=ReportPreviewResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/weekly", response_model=ReportPreviewResponse, status_code=status.HTTP_201_CREATED
+)
 async def generate_weekly(
     payload: WeeklyReportRequest,
     current_user: CurrentUser,
@@ -125,7 +140,9 @@ async def generate_weekly(
     try:
         content = format_report_content(content, payload.format_profile)
     except ValueError as error:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(error)) from error
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(error)
+        ) from error
     record = await _save_report(
         db,
         current_user.id,
@@ -137,7 +154,9 @@ async def generate_weekly(
     return _to_preview(record)
 
 
-@router.post("/range", response_model=ReportPreviewResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/range", response_model=ReportPreviewResponse, status_code=status.HTTP_201_CREATED
+)
 async def generate_range(
     payload: RangeReportRequest,
     current_user: CurrentUser,
@@ -159,7 +178,9 @@ async def generate_range(
     try:
         content = format_report_content(content, payload.format_profile)
     except ValueError as error:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(error)) from error
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(error)
+        ) from error
     record = await _save_report(
         db,
         current_user.id,
@@ -171,7 +192,11 @@ async def generate_range(
     return _to_preview(record)
 
 
-@router.post("/night-work/{plan_id}", response_model=ReportPreviewResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/night-work/{plan_id}",
+    response_model=ReportPreviewResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def generate_night_work_result(
     plan_id: UUID,
     current_user: CurrentUser,
@@ -187,7 +212,9 @@ async def generate_night_work_result(
             author_name=current_user.full_name,
         )
     except ValueError as error:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(error)) from error
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail=str(error)
+        ) from error
     content = format_report_content(content, format_profile)
 
     period_value = datetime.now(UTC).date().isoformat()
@@ -238,7 +265,9 @@ async def get_report(
     )
     record = result.scalar_one_or_none()
     if record is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Отчёт не найден")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Отчёт не найден"
+        )
     await log_access_event(
         db,
         user_id=current_user.id,
@@ -267,9 +296,14 @@ async def refresh_report(
     )
     record = result.scalar_one_or_none()
     if record is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Отчёт не найден")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Отчёт не найден"
+        )
     if record.report_status != ReportStatus.DRAFT.value:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Можно обновлять только draft отчёт")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Можно обновлять только draft отчёт",
+        )
 
     period_from = datetime.fromisoformat(record.period_from).date()
     period_to = datetime.fromisoformat(record.period_to).date()
@@ -297,7 +331,10 @@ async def refresh_report(
             author_name=current_user.full_name,
         )
     else:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Этот тип отчёта не поддерживает refresh")
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Этот тип отчёта не поддерживает refresh",
+        )
 
     record.content_md = refreshed
     await db.commit()
@@ -319,14 +356,20 @@ async def finalize_report(
     )
     record = result.scalar_one_or_none()
     if record is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Отчёт не найден")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Отчёт не найден"
+        )
     record.report_status = ReportStatus.FINAL.value
     await db.commit()
     await db.refresh(record)
     return _to_preview(record, updates_after_finalization=0)
 
 
-@router.post("/{report_id}/regenerate-draft", response_model=ReportPreviewResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{report_id}/regenerate-draft",
+    response_model=ReportPreviewResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def regenerate_draft_from_final(
     report_id: UUID,
     current_user: CurrentUser,
@@ -346,9 +389,14 @@ async def regenerate_draft_from_final(
     )
     source_record = result.scalar_one_or_none()
     if source_record is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Отчёт не найден")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Отчёт не найден"
+        )
     if source_record.report_status != ReportStatus.FINAL.value:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Пересборка доступна только для final отчёта")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Пересборка доступна только для final отчёта",
+        )
 
     period_from = datetime.fromisoformat(source_record.period_from).date()
     period_to = datetime.fromisoformat(source_record.period_to).date()
@@ -407,7 +455,9 @@ async def export_md(
     )
     record = result.scalar_one_or_none()
     if record is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Отчёт не найден")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Отчёт не найден"
+        )
     await log_access_event(
         db,
         user_id=current_user.id,
@@ -440,7 +490,9 @@ async def export_txt(
     )
     record = result.scalar_one_or_none()
     if record is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Отчёт не найден")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Отчёт не найден"
+        )
     await log_access_event(
         db,
         user_id=current_user.id,
@@ -450,7 +502,7 @@ async def export_txt(
         request_id=getattr(request.state, "request_id", None),
     )
 
-    # Убираем Markdown-разметку для plain text экспорта.
+    # Убираем Markdown-разметку для экспорта в обычный текст.
     plain_text = strip_markdown(record.content_md)
     filename = f"report_{record.period_from}_{record.period_to}.txt"
     return Response(
@@ -475,7 +527,9 @@ async def export_docx(
     )
     record = result.scalar_one_or_none()
     if record is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Отчёт не найден")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Отчёт не найден"
+        )
     await log_access_event(
         db,
         user_id=current_user.id,
@@ -508,7 +562,9 @@ async def export_pdf(
     )
     record = result.scalar_one_or_none()
     if record is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Отчёт не найден")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Отчёт не найден"
+        )
     await log_access_event(
         db,
         user_id=current_user.id,
@@ -548,13 +604,17 @@ async def export_registry(
     now = datetime.now(UTC)
     registry_records: list[ReportRecordResponse] = []
     for record in records:
-        expires_at = calculate_export_expiration(record.created_at, settings.export_retention_days)
+        expires_at = calculate_export_expiration(
+            record.created_at, settings.export_retention_days
+        )
         if expires_at >= now:
             registry_records.append(_to_record_response(record))
     return registry_records
 
 
-async def _count_updates_after_finalization(session: AsyncSession, report: ReportRecord) -> int:
+async def _count_updates_after_finalization(
+    session: AsyncSession, report: ReportRecord
+) -> int:
     """Считает новые записи журнала после финализации отчёта."""
     period_from = datetime.fromisoformat(report.period_from).date()
     period_to = datetime.fromisoformat(report.period_to).date()

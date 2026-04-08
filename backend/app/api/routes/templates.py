@@ -40,7 +40,9 @@ async def list_templates(
     category: str | None = Query(default=None),
     is_active: bool | None = Query(default=None),
 ) -> list[PlanTemplateResponse]:
-    templates = await template_service.list_templates(db, current_user.id, category, is_active)
+    templates = await template_service.list_templates(
+        db, current_user.id, category, is_active
+    )
     return [_to_response(template) for template in templates]
 
 
@@ -50,7 +52,11 @@ async def default_templates_catalog() -> list[dict[str, object]]:
     return template_service.get_default_template_catalog()
 
 
-@router.post("/import-defaults", response_model=list[PlanTemplateResponse], status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/import-defaults",
+    response_model=list[PlanTemplateResponse],
+    status_code=status.HTTP_201_CREATED,
+)
 async def import_defaults(
     current_user: CurrentUser,
     db: AsyncSession = Depends(get_db),
@@ -60,16 +66,23 @@ async def import_defaults(
     return [_to_response(template) for template in imported]
 
 
-@router.post("", response_model=PlanTemplateResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "", response_model=PlanTemplateResponse, status_code=status.HTTP_201_CREATED
+)
 async def create_template(
     payload: PlanTemplateCreateRequest,
     current_user: CurrentUser,
     db: AsyncSession = Depends(get_db),
 ) -> PlanTemplateResponse:
     normalized_key = template_service.normalize_template_key(payload.key)
-    existing = await template_service.get_template_by_key(db, normalized_key, current_user.id)
+    existing = await template_service.get_template_by_key(
+        db, normalized_key, current_user.id
+    )
     if existing is not None:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Шаблон с таким ключом уже существует")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Шаблон с таким ключом уже существует",
+        )
 
     try:
         template = await template_service.create_template(
@@ -83,7 +96,9 @@ async def create_template(
             is_active=payload.is_active,
         )
     except ValueError as error:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(error)) from error
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(error)
+        ) from error
     return _to_response(template)
 
 
@@ -93,9 +108,13 @@ async def get_template(
     current_user: CurrentUser,
     db: AsyncSession = Depends(get_db),
 ) -> PlanTemplateResponse:
-    template = await template_service.get_template_by_id(db, template_id, current_user.id)
+    template = await template_service.get_template_by_id(
+        db, template_id, current_user.id
+    )
     if template is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Шаблон не найден")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Шаблон не найден"
+        )
     return _to_response(template)
 
 
@@ -106,15 +125,24 @@ async def update_template(
     current_user: CurrentUser,
     db: AsyncSession = Depends(get_db),
 ) -> PlanTemplateResponse:
-    template = await template_service.get_template_by_id(db, template_id, current_user.id)
+    template = await template_service.get_template_by_id(
+        db, template_id, current_user.id
+    )
     if template is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Шаблон не найден")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Шаблон не найден"
+        )
 
     if payload.key is not None:
         normalized_key = template_service.normalize_template_key(payload.key)
-        existing = await template_service.get_template_by_key(db, normalized_key, current_user.id)
+        existing = await template_service.get_template_by_key(
+            db, normalized_key, current_user.id
+        )
         if existing is not None and existing.id != template.id:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Шаблон с таким ключом уже существует")
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Шаблон с таким ключом уже существует",
+            )
 
     try:
         updated = await template_service.update_template(
@@ -128,7 +156,9 @@ async def update_template(
             is_active=payload.is_active,
         )
     except ValueError as error:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(error)) from error
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(error)
+        ) from error
     return _to_response(updated)
 
 
@@ -138,7 +168,11 @@ async def delete_template(
     current_user: CurrentUser,
     db: AsyncSession = Depends(get_db),
 ) -> None:
-    template = await template_service.get_template_by_id(db, template_id, current_user.id)
+    template = await template_service.get_template_by_id(
+        db, template_id, current_user.id
+    )
     if template is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Шаблон не найден")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Шаблон не найден"
+        )
     await template_service.delete_template(db, template)

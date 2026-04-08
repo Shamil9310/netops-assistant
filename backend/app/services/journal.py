@@ -27,7 +27,9 @@ async def list_activity_entries_for_date(
         select(ActivityEntry)
         .where(ActivityEntry.user_id == user_id)
         .where(ActivityEntry.work_date == work_date)
-        .order_by(ActivityEntry.started_at.asc().nullslast(), ActivityEntry.created_at.asc())
+        .order_by(
+            ActivityEntry.started_at.asc().nullslast(), ActivityEntry.created_at.asc()
+        )
     )
 
     result = await session.execute(statement)
@@ -39,7 +41,17 @@ async def create_activity_entry(
     user: User,
     payload: ActivityEntryCreateRequest,
 ) -> ActivityEntry:
-    """Создаёт новую запись журнала для текущего пользователя."""
+    """Создаёт новую запись журнала для текущего пользователя.
+
+    Логика работы с датами:
+    - work_date отвечает за день, к которому запись относится в отчётах;
+    - ended_date отвечает за реальную дату закрытия задачи;
+    - если ended_date не передана, считаем, что запись закрыта в work_date.
+    """
+    effective_ended_date = payload.ended_date or payload.work_date
+    if effective_ended_date < payload.work_date:
+        raise ValueError("Дата окончания не может быть раньше рабочей даты")
+
     started_at_value = payload.started_at
     if started_at_value is None:
         started_at_value = await _get_last_finished_time_for_date(
@@ -49,7 +61,7 @@ async def create_activity_entry(
         )
 
     started_at_dt = _combine_work_date_and_time(payload.work_date, started_at_value)
-    ended_at_dt = _combine_work_date_and_time(payload.work_date, payload.ended_at)
+    ended_at_dt = _combine_work_date_and_time(effective_ended_date, payload.ended_at)
 
     activity_entry = ActivityEntry(
         user_id=user.id,
@@ -93,7 +105,13 @@ async def update_activity_entry(
     entry: ActivityEntry,
     payload: ActivityEntryUpdateRequest,
 ) -> ActivityEntry:
-    """Обновляет запись журнала по переданным полям."""
+    """Обновляет запись журнала по переданным полям.
+
+    При обновлении важно сначала вычислить итоговые значения даты и времени,
+    а уже потом проверять ограничения. Иначе можно пропустить некорректную
+    комбинацию полей, если часть значений пришла в запросе, а часть осталась
+    в существующей записи.
+    """
     if payload.work_date is not None:
         entry.work_date = payload.work_date
     if payload.activity_type is not None:
@@ -109,17 +127,66 @@ async def update_activity_entry(
     if payload.contact is not None:
         entry.contact = payload.contact.strip() if payload.contact else None
     if payload.ticket_number is not None:
-        normalized_ticket = payload.ticket_number.strip() if payload.ticket_number else None
+        normalized_ticket = (
+            payload.ticket_number.strip() if payload.ticket_number else None
+        )
         entry.ticket_number = normalized_ticket
         entry.external_ref = normalized_ticket
     if payload.task_url is not None:
         entry.task_url = payload.task_url.strip() if payload.task_url else None
 
-    effective_work_date = payload.work_date if payload.work_date is not None else entry.work_date
+    effective_work_date = (
+        payload.work_date if payload.work_date is not None else entry.work_date
+    )
+    effective_ended_date = (
+        payload.ended_date
+        if payload.ended_date is not None
+        else (
+            entry.finished_at.date()
+            if entry.finished_at is not None
+            else effective_work_date
+        )
+    )
+    effective_started_time = (
+        payload.started_at
+        if payload.started_at is not None
+        else (
+            entry.started_at.timetz().replace(tzinfo=None)
+            if entry.started_at is not None
+            else None
+        )
+    )
+    effective_ended_time = (
+        payload.ended_at
+        if payload.ended_at is not None
+        else (
+            entry.finished_at.timetz().replace(tzinfo=None)
+            if entry.finished_at is not None
+            else None
+        )
+    )
+    if effective_ended_date < effective_work_date:
+        raise ValueError("Дата окончания не может быть раньше рабочей даты")
+    if (
+        effective_started_time is not None
+        and effective_ended_time is not None
+        and effective_ended_date == effective_work_date
+        and effective_ended_time < effective_started_time
+    ):
+        raise ValueError("Время окончания не может быть раньше времени начала")
+
     if payload.started_at is not None:
-        entry.started_at = _combine_work_date_and_time(effective_work_date, payload.started_at)
+        entry.started_at = _combine_work_date_and_time(
+            effective_work_date, payload.started_at
+        )
     if payload.ended_at is not None:
-        entry.finished_at = _combine_work_date_and_time(effective_work_date, payload.ended_at)
+        entry.finished_at = _combine_work_date_and_time(
+            effective_ended_date, payload.ended_at
+        )
+    elif payload.ended_date is not None and entry.finished_at is not None:
+        entry.finished_at = _combine_work_date_and_time(
+            effective_ended_date, entry.finished_at.timetz().replace(tzinfo=None)
+        )
 
     await session.commit()
     await session.refresh(entry)
@@ -140,21 +207,26 @@ async def list_entries_for_date(
 ) -> list[ActivityEntry]:
     """Возвращает записи за период по рабочей дате.
 
-    Для Sprint 07 важно, чтобы выборка строилась по work_date,
-    а не по моменту создания записи в системе.
+    Здесь фильтруем именно по work_date, а не по времени создания записи.
+    Это важно, потому что сотрудник может занести запись позже, но она всё равно
+    должна попасть в отчёт за исходную рабочую дату.
     """
     result = await session.execute(
         select(ActivityEntry)
         .where(ActivityEntry.user_id == user_id)
         .where(ActivityEntry.work_date >= day_start.date())
         .where(ActivityEntry.work_date <= day_end.date())
-        .order_by(ActivityEntry.work_date.asc(), ActivityEntry.started_at.asc().nullslast(), ActivityEntry.created_at.asc())
+        .order_by(
+            ActivityEntry.work_date.asc(),
+            ActivityEntry.started_at.asc().nullslast(),
+            ActivityEntry.created_at.asc(),
+        )
     )
     return list(result.scalars().all())
 
 
 def _combine_work_date_and_time(work_date: date, value: time | None) -> datetime | None:
-    """Склеивает рабочую дату и время в timestamp для БД."""
+    """Объединяет дату и время в одно значение для сохранения в базе."""
     if value is None:
         return None
     return datetime.combine(work_date, value, tzinfo=UTC)
@@ -165,7 +237,11 @@ async def _get_last_finished_time_for_date(
     user_id: UUID,
     work_date: date,
 ) -> time | None:
-    """Возвращает время завершения последней записи за рабочую дату."""
+    """Возвращает время завершения последней записи за рабочую дату.
+
+    Это нужно для автоподстановки времени начала в форме:
+    следующая запись часто начинается сразу после предыдущей.
+    """
     result = await session.execute(
         select(ActivityEntry.finished_at)
         .where(ActivityEntry.user_id == user_id)

@@ -6,26 +6,26 @@ import { FormEvent, useMemo, useState } from "react";
 type ReportType = "daily" | "weekly" | "range";
 type ReportProfile = "engineer" | "manager";
 
-function formatLocalDate(date: Date): string {
-  return date.toISOString().slice(0, 10);
+function formatDateForInput(dateValue: Date): string {
+  return dateValue.toISOString().slice(0, 10);
 }
 
-function getMonday(date: Date): Date {
-  const monday = new Date(date);
-  const day = monday.getUTCDay();
-  const offset = day === 0 ? -6 : 1 - day;
-  monday.setUTCDate(monday.getUTCDate() + offset);
-  return monday;
+function getWeekMonday(dateValue: Date): Date {
+  const mondayDate = new Date(dateValue);
+  const dayOfWeek = mondayDate.getUTCDay();
+  const dayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  mondayDate.setUTCDate(mondayDate.getUTCDate() + dayOffset);
+  return mondayDate;
 }
 
 export function ReportGenerateForm() {
   const router = useRouter();
   const today = useMemo(() => new Date(), []);
   const [reportType, setReportType] = useState<ReportType>("daily");
-  const [reportDate, setReportDate] = useState(formatLocalDate(today));
-  const [weekStart, setWeekStart] = useState(formatLocalDate(getMonday(today)));
-  const [dateFrom, setDateFrom] = useState(formatLocalDate(today));
-  const [dateTo, setDateTo] = useState(formatLocalDate(today));
+  const [reportDate, setReportDate] = useState(formatDateForInput(today));
+  const [weekStart, setWeekStart] = useState(formatDateForInput(getWeekMonday(today)));
+  const [dateFrom, setDateFrom] = useState(formatDateForInput(today));
+  const [dateTo, setDateTo] = useState(formatDateForInput(today));
   const [formatProfile, setFormatProfile] = useState<ReportProfile>("engineer");
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -35,7 +35,7 @@ export function ReportGenerateForm() {
     setError(null);
     setIsLoading(true);
 
-    const payload =
+    const reportRequestBody =
       reportType === "daily"
         ? { report_type: "daily", report_date: reportDate, format_profile: formatProfile }
         : reportType === "weekly"
@@ -46,15 +46,15 @@ export function ReportGenerateForm() {
       const response = await fetch("/api/reports/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(reportRequestBody),
       });
-      const body = (await response.json()) as { report_id?: string; detail?: string };
-      if (!response.ok || !body.report_id) {
-        setError(body.detail ?? "Не удалось сгенерировать отчёт");
+      const responsePayload = (await response.json()) as { report_id?: string; detail?: string };
+      if (!response.ok || !responsePayload.report_id) {
+        setError(responsePayload.detail ?? "Не удалось сгенерировать отчёт");
         return;
       }
 
-      router.push(`/reports?report_id=${body.report_id}`);
+      router.push(`/reports?report_id=${responsePayload.report_id}`);
       router.refresh();
     } catch {
       setError("Ошибка соединения с приложением");

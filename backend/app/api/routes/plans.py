@@ -102,7 +102,9 @@ async def list_plans(
     return [_plan_to_response(p) for p in plans]
 
 
-@router.post("", response_model=NightWorkPlanResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "", response_model=NightWorkPlanResponse, status_code=status.HTTP_201_CREATED
+)
 async def create_plan(
     payload: NightWorkPlanCreateRequest,
     current_user: CurrentUser,
@@ -120,7 +122,11 @@ async def create_plan(
     return _plan_to_response(plan)
 
 
-@router.post("/from-template", response_model=NightWorkPlanResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/from-template",
+    response_model=NightWorkPlanResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def create_plan_from_template(
     payload: CreatePlanFromTemplateRequest,
     current_user: CurrentUser,
@@ -130,11 +136,18 @@ async def create_plan_from_template(
     try:
         template_id = UUID(payload.template_id)
     except ValueError as error:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Некорректный template_id") from error
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Некорректный template_id",
+        ) from error
 
-    template = await template_service.get_template_by_id(db, template_id, current_user.id)
+    template = await template_service.get_template_by_id(
+        db, template_id, current_user.id
+    )
     if template is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Шаблон не найден")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Шаблон не найден"
+        )
 
     try:
         plan = await nw_service.create_plan_from_template(
@@ -146,7 +159,9 @@ async def create_plan_from_template(
             scheduled_at=payload.scheduled_at,
         )
     except ValueError as error:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(error)) from error
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(error)
+        ) from error
     return _plan_to_response(plan)
 
 
@@ -159,7 +174,9 @@ async def get_plan(
     """Возвращает план с блоками и шагами. Только владелец."""
     plan = await nw_service.get_plan_by_id(db, plan_id, current_user.id)
     if plan is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="План не найден")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="План не найден"
+        )
     return _plan_to_response(plan)
 
 
@@ -173,7 +190,9 @@ async def update_plan(
     """Обновляет поля плана. Разрешено только в статусе DRAFT."""
     plan = await nw_service.get_plan_by_id(db, plan_id, current_user.id)
     if plan is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="План не найден")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="План не найден"
+        )
     if plan.status != NightWorkPlanStatus.DRAFT.value:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -200,13 +219,17 @@ async def change_plan_status(
     """Переводит план в новый статус."""
     plan = await nw_service.get_plan_by_id(db, plan_id, current_user.id)
     if plan is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="План не найден")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="План не найден"
+        )
     try:
         updated = await nw_service.update_plan_status(
             db, plan, payload.status, payload.started_at, payload.finished_at
         )
     except ValueError as error:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=str(error)
+        ) from error
     return _plan_to_response(updated)
 
 
@@ -219,8 +242,13 @@ async def delete_plan(
     """Удаляет план. Только DRAFT или CANCELLED."""
     plan = await nw_service.get_plan_by_id(db, plan_id, current_user.id)
     if plan is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="План не найден")
-    if plan.status not in (NightWorkPlanStatus.DRAFT.value, NightWorkPlanStatus.CANCELLED.value):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="План не найден"
+        )
+    if plan.status not in (
+        NightWorkPlanStatus.DRAFT.value,
+        NightWorkPlanStatus.CANCELLED.value,
+    ):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Удаление доступно только для планов в статусе DRAFT или CANCELLED",
@@ -233,7 +261,11 @@ async def delete_plan(
 # ---------------------------------------------------------------------------
 
 
-@router.post("/{plan_id}/blocks", response_model=NightWorkBlockResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/{plan_id}/blocks",
+    response_model=NightWorkBlockResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def add_block(
     plan_id: UUID,
     payload: NightWorkBlockCreateRequest,
@@ -243,9 +275,12 @@ async def add_block(
     """Добавляет блок (SR/изменение) в план."""
     plan = await nw_service.get_plan_by_id(db, plan_id, current_user.id)
     if plan is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="План не найден")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="План не найден"
+        )
     block = await nw_service.add_block(
-        db, plan,
+        db,
+        plan,
         title=payload.title,
         description=payload.description,
         sr_number=payload.sr_number,
@@ -254,7 +289,9 @@ async def add_block(
     return _block_to_response(block)
 
 
-@router.patch("/{plan_id}/blocks/{block_id}/status", response_model=NightWorkBlockResponse)
+@router.patch(
+    "/{plan_id}/blocks/{block_id}/status", response_model=NightWorkBlockResponse
+)
 async def update_block_status(
     plan_id: UUID,
     block_id: UUID,
@@ -265,16 +302,27 @@ async def update_block_status(
     """Обновляет статус блока и фиксирует результат."""
     plan = await nw_service.get_plan_by_id(db, plan_id, current_user.id)
     if plan is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="План не найден")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="План не найден"
+        )
     block = await nw_service.get_block_by_id(db, block_id, plan_id)
     if block is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Блок не найден")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Блок не найден"
+        )
     try:
         updated = await nw_service.update_block_status(
-            db, block, payload.status, payload.result_comment, payload.started_at, payload.finished_at
+            db,
+            block,
+            payload.status,
+            payload.result_comment,
+            payload.started_at,
+            payload.finished_at,
         )
     except ValueError as error:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=str(error)
+        ) from error
     return _block_to_response(updated)
 
 
@@ -298,12 +346,17 @@ async def add_step(
     """Добавляет шаг в блок плана."""
     plan = await nw_service.get_plan_by_id(db, plan_id, current_user.id)
     if plan is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="План не найден")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="План не найден"
+        )
     block = await nw_service.get_block_by_id(db, block_id, plan_id)
     if block is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Блок не найден")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Блок не найден"
+        )
     step = await nw_service.add_step(
-        db, block,
+        db,
+        block,
         title=payload.title,
         description=payload.description,
         order_index=payload.order_index,
@@ -328,21 +381,33 @@ async def update_step_status(
     """Обновляет статус шага и фиксирует фактический результат исполнения."""
     plan = await nw_service.get_plan_by_id(db, plan_id, current_user.id)
     if plan is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="План не найден")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="План не найден"
+        )
     block = await nw_service.get_block_by_id(db, block_id, plan_id)
     if block is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Блок не найден")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Блок не найден"
+        )
     step = await nw_service.get_step_by_id(db, step_id, block_id)
     if step is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Шаг не найден")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Шаг не найден"
+        )
     try:
         updated = await nw_service.update_step_status(
-            db, step, payload.status,
-            payload.actual_result, payload.executor_comment,
+            db,
+            step,
+            payload.status,
+            payload.actual_result,
+            payload.executor_comment,
             payload.collaborators,
             payload.handoff_to,
-            payload.started_at, payload.finished_at,
+            payload.started_at,
+            payload.finished_at,
         )
     except ValueError as error:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=str(error)
+        ) from error
     return _step_to_response(updated)

@@ -37,6 +37,8 @@ export function NightWorkControls({
   const [editPlanParticipants, setEditPlanParticipants] = useState(selectedPlanParticipants.join(", "));
 
   useEffect(() => {
+    // При переключении активного плана синхронизируем форму редактирования,
+    // чтобы слева всегда были данные именно выбранного плана.
     setEditPlanTitle(selectedPlanTitle);
     setEditPlanDescription(selectedPlanDescription);
     setEditPlanScheduledAt(selectedPlanScheduledAt);
@@ -68,18 +70,23 @@ export function NightWorkControls({
   const [stepCollaborators, setStepCollaborators] = useState("");
   const [stepHandoffTo, setStepHandoffTo] = useState("");
 
-  async function mutate(payload: object) {
+  async function runMutation(requestPayload: object) {
     setIsLoading(true);
     setError(null);
     try {
+      // Все операции управления планом собраны в один proxy route.
+      // Это позволяет держать единый способ передачи cookie и CSRF.
       const response = await fetch("/api/plans/mutate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(requestPayload),
       });
-      const body = response.status === 204 ? null : ((await response.json()) as { detail?: string });
+      const responsePayload =
+        response.status === 204
+          ? null
+          : ((await response.json()) as { detail?: string });
       if (!response.ok) {
-        setError(body?.detail ?? "Операция не выполнена");
+        setError(responsePayload?.detail ?? "Операция не выполнена");
         return false;
       }
       router.refresh();
@@ -94,7 +101,7 @@ export function NightWorkControls({
 
   async function handleCreatePlan(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const ok = await mutate({
+    const isSuccess = await runMutation({
       action: "create_plan",
       title: newPlanTitle,
       description: newPlanDescription || undefined,
@@ -104,7 +111,7 @@ export function NightWorkControls({
         .map((item) => item.trim())
         .filter((item) => item.length > 0),
     });
-    if (ok) {
+    if (isSuccess) {
       setNewPlanTitle("");
       setNewPlanDescription("");
       setNewPlanScheduledAt("");
@@ -115,7 +122,7 @@ export function NightWorkControls({
   async function handlePlanStatus(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selectedPlanId) return;
-    await mutate({
+    await runMutation({
       action: "change_plan_status",
       plan_id: selectedPlanId,
       status: planStatus,
@@ -125,7 +132,7 @@ export function NightWorkControls({
   async function handleUpdatePlan(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selectedPlanId) return;
-    await mutate({
+    await runMutation({
       action: "update_plan",
       plan_id: selectedPlanId,
       title: editPlanTitle,
@@ -141,7 +148,7 @@ export function NightWorkControls({
   async function handleAddBlock(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selectedPlanId) return;
-    const ok = await mutate({
+    const isSuccess = await runMutation({
       action: "add_block",
       plan_id: selectedPlanId,
       title: newBlockTitle,
@@ -149,7 +156,7 @@ export function NightWorkControls({
       description: newBlockDescription || undefined,
       order_index: 0,
     });
-    if (ok) {
+    if (isSuccess) {
       setNewBlockTitle("");
       setNewBlockSr("");
       setNewBlockDescription("");
@@ -159,7 +166,7 @@ export function NightWorkControls({
   async function handleBlockStatus(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selectedPlanId || !selectedBlockId) return;
-    await mutate({
+    await runMutation({
       action: "change_block_status",
       plan_id: selectedPlanId,
       block_id: selectedBlockId,
@@ -171,7 +178,7 @@ export function NightWorkControls({
   async function handleAddStep(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selectedPlanId || !selectedBlockId) return;
-    const ok = await mutate({
+    const isSuccess = await runMutation({
       action: "add_step",
       plan_id: selectedPlanId,
       block_id: selectedBlockId,
@@ -181,7 +188,7 @@ export function NightWorkControls({
       is_rollback: newStepRollback,
       is_post_action: newStepPostAction,
     });
-    if (ok) {
+    if (isSuccess) {
       setNewStepTitle("");
       setNewStepDescription("");
       setNewStepRollback(false);
@@ -192,7 +199,7 @@ export function NightWorkControls({
   async function handleStepStatus(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selectedPlanId || !selectedBlockId || !selectedStepId) return;
-    await mutate({
+    await runMutation({
       action: "change_step_status",
       plan_id: selectedPlanId,
       block_id: selectedBlockId,
@@ -214,17 +221,24 @@ export function NightWorkControls({
     setIsLoading(true);
     setError(null);
     try {
+      // Итог ночных работ генерируем отдельным типом отчёта,
+      // чтобы использовать уже существующий контур отчётности.
       const response = await fetch("/api/reports/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ report_type: "night_work_result", plan_id: selectedPlanId }),
       });
-      const body = (await response.json()) as { report_id?: string; detail?: string };
-      if (!response.ok || !body.report_id) {
-        setError(body.detail ?? "Не удалось сформировать отчёт ночных работ");
+      const responsePayload = (await response.json()) as {
+        report_id?: string;
+        detail?: string;
+      };
+      if (!response.ok || !responsePayload.report_id) {
+        setError(
+          responsePayload.detail ?? "Не удалось сформировать отчёт ночных работ",
+        );
         return;
       }
-      router.push(`/reports?report_id=${body.report_id}`);
+      router.push(`/reports?report_id=${responsePayload.report_id}`);
       router.refresh();
     } catch {
       setError("Ошибка соединения");
@@ -254,11 +268,11 @@ export function NightWorkControls({
       <form onSubmit={handlePlanStatus} style={{ display: "grid", gap: 8 }}>
         <div className="filter-date-label">Статус плана</div>
         <select className="filter-date-input" value={planStatus} onChange={(e) => setPlanStatus(e.target.value)}>
-          <option value="draft">draft</option>
-          <option value="approved">approved</option>
-          <option value="in_progress">in_progress</option>
-          <option value="completed">completed</option>
-          <option value="cancelled">cancelled</option>
+          <option value="draft">Черновик</option>
+          <option value="approved">Согласован</option>
+          <option value="in_progress">В работе</option>
+          <option value="completed">Завершён</option>
+          <option value="cancelled">Отменён</option>
         </select>
         <button className="btn btn-sm" type="submit" disabled={isLoading || !selectedPlanId}>Обновить статус плана</button>
       </form>
@@ -294,12 +308,12 @@ export function NightWorkControls({
           ))}
         </select>
         <select className="filter-date-input" value={blockStatus} onChange={(e) => setBlockStatus(e.target.value)}>
-          <option value="pending">pending</option>
-          <option value="in_progress">in_progress</option>
-          <option value="completed">completed</option>
-          <option value="failed">failed</option>
-          <option value="skipped">skipped</option>
-          <option value="blocked">blocked</option>
+          <option value="pending">Ожидает</option>
+          <option value="in_progress">В работе</option>
+          <option value="completed">Завершён</option>
+          <option value="failed">Ошибка</option>
+          <option value="skipped">Пропущен</option>
+          <option value="blocked">Заблокирован</option>
         </select>
         <input
           className="search-input"
@@ -322,11 +336,11 @@ export function NightWorkControls({
         <input className="search-input" placeholder="Описание шага" value={newStepDescription} onChange={(e) => setNewStepDescription(e.target.value)} />
         <label style={{ display: "flex", gap: 8, fontSize: 12 }}>
           <input type="checkbox" checked={newStepRollback} onChange={(e) => setNewStepRollback(e.target.checked)} />
-          rollback
+          Откат
         </label>
         <label style={{ display: "flex", gap: 8, fontSize: 12 }}>
           <input type="checkbox" checked={newStepPostAction} onChange={(e) => setNewStepPostAction(e.target.checked)} />
-          post-action
+          Пост-действие
         </label>
         <button className="btn btn-sm" type="submit" disabled={isLoading || !selectedPlanId || !selectedBlockId}>Добавить шаг</button>
       </form>
@@ -342,12 +356,12 @@ export function NightWorkControls({
             ))}
         </select>
         <select className="filter-date-input" value={stepStatus} onChange={(e) => setStepStatus(e.target.value)}>
-          <option value="pending">pending</option>
-          <option value="in_progress">in_progress</option>
-          <option value="completed">completed</option>
-          <option value="failed">failed</option>
-          <option value="skipped">skipped</option>
-          <option value="blocked">blocked</option>
+          <option value="pending">Ожидает</option>
+          <option value="in_progress">В работе</option>
+          <option value="completed">Завершён</option>
+          <option value="failed">Ошибка</option>
+          <option value="skipped">Пропущен</option>
+          <option value="blocked">Заблокирован</option>
         </select>
         <input
           className="search-input"

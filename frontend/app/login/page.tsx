@@ -25,7 +25,7 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           <div className="auth-brand-mark">NA</div>
           <div>
             <div className="auth-brand-name">NetOps Assistant</div>
-            <div className="auth-brand-sub">Engineer Workspace</div>
+            <div className="auth-brand-sub">Рабочее пространство инженера</div>
           </div>
         </div>
 

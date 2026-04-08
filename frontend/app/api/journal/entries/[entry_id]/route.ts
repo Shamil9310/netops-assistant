@@ -23,7 +23,7 @@ export async function PATCH(
   { params }: { params: Promise<{ entry_id: string }> },
 ) {
   const { entry_id: entryId } = await params;
-  const payload = await request.json();
+  const requestPayload = await request.json();
 
   const cookieStore = await cookies();
   const sessionToken = cookieStore.get(SESSION_COOKIE_NAME)?.value;
@@ -35,15 +35,15 @@ export async function PATCH(
   const response = await fetch(`${SERVER_API_BASE_URL}/api/v1/journal/entries/${entryId}`, {
     method: "PATCH",
     headers: buildHeaders(sessionToken, csrfToken),
-    body: JSON.stringify(payload),
+    body: JSON.stringify(requestPayload),
     cache: "no-store",
   });
 
-  const body = await response.json();
+  const responsePayload = await response.json();
   if (!response.ok) {
-    return NextResponse.json(body, { status: response.status });
+    return NextResponse.json(responsePayload, { status: response.status });
   }
-  return NextResponse.json(body);
+  return NextResponse.json(responsePayload);
 }
 
 export async function DELETE(
@@ -65,8 +65,8 @@ export async function DELETE(
   });
 
   if (!response.ok) {
-    const body = await response.json();
-    return NextResponse.json(body, { status: response.status });
+    const responsePayload = await response.json();
+    return NextResponse.json(responsePayload, { status: response.status });
   }
   return new NextResponse(null, { status: 204 });
 }

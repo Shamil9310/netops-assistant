@@ -9,7 +9,7 @@ APP_START_MONOTONIC = time.monotonic()
 
 
 def get_uptime_seconds() -> int:
-    """Возвращает uptime процесса backend в секундах."""
+    """Возвращает время работы серверного процесса в секундах."""
     return int(time.monotonic() - APP_START_MONOTONIC)
 
 
@@ -31,7 +31,7 @@ def get_load_average_1m() -> float:
 
 
 def build_summary_payload(database_ok: bool) -> dict[str, object]:
-    """Формирует payload developer dashboard с базовыми системными метриками."""
+    """Собирает данные для панели разработчика с базовыми системными метриками."""
     return {
         "module": "developer",
         "status": "ok",

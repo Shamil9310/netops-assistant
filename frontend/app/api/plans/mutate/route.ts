@@ -46,92 +46,94 @@ type MutatePayload =
     variables?: Record<string, string>;
   };
 
-function buildBackendRequest(payload: MutatePayload): { path: string; method: "POST" | "PATCH"; body: object } | null {
-  if (payload.action === "create_plan") {
+function buildBackendRequest(actionPayload: MutatePayload): { path: string; method: "POST" | "PATCH"; body: object } | null {
+  // Нормализуем все варианты действий в единый backend-запрос,
+  // чтобы UI работал через один внутренний endpoint.
+  if (actionPayload.action === "create_plan") {
     return {
       path: "/api/v1/plans",
       method: "POST",
       body: {
-        title: payload.title,
-        description: payload.description ?? null,
-        scheduled_at: payload.scheduled_at ?? null,
-        participants: payload.participants ?? [],
+        title: actionPayload.title,
+        description: actionPayload.description ?? null,
+        scheduled_at: actionPayload.scheduled_at ?? null,
+        participants: actionPayload.participants ?? [],
       },
     };
   }
-  if (payload.action === "change_plan_status") {
+  if (actionPayload.action === "change_plan_status") {
     return {
-      path: `/api/v1/plans/${payload.plan_id}/status`,
+      path: `/api/v1/plans/${actionPayload.plan_id}/status`,
       method: "PATCH",
-      body: { status: payload.status },
+      body: { status: actionPayload.status },
     };
   }
-  if (payload.action === "update_plan") {
+  if (actionPayload.action === "update_plan") {
     return {
-      path: `/api/v1/plans/${payload.plan_id}`,
+      path: `/api/v1/plans/${actionPayload.plan_id}`,
       method: "PATCH",
       body: {
-        title: payload.title ?? null,
-        description: payload.description ?? null,
-        scheduled_at: payload.scheduled_at ?? null,
-        participants: payload.participants ?? null,
+        title: actionPayload.title ?? null,
+        description: actionPayload.description ?? null,
+        scheduled_at: actionPayload.scheduled_at ?? null,
+        participants: actionPayload.participants ?? null,
       },
     };
   }
-  if (payload.action === "add_block") {
+  if (actionPayload.action === "add_block") {
     return {
-      path: `/api/v1/plans/${payload.plan_id}/blocks`,
+      path: `/api/v1/plans/${actionPayload.plan_id}/blocks`,
       method: "POST",
       body: {
-        title: payload.title,
-        sr_number: payload.sr_number ?? null,
-        description: payload.description ?? null,
-        order_index: payload.order_index ?? 0,
+        title: actionPayload.title,
+        sr_number: actionPayload.sr_number ?? null,
+        description: actionPayload.description ?? null,
+        order_index: actionPayload.order_index ?? 0,
       },
     };
   }
-  if (payload.action === "change_block_status") {
+  if (actionPayload.action === "change_block_status") {
     return {
-      path: `/api/v1/plans/${payload.plan_id}/blocks/${payload.block_id}/status`,
+      path: `/api/v1/plans/${actionPayload.plan_id}/blocks/${actionPayload.block_id}/status`,
       method: "PATCH",
-      body: { status: payload.status, result_comment: payload.result_comment ?? null },
+      body: { status: actionPayload.status, result_comment: actionPayload.result_comment ?? null },
     };
   }
-  if (payload.action === "add_step") {
+  if (actionPayload.action === "add_step") {
     return {
-      path: `/api/v1/plans/${payload.plan_id}/blocks/${payload.block_id}/steps`,
+      path: `/api/v1/plans/${actionPayload.plan_id}/blocks/${actionPayload.block_id}/steps`,
       method: "POST",
       body: {
-        title: payload.title,
-        description: payload.description ?? null,
-        order_index: payload.order_index ?? 0,
-        is_rollback: payload.is_rollback ?? false,
-        is_post_action: payload.is_post_action ?? false,
+        title: actionPayload.title,
+        description: actionPayload.description ?? null,
+        order_index: actionPayload.order_index ?? 0,
+        is_rollback: actionPayload.is_rollback ?? false,
+        is_post_action: actionPayload.is_post_action ?? false,
       },
     };
   }
-  if (payload.action === "change_step_status") {
+  if (actionPayload.action === "change_step_status") {
     return {
-      path: `/api/v1/plans/${payload.plan_id}/blocks/${payload.block_id}/steps/${payload.step_id}/status`,
+      path: `/api/v1/plans/${actionPayload.plan_id}/blocks/${actionPayload.block_id}/steps/${actionPayload.step_id}/status`,
       method: "PATCH",
       body: {
-        status: payload.status,
-        actual_result: payload.actual_result ?? null,
-        executor_comment: payload.executor_comment ?? null,
-        collaborators: payload.collaborators ?? [],
-        handoff_to: payload.handoff_to ?? null,
+        status: actionPayload.status,
+        actual_result: actionPayload.actual_result ?? null,
+        executor_comment: actionPayload.executor_comment ?? null,
+        collaborators: actionPayload.collaborators ?? [],
+        handoff_to: actionPayload.handoff_to ?? null,
       },
     };
   }
-  if (payload.action === "create_from_template") {
+  if (actionPayload.action === "create_from_template") {
     return {
       path: "/api/v1/plans/from-template",
       method: "POST",
       body: {
-        template_id: payload.template_id,
-        title: payload.title ?? null,
-        scheduled_at: payload.scheduled_at ?? null,
-        variables: payload.variables ?? {},
+        template_id: actionPayload.template_id,
+        title: actionPayload.title ?? null,
+        scheduled_at: actionPayload.scheduled_at ?? null,
+        variables: actionPayload.variables ?? {},
       },
     };
   }
@@ -139,8 +141,8 @@ function buildBackendRequest(payload: MutatePayload): { path: string; method: "P
 }
 
 export async function POST(request: Request) {
-  const payload = (await request.json()) as MutatePayload;
-  const backendRequest = buildBackendRequest(payload);
+  const actionPayload = (await request.json()) as MutatePayload;
+  const backendRequest = buildBackendRequest(actionPayload);
   if (!backendRequest) {
     return NextResponse.json({ detail: "Некорректный action" }, { status: 400 });
   }
@@ -174,9 +176,11 @@ export async function POST(request: Request) {
     return new NextResponse(null, { status: 204 });
   }
 
-  const body = await response.json();
+  // Возвращаем клиенту backend-ответ почти без изменений,
+  // чтобы сообщения об ошибках и успешные данные не расходились.
+  const responsePayload = await response.json();
   if (!response.ok) {
-    return NextResponse.json(body, { status: response.status });
+    return NextResponse.json(responsePayload, { status: response.status });
   }
-  return NextResponse.json(body, { status: response.status });
+  return NextResponse.json(responsePayload, { status: response.status });
 }

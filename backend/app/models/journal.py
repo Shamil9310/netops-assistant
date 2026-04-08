@@ -19,7 +19,7 @@ class ActivityType(StrEnum):
 
     # Входящий или исходящий звонок.
     CALL = "call"
-    # Работа с заявкой (SR, incident, task).
+    # Работа с заявкой или обращением во внешней системе.
     TICKET = "ticket"
     # Встреча, совещание, планёрка.
     MEETING = "meeting"
@@ -47,7 +47,7 @@ class ActivityStatus(StrEnum):
 class ActivityEntry(Base):
     """Запись журнала дневной операционной активности.
 
-    Центральная сущность дневного контура (day ops).
+    Это основная сущность рабочего журнала.
     Каждый сотрудник фиксирует свои активности — звонки, заявки, встречи.
     На основе этих записей строятся отчёты и дашборд текущего дня.
     """
@@ -62,7 +62,8 @@ class ActivityEntry(Base):
         nullable=False,
         index=True,
     )
-    # Рабочая дата записи: именно по ней строятся дневные и периодные отчёты.
+    # Рабочая дата записи.
+    # Именно по этой дате запись попадает в дневные и периодные отчёты.
     work_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
 
     activity_type: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
@@ -81,22 +82,33 @@ class ActivityEntry(Base):
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Что было сделано для решения задачи.
     resolution: Mapped[str | None] = mapped_column(Text, nullable=True)
-    # От кого пришла задача: имя, отдел, email, телефон.
+    # От кого пришла задача: имя, отдел, электронная почта, телефон.
     contact: Mapped[str | None] = mapped_column(String(256), nullable=True)
 
-    # Номер заявки/SR/тикета во внешней системе — для привязки к ITSM.
-    external_ref: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
-    # Явное поле тикета для нового контракта journal API.
-    # На этапе миграции поддерживаем оба поля: ticket_number и external_ref.
-    ticket_number: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
+    # Номер заявки или SR во внешней системе.
+    # Нужен, чтобы связать запись журнала с внешним процессом или обращением.
+    external_ref: Mapped[str | None] = mapped_column(
+        String(128), nullable=True, index=True
+    )
+    # Отдельное поле номера заявки нужно для текущего контракта API журнала.
+    # Пока поддерживаем и его, и external_ref, чтобы не ломать старые данные.
+    ticket_number: Mapped[str | None] = mapped_column(
+        String(128), nullable=True, index=True
+    )
     # Ссылка на карточку задачи во внешней системе, например в BPM.
     task_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
 
-    # Время фактического начала активности (может отличаться от created_at).
-    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Фактическое время начала работы.
+    # Может отличаться от времени создания записи в базе.
+    started_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
-    # Время фактического завершения активности.
-    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Фактические дата и время завершения работы.
+    # Может быть позже рабочей даты, если задача закрыта на следующий день.
+    finished_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

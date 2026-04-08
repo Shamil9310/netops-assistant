@@ -27,8 +27,15 @@ def get_default_template_catalog() -> list[dict[str, object]]:
                         "sr_number": "{{sr_number}}",
                         "steps": [
                             {"title": "Pre-check", "description": "show bgp summary"},
-                            {"title": "Apply config", "description": "neighbor {{neighbor_ip}} remote-as {{remote_as}}"},
-                            {"title": "Post-check", "description": "show route / ping", "is_post_action": True},
+                            {
+                                "title": "Apply config",
+                                "description": "neighbor {{neighbor_ip}} remote-as {{remote_as}}",
+                            },
+                            {
+                                "title": "Post-check",
+                                "description": "show route / ping",
+                                "is_post_action": True,
+                            },
                         ],
                     }
                 ]
@@ -49,7 +56,11 @@ def get_default_template_catalog() -> list[dict[str, object]]:
                         "steps": [
                             {"title": "Pre-check", "description": "show vlan brief"},
                             {"title": "Apply VLAN", "description": "vlan {{vlan_id}}"},
-                            {"title": "Post-check", "description": "show mac address-table vlan {{vlan_id}}", "is_post_action": True},
+                            {
+                                "title": "Post-check",
+                                "description": "show mac address-table vlan {{vlan_id}}",
+                                "is_post_action": True,
+                            },
                         ],
                     }
                 ]
@@ -68,8 +79,14 @@ def get_default_template_catalog() -> list[dict[str, object]]:
                         "description": "Изменение правил маршрутизации",
                         "sr_number": "{{sr_number}}",
                         "steps": [
-                            {"title": "Backup config", "description": "show run | section ip prefix-list"},
-                            {"title": "Apply rule", "description": "ip prefix-list {{prefix_list_name}} permit {{prefix}}"},
+                            {
+                                "title": "Backup config",
+                                "description": "show run | section ip prefix-list",
+                            },
+                            {
+                                "title": "Apply rule",
+                                "description": "ip prefix-list {{prefix_list_name}} permit {{prefix}}",
+                            },
                         ],
                     }
                 ]
@@ -88,8 +105,14 @@ def get_default_template_catalog() -> list[dict[str, object]]:
                         "description": "Корректировка route-map",
                         "sr_number": "{{sr_number}}",
                         "steps": [
-                            {"title": "Pre-check", "description": "show route-map {{route_map_name}}"},
-                            {"title": "Apply sequence", "description": "route-map {{route_map_name}} permit {{sequence}}"},
+                            {
+                                "title": "Pre-check",
+                                "description": "show route-map {{route_map_name}}",
+                            },
+                            {
+                                "title": "Apply sequence",
+                                "description": "route-map {{route_map_name}} permit {{sequence}}",
+                            },
                         ],
                     }
                 ]
@@ -108,8 +131,15 @@ def get_default_template_catalog() -> list[dict[str, object]]:
                         "description": "Добавление маршрута",
                         "sr_number": "{{sr_number}}",
                         "steps": [
-                            {"title": "Add route", "description": "ip route {{prefix}} {{next_hop}}"},
-                            {"title": "Track check", "description": "show track {{track_id}}", "is_post_action": True},
+                            {
+                                "title": "Add route",
+                                "description": "ip route {{prefix}} {{next_hop}}",
+                            },
+                            {
+                                "title": "Track check",
+                                "description": "show track {{track_id}}",
+                                "is_post_action": True,
+                            },
                         ],
                     }
                 ]
@@ -128,8 +158,14 @@ def get_default_template_catalog() -> list[dict[str, object]]:
                         "description": "Отключение и зачистка туннеля",
                         "sr_number": "{{sr_number}}",
                         "steps": [
-                            {"title": "Disable tunnel", "description": "shutdown interface tunnel {{tunnel_id}}"},
-                            {"title": "Remove config", "description": "no interface tunnel {{tunnel_id}}"},
+                            {
+                                "title": "Disable tunnel",
+                                "description": "shutdown interface tunnel {{tunnel_id}}",
+                            },
+                            {
+                                "title": "Remove config",
+                                "description": "no interface tunnel {{tunnel_id}}",
+                            },
                         ],
                     }
                 ]
@@ -170,7 +206,7 @@ def validate_template_key(key: str) -> str:
 
 
 def validate_template_payload(payload: dict[str, object]) -> None:
-    """Проверяет структуру payload шаблона на базовом уровне."""
+    """Проверяет базовую структуру данных шаблона."""
     if "blocks" in payload and not isinstance(payload["blocks"], list):
         raise ValueError("Поле blocks в payload должно быть списком")
 
@@ -181,7 +217,11 @@ async def list_templates(
     category: str | None = None,
     is_active: bool | None = None,
 ) -> list[PlanTemplate]:
-    query = select(PlanTemplate).where(PlanTemplate.user_id == user_id).order_by(PlanTemplate.created_at.desc())
+    query = (
+        select(PlanTemplate)
+        .where(PlanTemplate.user_id == user_id)
+        .order_by(PlanTemplate.created_at.desc())
+    )
     if category is not None:
         query = query.where(PlanTemplate.category == category)
     if is_active is not None:
@@ -191,7 +231,9 @@ async def list_templates(
     return list(result.scalars().all())
 
 
-async def get_template_by_id(session: AsyncSession, template_id: UUID, user_id: UUID) -> PlanTemplate | None:
+async def get_template_by_id(
+    session: AsyncSession, template_id: UUID, user_id: UUID
+) -> PlanTemplate | None:
     result = await session.execute(
         select(PlanTemplate)
         .where(PlanTemplate.id == template_id)
@@ -200,7 +242,9 @@ async def get_template_by_id(session: AsyncSession, template_id: UUID, user_id: 
     return result.scalar_one_or_none()
 
 
-async def get_template_by_key(session: AsyncSession, key: str, user_id: UUID) -> PlanTemplate | None:
+async def get_template_by_key(
+    session: AsyncSession, key: str, user_id: UUID
+) -> PlanTemplate | None:
     result = await session.execute(
         select(PlanTemplate)
         .where(PlanTemplate.key == key)
@@ -271,7 +315,9 @@ async def delete_template(session: AsyncSession, template: PlanTemplate) -> None
     await session.commit()
 
 
-async def import_default_templates(session: AsyncSession, user_id: UUID) -> list[PlanTemplate]:
+async def import_default_templates(
+    session: AsyncSession, user_id: UUID
+) -> list[PlanTemplate]:
     """Импортирует дефолтные шаблоны в библиотеку пользователя."""
     imported: list[PlanTemplate] = []
     for default_template in get_default_template_catalog():

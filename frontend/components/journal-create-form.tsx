@@ -45,14 +45,23 @@ export function JournalCreateForm({ initialWorkDate, lastEndedAt }: Props) {
   const [taskUrl, setTaskUrl] = useState("");
   const [startedAt, setStartedAt] = useState(toTimeInputValue(lastEndedAt));
   const [endedAt, setEndedAt] = useState("");
+  const [endedDate, setEndedDate] = useState(initialWorkDate);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const hasCrossMidnightRange = Boolean(
+    startedAt && endedAt && endedDate === workDate && endedAt < startedAt,
+  );
 
   useEffect(() => {
     if (!startedAt && lastEndedAt) {
       setStartedAt(toTimeInputValue(lastEndedAt));
     }
   }, [lastEndedAt, startedAt]);
+
+  useEffect(() => {
+    setEndedDate((current) => (current < workDate ? workDate : current));
+  }, [workDate]);
 
   useEffect(() => {
     let isCancelled = false;
@@ -63,15 +72,21 @@ export function JournalCreateForm({ initialWorkDate, lastEndedAt }: Props) {
       }
 
       try {
+        // Подхватываем время окончания последней записи за день,
+        // чтобы следующую запись было быстрее заполнять последовательно.
         const response = await fetch(`/api/journal/entries?work_date=${workDate}`, { method: "GET" });
         if (!response.ok) {
           return;
         }
 
-        const data = (await response.json()) as { items?: Array<{ ended_at: string | null }> };
-        const lastEnded = [...(data.items ?? [])].reverse().find((item) => item.ended_at)?.ended_at;
-        if (!isCancelled && lastEnded) {
-          setStartedAt(toTimeInputValue(lastEnded));
+        const journalEntriesResponse =
+          (await response.json()) as { items?: Array<{ ended_at: string | null }> };
+        const latestEndedAtValue =
+          [...(journalEntriesResponse.items ?? [])]
+            .reverse()
+            .find((entry) => entry.ended_at)?.ended_at;
+        if (!isCancelled && latestEndedAtValue) {
+          setStartedAt(toTimeInputValue(latestEndedAtValue));
         }
       } catch {
         // no-op: if entries cannot be loaded, user can still enter time manually
@@ -89,6 +104,20 @@ export function JournalCreateForm({ initialWorkDate, lastEndedAt }: Props) {
     setIsSubmitting(true);
     setError(null);
 
+    if (endedDate < workDate) {
+      setError("Дата окончания не может быть раньше рабочей даты");
+      setIsSubmitting(false);
+      return;
+    }
+
+    // Для одной и той же даты запрещаем обратный интервал.
+    // Если задача завершилась на следующий день, это нужно указать явно через endedDate.
+    if (hasCrossMidnightRange) {
+      setError("Время окончания не может быть раньше времени начала");
+      setIsSubmitting(false);
+      return;
+    }
+
     try {
       const response = await fetch("/api/journal/entries", {
         method: "POST",
@@ -105,11 +134,12 @@ export function JournalCreateForm({ initialWorkDate, lastEndedAt }: Props) {
           task_url: taskUrl || null,
           started_at: startedAt || null,
           ended_at: endedAt || null,
+          ended_date: endedAt ? endedDate : null,
         }),
       });
-      const body = (await response.json()) as { detail?: string };
+      const responsePayload = (await response.json()) as { detail?: string };
       if (!response.ok) {
-        setError(body.detail ?? "Не удалось создать запись");
+        setError(responsePayload.detail ?? "Не удалось создать запись");
         return;
       }
 
@@ -120,6 +150,7 @@ export function JournalCreateForm({ initialWorkDate, lastEndedAt }: Props) {
       setTaskUrl("");
       setStartedAt(endedAt || startedAt);
       setEndedAt("");
+      setEndedDate(workDate);
       router.push(`/journal?work_date=${workDate}`);
       router.refresh();
     } catch {
@@ -150,11 +181,21 @@ export function JournalCreateForm({ initialWorkDate, lastEndedAt }: Props) {
         <option value="cancelled">Отменена</option>
       </select>
 
-      <input className="filter-date-input" placeholder="SR / Ticket" value={ticketNumber} onChange={(event) => setTicketNumber(event.target.value)} />
+      <input className="filter-date-input" placeholder="SR / номер заявки" value={ticketNumber} onChange={(event) => setTicketNumber(event.target.value)} />
       <input className="filter-date-input" placeholder="Контакт (от кого пришло)" value={contact} onChange={(event) => setContact(event.target.value)} />
       <input className="filter-date-input" placeholder="Ссылка на задачу (BPM и т.п.)" value={taskUrl} onChange={(event) => setTaskUrl(event.target.value)} />
       <input type="time" className="filter-date-input" value={startedAt} onChange={(event) => setStartedAt(event.target.value)} />
       <input type="time" className="filter-date-input" value={endedAt} onChange={(event) => setEndedAt(event.target.value)} />
+      <input type="date" className="filter-date-input" value={endedDate} onChange={(event) => setEndedDate(event.target.value)} />
+      {hasCrossMidnightRange && (
+        <div className="focus-note" style={{ marginBottom: 20, marginTop: -8 }}>
+          <div className="focus-note-label">Предупреждение</div>
+          <p>
+            Для той же даты время окончания не может быть раньше времени начала.
+            Если задача закрыта на следующий день, укажи дату окончания ниже.
+          </p>
+        </div>
+      )}
       <textarea className="filter-date-input" placeholder="Описание" value={description} onChange={(event) => setDescription(event.target.value)} />
       <textarea className="filter-date-input" placeholder="Решение" value={resolution} onChange={(event) => setResolution(event.target.value)} />
 

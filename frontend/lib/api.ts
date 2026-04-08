@@ -178,6 +178,14 @@ export type TeamMember = {
   teams: string[];
 };
 
+export type LocalUser = {
+  id: string;
+  username: string;
+  full_name: string;
+  role: string;
+  is_active: boolean;
+};
+
 export type TeamWeeklySummary = {
   user_id: string;
   username: string;
@@ -204,6 +212,7 @@ export type JournalEntry = {
   task_url: string | null;
   started_at: string | null;
   ended_at: string | null;
+  ended_date: string | null;
   is_backdated: boolean;
   created_at: string;
   updated_at: string;
@@ -250,10 +259,11 @@ export type CreateJournalEntryPayload = {
   task_url?: string | null;
   started_at?: string | null;
   ended_at?: string | null;
+  ended_date?: string | null;
 };
 
-// Все функции в этом файле выполняются только на сервере (SSR / Route Handlers),
-// поэтому используем SERVER_API_BASE_URL с внутренним адресом backend.
+// Все функции в этом файле работают только на серверной стороне приложения.
+// Поэтому здесь используем внутренний адрес backend, а не публичный URL из браузера.
 const API_BASE_URL = SERVER_API_BASE_URL;
 
 export async function getHealth(): Promise<HealthResponse | null> {
@@ -514,17 +524,17 @@ export async function regenerateDraftReportWithBackend(reportId: string): Promis
 
 export async function generateReportWithBackend(payload: GenerateReportPayload): Promise<Response> {
   let path = "/api/v1/reports/daily";
-  let body: Record<string, string> = {};
+  let requestBody: Record<string, string> = {};
 
   if (payload.report_type === "daily") {
     path = "/api/v1/reports/daily";
-    body = { report_date: payload.report_date, format_profile: payload.format_profile ?? "engineer" };
+    requestBody = { report_date: payload.report_date, format_profile: payload.format_profile ?? "engineer" };
   } else if (payload.report_type === "weekly") {
     path = "/api/v1/reports/weekly";
-    body = { week_start: payload.week_start, format_profile: payload.format_profile ?? "engineer" };
+    requestBody = { week_start: payload.week_start, format_profile: payload.format_profile ?? "engineer" };
   } else if (payload.report_type === "range") {
     path = "/api/v1/reports/range";
-    body = {
+    requestBody = {
       date_from: payload.date_from,
       date_to: payload.date_to,
       format_profile: payload.format_profile ?? "engineer",
@@ -532,7 +542,7 @@ export async function generateReportWithBackend(payload: GenerateReportPayload):
   } else {
     const formatProfile = payload.format_profile ?? "engineer";
     path = `/api/v1/reports/night-work/${payload.plan_id}?format_profile=${formatProfile}`;
-    body = {};
+    requestBody = {};
   }
 
   const cookieStore = await cookies();
@@ -559,7 +569,7 @@ export async function generateReportWithBackend(payload: GenerateReportPayload):
   return fetch(`${API_BASE_URL}${path}`, {
     method: "POST",
     headers,
-    body: JSON.stringify(body),
+    body: JSON.stringify(requestBody),
     cache: "no-store",
   });
 }
@@ -654,6 +664,52 @@ export async function getTeamWeeklySummary(weekStart: string): Promise<TeamWeekl
       return null;
     }
     return (await response.json()) as TeamWeeklySummary[];
+  } catch {
+    return null;
+  }
+}
+
+export async function getTeamUsers(): Promise<TeamMember[] | null> {
+  const cookieStore = await cookies();
+  const sessionToken = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+  if (!sessionToken) {
+    return null;
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/v1/team/users`, {
+      headers: {
+        Cookie: `${SESSION_COOKIE_NAME}=${sessionToken}`,
+      },
+      cache: "no-store",
+    });
+    if (!response.ok) {
+      return null;
+    }
+    return (await response.json()) as TeamMember[];
+  } catch {
+    return null;
+  }
+}
+
+export async function getLocalUsers(): Promise<LocalUser[] | null> {
+  const cookieStore = await cookies();
+  const sessionToken = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+  if (!sessionToken) {
+    return null;
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/v1/developer/users/local`, {
+      headers: {
+        Cookie: `${SESSION_COOKIE_NAME}=${sessionToken}`,
+      },
+      cache: "no-store",
+    });
+    if (!response.ok) {
+      return null;
+    }
+    return (await response.json()) as LocalUser[];
   } catch {
     return null;
   }

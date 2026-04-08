@@ -19,7 +19,7 @@ _password_hasher = PasswordHash.recommended()
 
 @dataclass(slots=True)
 class AuthenticatedIdentity:
-    """Результат успешной аутентификации через выбранный provider."""
+    """Данные пользователя после успешной проверки логина и пароля."""
 
     username: str
     full_name: str
@@ -29,7 +29,7 @@ class AuthenticatedIdentity:
 
 
 class AuthProvider(Protocol):
-    """Контракт auth provider: единая точка для local и LDAP режимов."""
+    """Общий контракт для всех способов аутентификации."""
 
     async def authenticate(
         self,
@@ -37,7 +37,7 @@ class AuthProvider(Protocol):
         username: str,
         password: str,
     ) -> AuthenticatedIdentity | None:
-        """Проверяет учетные данные и возвращает identity при успехе."""
+        """Проверяет учётные данные и возвращает данные пользователя при успехе."""
 
 
 class LocalAuthProvider:
@@ -68,7 +68,7 @@ class LocalAuthProvider:
 
 
 class LDAPAuthProvider:
-    """LDAP provider с маппингом групп в роли приложения."""
+    """Аутентификация через LDAP с определением роли по группам."""
 
     async def authenticate(
         self,
@@ -78,7 +78,9 @@ class LDAPAuthProvider:
     ) -> AuthenticatedIdentity | None:
         del session
         if not settings.ldap_server_url or not settings.ldap_base_dn:
-            logger.warning("LDAP provider пропущен: отсутствует ldap_server_url или ldap_base_dn")
+            logger.warning(
+                "LDAP provider пропущен: отсутствует ldap_server_url или ldap_base_dn"
+            )
             return None
 
         try:
@@ -89,7 +91,9 @@ class LDAPAuthProvider:
 
         tls_config = None
         if settings.ldap_use_tls:
-            validate_mode = ssl.CERT_REQUIRED if settings.ldap_tls_validate else ssl.CERT_NONE
+            validate_mode = (
+                ssl.CERT_REQUIRED if settings.ldap_tls_validate else ssl.CERT_NONE
+            )
             tls_config = Tls(validate=validate_mode)
 
         server = Server(
@@ -120,12 +124,16 @@ class LDAPAuthProvider:
         )
         if not search_success or not connection.entries:
             connection.unbind()
-            logger.warning("LDAP user не найден после успешного bind: username=%s", username)
+            logger.warning(
+                "LDAP user не найден после успешного bind: username=%s", username
+            )
             return None
 
         entry = connection.entries[0]
         groups = _extract_groups(entry)
-        resolved_role = resolve_role_from_ldap_groups(groups, settings.ldap_group_role_map, settings.ldap_default_role)
+        resolved_role = resolve_role_from_ldap_groups(
+            groups, settings.ldap_group_role_map, settings.ldap_default_role
+        )
         full_name = _extract_full_name(entry, username)
         connection.unbind()
 
@@ -139,14 +147,14 @@ class LDAPAuthProvider:
 
 
 def build_auth_provider() -> AuthProvider:
-    """Возвращает активный provider согласно конфигурации."""
+    """Возвращает способ аутентификации, выбранный в настройках."""
     if settings.auth_provider == "ldap":
         return LDAPAuthProvider()
     return LocalAuthProvider()
 
 
 def parse_ldap_group_role_map(raw_mapping: str) -> dict[str, str]:
-    """Парсит строку маппинга LDAP групп в роли приложения.
+    """Разбирает строку сопоставления LDAP-групп и ролей приложения.
 
     Формат:
     group_dn_1:role_1;group_dn_2:role_2
@@ -170,7 +178,9 @@ def parse_ldap_group_role_map(raw_mapping: str) -> dict[str, str]:
     return mapping
 
 
-def resolve_role_from_ldap_groups(groups: list[str], raw_mapping: str, default_role: str) -> str:
+def resolve_role_from_ldap_groups(
+    groups: list[str], raw_mapping: str, default_role: str
+) -> str:
     """Определяет роль пользователя на основе LDAP групп.
 
     Если нет совпадений по маппингу — используется default_role.
@@ -187,7 +197,7 @@ def resolve_role_from_ldap_groups(groups: list[str], raw_mapping: str, default_r
 
 
 def _extract_groups(entry: object) -> list[str]:
-    """Извлекает memberOf из LDAP entry в безопасном формате."""
+    """Извлекает список LDAP-групп из ответа каталога в безопасном виде."""
     if not hasattr(entry, "memberOf"):
         return []
     values = getattr(entry.memberOf, "values", None)
@@ -200,7 +210,7 @@ def _extract_groups(entry: object) -> list[str]:
 
 
 def _extract_full_name(entry: object, fallback_username: str) -> str:
-    """Извлекает displayName, иначе возвращает username как fallback."""
+    """Возвращает ФИО из LDAP или логин, если ФИО не заполнено."""
     if not hasattr(entry, "displayName"):
         return fallback_username
     value = getattr(entry.displayName, "value", None)
