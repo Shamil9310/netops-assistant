@@ -10,21 +10,23 @@ backend_imports:
   tags:
     - netops
   script:
-    - cd backend
-    - python3.14 -m venv .venv
-    - source .venv/bin/activate
-    - pip install --upgrade pip
-    - pip install -e .
-    - python -c "from app.main import app; from app.core.config import settings; from app.services.journal import create_activity_entry; print('backend imports: OK'); print(app.title); print(settings.environment)"
+    - |
+      cd backend
+      python3.14 -m venv .venv
+      source .venv/bin/activate
+      pip install --upgrade pip
+      pip install -e .
+      python -c "from app.main import app; from app.core.config import settings; from app.services.journal import create_activity_entry; print('backend imports OK'); print(app.title); print(settings.environment)"
 
 frontend_build:
   stage: test
   tags:
     - netops
   script:
-    - cd frontend
-    - npm install
-    - NEXT_PUBLIC_API_BASE_URL=http://example.invalid INTERNAL_API_BASE_URL=http://127.0.0.1:8000 npm run build
+    - |
+      cd frontend
+      npm install
+      NEXT_PUBLIC_API_BASE_URL=http://example.invalid INTERNAL_API_BASE_URL=http://127.0.0.1:8000 npm run build
 
 deploy_vm:
   stage: deploy
