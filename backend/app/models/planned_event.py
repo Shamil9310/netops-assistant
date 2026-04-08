@@ -53,8 +53,10 @@ class PlannedEvent(Base):
     title: Mapped[str] = mapped_column(String(256), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    # Привязка к внешней заявке/SR — для связи с ITSM.
-    external_ref: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
+    # Привязка к внешней заявке или SR для связи с системой заявок.
+    external_ref: Mapped[str | None] = mapped_column(
+        String(128), nullable=True, index=True
+    )
 
     # Время планируемого начала — ключевое поле для фильтрации по дате.
     scheduled_at: Mapped[datetime] = mapped_column(
@@ -63,8 +65,10 @@ class PlannedEvent(Base):
         index=True,
     )
 
-    # Флаг выполнения — заменяет сложный статусный lifecycle для простых событий.
-    is_completed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
+    # Признак выполнения заменяет сложный жизненный цикл для простых событий.
+    is_completed: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false"
+    )
 
     # Если событие включено в дневной журнал — ссылка на соответствующую запись.
     # Позволяет избежать дублирования данных при авто-включении в отчёт.

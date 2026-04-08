@@ -1,4 +1,4 @@
-"""Тесты генератора отчётов (Sprint 12: Reports engine v1)."""
+"""Тесты генератора отчётов."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from app.services import reports as reports_service
 
 
 @dataclass(slots=True)
-class _FakeEntry:
+class _ReportEntryStub:
     """Тестовая модель записи журнала для проверки генератора отчётов."""
 
     work_date: date
@@ -28,7 +28,7 @@ class _FakeEntry:
 
 
 @dataclass(slots=True)
-class _FakeNightWorkStep:
+class _NightWorkStepStub:
     title: str
     description: str | None
     status: str
@@ -41,31 +41,33 @@ class _FakeNightWorkStep:
 
 
 @dataclass(slots=True)
-class _FakeNightWorkBlock:
+class _NightWorkBlockStub:
     title: str
     sr_number: str | None
     description: str | None
     status: str
     result_comment: str | None
-    steps: list[_FakeNightWorkStep]
+    steps: list[_NightWorkStepStub]
 
 
 @dataclass(slots=True)
-class _FakeNightWorkPlan:
+class _NightWorkPlanStub:
     title: str
     status: str
     description: str | None
     scheduled_at: datetime | None
     started_at: datetime | None
     finished_at: datetime | None
-    blocks: list[_FakeNightWorkBlock]
+    blocks: list[_NightWorkBlockStub]
 
 
 @pytest.mark.asyncio
-async def test_generate_daily_report_happy_path(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Проверяет daily-отчёт на happy path: есть записи и итоговая статистика."""
-    entries = [
-        _FakeEntry(
+async def test_generate_daily_report_with_entries(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Проверяет дневной отчёт, когда записи есть и статистика считается."""
+    journal_entries = [
+        _ReportEntryStub(
             work_date=date(2026, 4, 7),
             activity_type=ActivityType.TICKET.value,
             status=ActivityStatus.CLOSED.value,
@@ -78,10 +80,14 @@ async def test_generate_daily_report_happy_path(monkeypatch: pytest.MonkeyPatch)
         ),
     ]
 
-    async def _fake_list_entries_for_date(*args: object, **kwargs: object) -> list[_FakeEntry]:
-        return entries
+    async def _stub_list_entries_for_date(
+        *args: object, **kwargs: object
+    ) -> list[_ReportEntryStub]:
+        return journal_entries
 
-    monkeypatch.setattr(reports_service, "list_entries_for_date", _fake_list_entries_for_date)
+    monkeypatch.setattr(
+        reports_service, "list_entries_for_date", _stub_list_entries_for_date
+    )
     report = await reports_service.generate_daily_report(
         session=object(),  # type: ignore[arg-type]
         user_id=uuid4(),
@@ -98,12 +104,19 @@ async def test_generate_daily_report_happy_path(monkeypatch: pytest.MonkeyPatch)
 
 
 @pytest.mark.asyncio
-async def test_generate_daily_report_empty_result(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Проверяет edge-case: если записей нет, отчёт возвращает понятный текст."""
-    async def _fake_list_entries_for_date(*args: object, **kwargs: object) -> list[_FakeEntry]:
+async def test_generate_daily_report_empty_result(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Проверяет, что при отсутствии записей отчёт возвращает понятный текст."""
+
+    async def _stub_list_entries_for_date(
+        *args: object, **kwargs: object
+    ) -> list[_ReportEntryStub]:
         return []
 
-    monkeypatch.setattr(reports_service, "list_entries_for_date", _fake_list_entries_for_date)
+    monkeypatch.setattr(
+        reports_service, "list_entries_for_date", _stub_list_entries_for_date
+    )
     report = await reports_service.generate_daily_report(
         session=object(),  # type: ignore[arg-type]
         user_id=uuid4(),
@@ -115,10 +128,12 @@ async def test_generate_daily_report_empty_result(monkeypatch: pytest.MonkeyPatc
 
 
 @pytest.mark.asyncio
-async def test_generate_weekly_report_groups_entries_by_days(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Проверяет weekly-отчёт: записи группируются по дням периода."""
-    entries = [
-        _FakeEntry(
+async def test_generate_weekly_report_groups_entries_by_days(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Проверяет, что недельный отчёт группирует записи по дням периода."""
+    journal_entries = [
+        _ReportEntryStub(
             work_date=date(2026, 4, 7),
             activity_type=ActivityType.CALL.value,
             status=ActivityStatus.CLOSED.value,
@@ -129,7 +144,7 @@ async def test_generate_weekly_report_groups_entries_by_days(monkeypatch: pytest
             finished_at=datetime(2026, 4, 7, 9, 30, tzinfo=UTC),
             created_at=datetime(2026, 4, 7, 9, 30, tzinfo=UTC),
         ),
-        _FakeEntry(
+        _ReportEntryStub(
             work_date=date(2026, 4, 8),
             activity_type=ActivityType.TASK.value,
             status=ActivityStatus.IN_PROGRESS.value,
@@ -142,10 +157,14 @@ async def test_generate_weekly_report_groups_entries_by_days(monkeypatch: pytest
         ),
     ]
 
-    async def _fake_list_entries_for_date(*args: object, **kwargs: object) -> list[_FakeEntry]:
-        return entries
+    async def _stub_list_entries_for_date(
+        *args: object, **kwargs: object
+    ) -> list[_ReportEntryStub]:
+        return journal_entries
 
-    monkeypatch.setattr(reports_service, "list_entries_for_date", _fake_list_entries_for_date)
+    monkeypatch.setattr(
+        reports_service, "list_entries_for_date", _stub_list_entries_for_date
+    )
     report = await reports_service.generate_weekly_report(
         session=object(),  # type: ignore[arg-type]
         user_id=uuid4(),
@@ -161,10 +180,12 @@ async def test_generate_weekly_report_groups_entries_by_days(monkeypatch: pytest
 
 
 @pytest.mark.asyncio
-async def test_generate_range_report_happy_path(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Проверяет range-отчёт: формируется markdown за произвольный период."""
-    entries = [
-        _FakeEntry(
+async def test_generate_range_report_for_custom_period(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Проверяет формирование отчёта за произвольный период."""
+    journal_entries = [
+        _ReportEntryStub(
             work_date=date(2026, 4, 10),
             activity_type=ActivityType.OTHER.value,
             status=ActivityStatus.CANCELLED.value,
@@ -177,10 +198,14 @@ async def test_generate_range_report_happy_path(monkeypatch: pytest.MonkeyPatch)
         ),
     ]
 
-    async def _fake_list_entries_for_date(*args: object, **kwargs: object) -> list[_FakeEntry]:
-        return entries
+    async def _stub_list_entries_for_date(
+        *args: object, **kwargs: object
+    ) -> list[_ReportEntryStub]:
+        return journal_entries
 
-    monkeypatch.setattr(reports_service, "list_entries_for_date", _fake_list_entries_for_date)
+    monkeypatch.setattr(
+        reports_service, "list_entries_for_date", _stub_list_entries_for_date
+    )
     report = await reports_service.generate_range_report(
         session=object(),  # type: ignore[arg-type]
         user_id=uuid4(),
@@ -195,9 +220,9 @@ async def test_generate_range_report_happy_path(monkeypatch: pytest.MonkeyPatch)
     assert "## Итоги" in report
 
 
-def test_build_night_work_follow_up_summary_happy_path() -> None:
-    """Проверяет summary по ночным работам с completed/failed метриками."""
-    plan = _FakeNightWorkPlan(
+def test_build_night_work_follow_up_summary_counts_metrics() -> None:
+    """Проверяет сводку по ночным работам с подсчётом итоговых метрик."""
+    plan = _NightWorkPlanStub(
         title="Night window DC3/DC4",
         status="completed",
         description="Описание плана",
@@ -205,14 +230,14 @@ def test_build_night_work_follow_up_summary_happy_path() -> None:
         started_at=None,
         finished_at=None,
         blocks=[
-            _FakeNightWorkBlock(
+            _NightWorkBlockStub(
                 title="SR11683266",
                 sr_number="SR11683266",
                 description=None,
                 status="completed",
                 result_comment=None,
                 steps=[
-                    _FakeNightWorkStep(
+                    _NightWorkStepStub(
                         title="Pre-check",
                         description=None,
                         status="completed",
@@ -223,7 +248,7 @@ def test_build_night_work_follow_up_summary_happy_path() -> None:
                         collaborators=[],
                         handoff_to=None,
                     ),
-                    _FakeNightWorkStep(
+                    _NightWorkStepStub(
                         title="Config apply",
                         description=None,
                         status="failed",
@@ -247,8 +272,8 @@ def test_build_night_work_follow_up_summary_happy_path() -> None:
 
 
 def test_build_night_work_report_contains_blocks_steps_and_summary() -> None:
-    """Проверяет markdown отчёт по ночным работам: блоки, шаги и follow-up секция."""
-    plan = _FakeNightWorkPlan(
+    """Проверяет отчёт по ночным работам: блоки, шаги и итоговая сводка."""
+    plan = _NightWorkPlanStub(
         title="Night BGP changes",
         status="in_progress",
         description="План смены соседств",
@@ -256,14 +281,14 @@ def test_build_night_work_report_contains_blocks_steps_and_summary() -> None:
         started_at=datetime(2026, 4, 7, 22, 5, tzinfo=UTC),
         finished_at=None,
         blocks=[
-            _FakeNightWorkBlock(
+            _NightWorkBlockStub(
                 title="SR11690000",
                 sr_number="SR11690000",
                 description="Основной блок",
                 status="in_progress",
                 result_comment="Промежуточно",
                 steps=[
-                    _FakeNightWorkStep(
+                    _NightWorkStepStub(
                         title="Rollback template",
                         description="Проверка rollback",
                         status="pending",
@@ -279,9 +304,11 @@ def test_build_night_work_report_contains_blocks_steps_and_summary() -> None:
         ],
     )
 
-    report = reports_service._build_night_work_report(plan, "Шамиль Исаев")  # noqa: SLF001
+    report = reports_service._build_night_work_report(
+        plan, "Шамиль Исаев"
+    )  # noqa: SLF001
     assert "# Итог ночных работ" in report
     assert "SR11690000" in report
     assert "Rollback template" in report
     assert "rollback" in report
-    assert "Morning follow-up summary" in report
+    assert "Краткая сводка по итогам" in report

@@ -8,36 +8,36 @@ type ErrorResponse = {
 };
 
 export async function POST(request: Request) {
-  const content_type = request.headers.get("content-type") ?? "";
-  const is_html_form = content_type.includes("application/x-www-form-urlencoded")
-    || content_type.includes("multipart/form-data");
+  const contentType = request.headers.get("content-type") ?? "";
+  const isHtmlForm = contentType.includes("application/x-www-form-urlencoded")
+    || contentType.includes("multipart/form-data");
 
-  const payload = await read_login_payload(request, is_html_form);
-  const backend_response = await loginWithBackend(payload);
+  const requestPayload = await readLoginPayload(request, isHtmlForm);
+  const backendResponse = await loginWithBackend(requestPayload);
 
-  const response_body = (await backend_response.json()) as LoginResponse | ErrorResponse;
+  const responsePayload = (await backendResponse.json()) as LoginResponse | ErrorResponse;
 
-  if (!backend_response.ok) {
-    if (is_html_form) {
+  if (!backendResponse.ok) {
+    if (isHtmlForm) {
       return redirectTo("/login?error=1");
     }
 
     return NextResponse.json(
       {
-        detail: "detail" in response_body && response_body.detail
-          ? response_body.detail
+        detail: "detail" in responsePayload && responsePayload.detail
+          ? responsePayload.detail
           : "Ошибка входа",
       },
-      { status: backend_response.status },
+      { status: backendResponse.status },
     );
   }
 
-  const all_set_cookie_headers = backend_response.headers.getSetCookie();
-  const session_token = extract_cookie_value_from_list(all_set_cookie_headers, SESSION_COOKIE_NAME);
-  const csrf_token = extract_cookie_value_from_list(all_set_cookie_headers, CSRF_COOKIE_NAME);
+  const setCookieHeaders = backendResponse.headers.getSetCookie();
+  const sessionToken = extractCookieValueFromList(setCookieHeaders, SESSION_COOKIE_NAME);
+  const csrfToken = extractCookieValueFromList(setCookieHeaders, CSRF_COOKIE_NAME);
 
-  if (!session_token) {
-    if (is_html_form) {
+  if (!sessionToken) {
+    if (isHtmlForm) {
       return redirectTo("/login?error=1");
     }
 
@@ -47,11 +47,11 @@ export async function POST(request: Request) {
     );
   }
 
-  const response = is_html_form
+  const response = isHtmlForm
     ? redirectTo("/")
-    : NextResponse.json(response_body);
+    : NextResponse.json(responsePayload);
 
-  response.cookies.set(SESSION_COOKIE_NAME, session_token, {
+  response.cookies.set(SESSION_COOKIE_NAME, sessionToken, {
     httpOnly: true,
     sameSite: "lax",
     secure: false,
@@ -59,8 +59,8 @@ export async function POST(request: Request) {
     maxAge: 60 * 60 * 12,
   });
 
-  if (csrf_token) {
-    response.cookies.set(CSRF_COOKIE_NAME, csrf_token, {
+  if (csrfToken) {
+    response.cookies.set(CSRF_COOKIE_NAME, csrfToken, {
       httpOnly: false,
       sameSite: "lax",
       secure: false,
@@ -72,28 +72,28 @@ export async function POST(request: Request) {
   return response;
 }
 
-async function read_login_payload(
+async function readLoginPayload(
   request: Request,
-  is_html_form: boolean,
+  isHtmlForm: boolean,
 ): Promise<LoginPayload> {
-  if (is_html_form) {
-    const form_data = await request.formData();
+  if (isHtmlForm) {
+    const formData = await request.formData();
 
     return {
-      username: String(form_data.get("username") ?? ""),
-      password: String(form_data.get("password") ?? ""),
+      username: String(formData.get("username") ?? ""),
+      password: String(formData.get("password") ?? ""),
     };
   }
 
   return (await request.json()) as LoginPayload;
 }
 
-function extract_cookie_value_from_list(
-  set_cookie_headers: string[],
-  cookie_name: string,
+function extractCookieValueFromList(
+  setCookieHeaders: string[],
+  cookieName: string,
 ): string | null {
-  for (const header of set_cookie_headers) {
-    const match = header.match(new RegExp(`${cookie_name}=([^;]+)`));
+  for (const header of setCookieHeaders) {
+    const match = header.match(new RegExp(`${cookieName}=([^;]+)`));
     if (match) return match[1];
   }
   return null;

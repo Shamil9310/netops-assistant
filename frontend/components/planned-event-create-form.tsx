@@ -33,9 +33,9 @@ export function PlannedEventCreateForm({ initialWorkDate }: Props) {
           scheduled_at: new Date(scheduledAt).toISOString(),
         }),
       });
-      const body = (await response.json()) as { detail?: string };
+      const responsePayload = (await response.json()) as { detail?: string };
       if (!response.ok) {
-        setError(body.detail ?? "Не удалось создать событие");
+        setError(responsePayload.detail ?? "Не удалось создать событие");
         return;
       }
       setTitle("");

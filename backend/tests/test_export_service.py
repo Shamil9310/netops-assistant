@@ -1,4 +1,4 @@
-"""Тесты export pipeline v2: TXT/DOCX/PDF и retention rules."""
+"""Тесты сервиса экспорта: TXT, DOCX, PDF и срок хранения."""
 
 from __future__ import annotations
 
@@ -7,17 +7,17 @@ from datetime import UTC, datetime
 from app.services import export as export_service
 
 
-def test_strip_markdown_happy_path() -> None:
+def test_strip_markdown_removes_basic_formatting() -> None:
     """Проверяет удаление базовой markdown-разметки для TXT экспорта."""
     source = "# Заголовок\n**bold** `code`\n> цитата"
-    result = export_service.strip_markdown(source)
-    assert "Заголовок" in result
-    assert "bold" in result
-    assert "code" in result
-    assert "цитата" in result
-    assert "#" not in result
-    assert "**" not in result
-    assert "`" not in result
+    plain_text = export_service.strip_markdown(source)
+    assert "Заголовок" in plain_text
+    assert "bold" in plain_text
+    assert "code" in plain_text
+    assert "цитата" in plain_text
+    assert "#" not in plain_text
+    assert "**" not in plain_text
+    assert "`" not in plain_text
 
 
 def test_render_docx_bytes_returns_zip_signature() -> None:
@@ -34,7 +34,7 @@ def test_render_pdf_bytes_returns_pdf_signature() -> None:
     assert content.startswith(b"%PDF")
 
 
-def test_calculate_export_expiration_happy_path() -> None:
+def test_calculate_export_expiration_adds_retention_period() -> None:
     """Retention policy: к дате генерации корректно прибавляется количество дней."""
     generated_at = datetime(2026, 4, 7, 10, 0, tzinfo=UTC)
     expires_at = export_service.calculate_export_expiration(generated_at, 30)

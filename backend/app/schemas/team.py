@@ -52,7 +52,7 @@ class UserUpdateRoleRequest(BaseModel):
 
 
 class TeamWeeklySummaryResponse(BaseModel):
-    """Недельная сводка по сотруднику для manager dashboard."""
+    """Недельная сводка по сотруднику для панели руководителя."""
 
     user_id: str
     username: str

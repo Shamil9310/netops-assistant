@@ -33,8 +33,8 @@ export async function DELETE(
   });
 
   if (!response.ok) {
-    const body = await response.json();
-    return NextResponse.json(body, { status: response.status });
+    const responsePayload = await response.json();
+    return NextResponse.json(responsePayload, { status: response.status });
   }
   return new NextResponse(null, { status: 204 });
 }

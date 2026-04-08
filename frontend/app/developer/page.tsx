@@ -5,8 +5,8 @@ import { requireUser } from "@/lib/auth";
 const widgets = [
   { title: "CPU", value: "14%", note: "целевая телеметрия VM" },
   { title: "RAM", value: "41%", note: "использование памяти" },
-  { title: "Disk", value: "28%", note: "свободное место и рост архивов" },
-  { title: "Exports", value: "ok", note: "pipeline выгрузок" },
+  { title: "Диск", value: "28%", note: "свободное место и рост архивов" },
+  { title: "Выгрузки", value: "ok", note: "конвейер выгрузок" },
 ];
 
 export default async function DeveloperPage() {
@@ -15,12 +15,12 @@ export default async function DeveloperPage() {
 
   if (user.role !== "developer") {
     return (
-      <div className="shell">
+      <div className="shell shell-developer">
         <Sidebar user={user} />
         <main className="content-col" style={{ padding: 24 }}>
           <div className="report-block">
             <div className="report-header-title">Доступ запрещён</div>
-            <div className="report-header-sub">Раздел доступен только роли developer.</div>
+            <div className="report-header-sub">Раздел доступен только роли разработчика.</div>
           </div>
         </main>
       </div>
@@ -28,21 +28,21 @@ export default async function DeveloperPage() {
   }
 
   return (
-    <div className="shell">
+    <div className="shell shell-developer">
       <Sidebar user={user} />
 
-      <aside className="filter-col">
-        <div className="filter-col-title">Developer</div>
+      <aside className="filter-col developer-filter-col">
+        <div className="filter-col-title">Разработчик</div>
         <div className="focus-note">
-          <div className="focus-note-label">Важно</div>
-          <p>В production этот раздел должен быть доступен только developer role.</p>
+          <div className="focus-note-label">Разделы</div>
+          <p>Управление учётными записями вынесено на отдельную страницу в сервисном меню.</p>
         </div>
       </aside>
 
       <main className="content-col">
         <div className="page-header">
           <div>
-            <div className="page-title">Developer Dashboard</div>
+            <div className="page-title">Панель разработчика</div>
             <div className="page-sub">Системные метрики VM и техническое состояние платформы</div>
           </div>
         </div>
@@ -62,11 +62,11 @@ export default async function DeveloperPage() {
 
         <div className="section-label">Сервисы</div>
         <div className="report-block">
-          <pre className="export">backend: {health?.status ?? "offline"}
-database: planned
-ldap adapter: planned
-export pipeline: planned
-observability: planned</pre>
+          <pre className="export">backend: {health?.status ?? "недоступен"}
+база данных: запланировано
+LDAP-адаптер: запланировано
+конвейер выгрузки: запланировано
+наблюдаемость: запланировано</pre>
         </div>
       </main>
     </div>

@@ -36,14 +36,14 @@ class AuthAuditEvent(Base):
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
 
-    # user_id может быть None при LOGIN_FAILED — пользователь мог не существовать.
+    # user_id может быть пустым при неудачном входе, если такого пользователя не было.
     user_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
         index=True,
     )
 
-    # Имя пользователя сохраняем отдельно, так как при LOGIN_FAILED user_id = None.
+    # Имя пользователя сохраняем отдельно, потому что при неудачном входе user_id может быть пустым.
     username_attempted: Mapped[str] = mapped_column(String(64), nullable=False)
 
     event_type: Mapped[str] = mapped_column(String(32), nullable=False, index=True)

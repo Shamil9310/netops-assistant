@@ -2,10 +2,8 @@
 
 from __future__ import annotations
 
-import pytest
 
 from app.services.auth import hash_password, hash_session_token, verify_password
-
 
 # ---------------------------------------------------------------------------
 # Хэширование паролей
@@ -14,12 +12,12 @@ from app.services.auth import hash_password, hash_session_token, verify_password
 
 def test_hash_password_returns_non_empty_string() -> None:
     """Хэш пароля — непустая строка."""
-    result = hash_password("my-password")
-    assert isinstance(result, str)
-    assert len(result) > 0
+    hashed_password = hash_password("my-password")
+    assert isinstance(hashed_password, str)
+    assert len(hashed_password) > 0
 
 
-def test_verify_password_happy_path() -> None:
+def test_verify_password_accepts_correct_password() -> None:
     """Правильный пароль проходит верификацию."""
     password = "super-secret-123"
     hashed = hash_password(password)
@@ -70,9 +68,9 @@ def test_hash_session_token_is_not_plaintext() -> None:
 
 def test_hash_session_token_returns_hex_string() -> None:
     """Хэш токена — строка в hex-формате (SHA-256 = 64 символа)."""
-    result = hash_session_token("any-token")
-    assert len(result) == 64
-    assert all(c in "0123456789abcdef" for c in result)
+    session_hash = hash_session_token("any-token")
+    assert len(session_hash) == 64
+    assert all(c in "0123456789abcdef" for c in session_hash)
 
 
 def test_verify_password_empty_password_raises_or_fails() -> None:

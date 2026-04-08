@@ -12,13 +12,13 @@ function toSingleValue(value: string | string[] | undefined): string {
   return value ?? "";
 }
 
-function formatDateTime(value: string | null): string {
-  if (!value) {
+function formatDateTimeLabel(dateTimeValue: string | null): string {
+  if (!dateTimeValue) {
     return "не задано";
   }
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return value;
+  const parsedDate = new Date(dateTimeValue);
+  if (Number.isNaN(parsedDate.getTime())) {
+    return dateTimeValue;
   }
   return new Intl.DateTimeFormat("ru-RU", {
     day: "2-digit",
@@ -26,7 +26,7 @@ function formatDateTime(value: string | null): string {
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
-  }).format(date);
+  }).format(parsedDate);
 }
 
 export default async function PlansPage({ searchParams }: { searchParams?: SearchParams }) {
@@ -34,14 +34,15 @@ export default async function PlansPage({ searchParams }: { searchParams?: Searc
   const plans = await getNightWorkPlans();
 
   const planIdFromUrl = toSingleValue(searchParams?.plan_id);
-  const selectedPlan = (plans ?? []).find((plan) => plan.id === planIdFromUrl) ?? (plans?.[0] ?? null);
+  const activePlan =
+    (plans ?? []).find((plan) => plan.id === planIdFromUrl) ?? (plans?.[0] ?? null);
 
-  const blockOptions = (selectedPlan?.blocks ?? []).map((block) => ({ id: block.id, title: block.title }));
-  const stepOptions = (selectedPlan?.blocks ?? []).flatMap((block) =>
+  const blockOptions = (activePlan?.blocks ?? []).map((block) => ({ id: block.id, title: block.title }));
+  const stepOptions = (activePlan?.blocks ?? []).flatMap((block) =>
     block.steps.map((step) => ({ id: step.id, title: step.title, block_id: block.id })),
   );
-  const selectedPlanScheduledAtLocal = selectedPlan?.scheduled_at
-    ? new Date(selectedPlan.scheduled_at).toISOString().slice(0, 16)
+  const activePlanScheduledAtLocal = activePlan?.scheduled_at
+    ? new Date(activePlan.scheduled_at).toISOString().slice(0, 16)
     : "";
 
   return (
@@ -51,11 +52,11 @@ export default async function PlansPage({ searchParams }: { searchParams?: Searc
       <aside className="filter-col">
         <div className="filter-col-title">Планирование</div>
         <NightWorkControls
-          selectedPlanId={selectedPlan?.id ?? ""}
-          selectedPlanTitle={selectedPlan?.title ?? ""}
-          selectedPlanDescription={selectedPlan?.description ?? ""}
-          selectedPlanScheduledAt={selectedPlanScheduledAtLocal}
-          selectedPlanParticipants={selectedPlan?.participants ?? []}
+          selectedPlanId={activePlan?.id ?? ""}
+          selectedPlanTitle={activePlan?.title ?? ""}
+          selectedPlanDescription={activePlan?.description ?? ""}
+          selectedPlanScheduledAt={activePlanScheduledAtLocal}
+          selectedPlanParticipants={activePlan?.participants ?? []}
           blocks={blockOptions}
           steps={stepOptions}
         />
@@ -84,40 +85,40 @@ export default async function PlansPage({ searchParams }: { searchParams?: Searc
               key={plan.id}
               className="plan-item"
               href={`/plans?plan_id=${plan.id}`}
-              style={plan.id === selectedPlan?.id ? { border: "1px solid var(--green-border)", background: "var(--green-soft)" } : {}}
+              style={plan.id === activePlan?.id ? { border: "1px solid var(--green-border)", background: "var(--green-soft)" } : {}}
             >
               <div className="plan-icon bgp">⇄</div>
               <div className="plan-info">
                 <div className="plan-title">{plan.title}</div>
                 <div className="plan-sub">
-                  {plan.status} · scheduled: {formatDateTime(plan.scheduled_at)} · blocks: {plan.blocks.length}
+                  {plan.status} · запланировано: {formatDateTimeLabel(plan.scheduled_at)} · блоков: {plan.blocks.length}
                 </div>
               </div>
             </a>
           ))}
         </div>
 
-        {selectedPlan && (
+        {activePlan && (
           <>
             <div className="section-label">Детали плана</div>
             <div className="report-block" style={{ marginBottom: 20 }}>
               <div className="report-header">
                 <div>
-                  <div className="report-header-title">{selectedPlan.title}</div>
+                  <div className="report-header-title">{activePlan.title}</div>
                   <div className="report-header-sub">
-                    status: {selectedPlan.status} · start: {formatDateTime(selectedPlan.started_at)} · finish: {formatDateTime(selectedPlan.finished_at)}
+                    статус: {activePlan.status} · старт: {formatDateTimeLabel(activePlan.started_at)} · завершение: {formatDateTimeLabel(activePlan.finished_at)}
                   </div>
                   <div className="report-header-sub">
-                    participants: {selectedPlan.participants.length > 0 ? selectedPlan.participants.join(", ") : "не указаны"}
+                    участники: {activePlan.participants.length > 0 ? activePlan.participants.join(", ") : "не указаны"}
                   </div>
                 </div>
               </div>
-              <pre className="export">{selectedPlan.description ?? "Описание не задано."}</pre>
+              <pre className="export">{activePlan.description ?? "Описание не задано."}</pre>
             </div>
 
             <div className="section-label">Блоки и шаги</div>
             <div className="plan-list">
-              {selectedPlan.blocks.length === 0 && (
+              {activePlan.blocks.length === 0 && (
                 <div className="plan-item">
                   <div className="plan-info">
                     <div className="plan-title">Блоков пока нет</div>
@@ -126,13 +127,13 @@ export default async function PlansPage({ searchParams }: { searchParams?: Searc
                 </div>
               )}
 
-              {selectedPlan.blocks.map((block) => (
+              {activePlan.blocks.map((block) => (
                 <div key={block.id} className="plan-item" style={{ flexDirection: "column", alignItems: "stretch" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                     <div className="plan-icon vlan">◻</div>
                     <div className="plan-info">
                       <div className="plan-title">{block.title}</div>
-                      <div className="plan-sub">SR: {block.sr_number ?? "не задан"} · status: {block.status}</div>
+                      <div className="plan-sub">SR: {block.sr_number ?? "не задан"} · статус: {block.status}</div>
                     </div>
                   </div>
 
@@ -147,24 +148,24 @@ export default async function PlansPage({ searchParams }: { searchParams?: Searc
                       <div key={step.id} className="report-block" style={{ padding: 10 }}>
                         <div className="plan-title">{step.title}</div>
                         <div className="plan-sub">
-                          status: {step.status}
-                          {step.is_rollback ? " · rollback" : ""}
-                          {step.is_post_action ? " · post-action" : ""}
+                          статус: {step.status}
+                          {step.is_rollback ? " · откат" : ""}
+                          {step.is_post_action ? " · пост-действие" : ""}
                         </div>
                         {step.description && <div className="plan-sub" style={{ marginTop: 4 }}>{step.description}</div>}
                         {(step.actual_result || step.executor_comment) && (
                           <div className="plan-sub" style={{ marginTop: 4 }}>
-                            result: {step.actual_result ?? "—"} · comment: {step.executor_comment ?? "—"}
+                            результат: {step.actual_result ?? "—"} · комментарий: {step.executor_comment ?? "—"}
                           </div>
                         )}
                         {step.collaborators.length > 0 && (
                           <div className="plan-sub" style={{ marginTop: 4 }}>
-                            collaborators: {step.collaborators.join(", ")}
+                            участники: {step.collaborators.join(", ")}
                           </div>
                         )}
                         {step.handoff_to && (
                           <div className="plan-sub" style={{ marginTop: 4 }}>
-                            handoff: {step.handoff_to}
+                            передано: {step.handoff_to}
                           </div>
                         )}
                       </div>

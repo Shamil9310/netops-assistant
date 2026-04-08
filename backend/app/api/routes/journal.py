@@ -61,8 +61,19 @@ def to_activity_entry_response(activity_entry) -> ActivityEntryResponse:
         contact=activity_entry.contact,
         ticket_number=activity_entry.ticket_number,
         task_url=activity_entry.task_url,
-        started_at=activity_entry.started_at.timetz().replace(tzinfo=None) if activity_entry.started_at else None,
-        ended_at=activity_entry.finished_at.timetz().replace(tzinfo=None) if activity_entry.finished_at else None,
+        started_at=(
+            activity_entry.started_at.timetz().replace(tzinfo=None)
+            if activity_entry.started_at
+            else None
+        ),
+        ended_at=(
+            activity_entry.finished_at.timetz().replace(tzinfo=None)
+            if activity_entry.finished_at
+            else None
+        ),
+        ended_date=(
+            activity_entry.finished_at.date() if activity_entry.finished_at else None
+        ),
         is_backdated=activity_entry.created_at.date() > activity_entry.work_date,
         created_at=activity_entry.created_at,
         updated_at=activity_entry.updated_at,
@@ -72,7 +83,9 @@ def to_activity_entry_response(activity_entry) -> ActivityEntryResponse:
 @router.get("/entries", response_model=ActivityEntryListResponse)
 async def get_activity_entries(
     request: Request,
-    work_date: date = Query(description="Рабочая дата, за которую нужно вернуть записи"),
+    work_date: date = Query(
+        description="Рабочая дата, за которую нужно вернуть записи"
+    ),
     db: AsyncSession = Depends(get_db),
 ) -> ActivityEntryListResponse:
     """Возвращает записи текущего пользователя за выбранную рабочую дату."""
@@ -90,7 +103,11 @@ async def get_activity_entries(
     )
 
 
-@router.post("/entries", response_model=ActivityEntryResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/entries",
+    response_model=ActivityEntryResponse,
+    status_code=status.HTTP_201_CREATED,
+)
 async def post_activity_entry(
     payload: ActivityEntryCreateRequest,
     request: Request,
@@ -103,11 +120,16 @@ async def post_activity_entry(
     и именно по этой дате запись потом попадёт в дневной отчёт.
     """
     current_user = await require_authenticated_user(request, db)
-    activity_entry = await create_activity_entry(
-        session=db,
-        user=current_user,
-        payload=payload,
-    )
+    try:
+        activity_entry = await create_activity_entry(
+            session=db,
+            user=current_user,
+            payload=payload,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        ) from exc
 
     return to_activity_entry_response(activity_entry)
 
@@ -123,9 +145,16 @@ async def patch_activity_entry(
     current_user = await require_authenticated_user(request, db)
     entry = await get_activity_entry_by_id(db, str(current_user.id), str(entry_id))
     if entry is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Запись не найдена")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Запись не найдена"
+        )
 
-    updated = await update_activity_entry(db, entry, payload)
+    try:
+        updated = await update_activity_entry(db, entry, payload)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        ) from exc
     return to_activity_entry_response(updated)
 
 
@@ -139,5 +168,7 @@ async def remove_activity_entry(
     current_user = await require_authenticated_user(request, db)
     entry = await get_activity_entry_by_id(db, str(current_user.id), str(entry_id))
     if entry is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Запись не найдена")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Запись не найдена"
+        )
     await delete_activity_entry(db, entry)

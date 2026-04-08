@@ -21,9 +21,9 @@ export function ReportRefreshButton({ reportId }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ report_id: reportId }),
       });
-      const body = (await response.json()) as { detail?: string };
+      const responsePayload = (await response.json()) as { detail?: string };
       if (!response.ok) {
-        setError(body.detail ?? "Не удалось обновить отчёт");
+        setError(responsePayload.detail ?? "Не удалось обновить отчёт");
         return;
       }
       router.refresh();

@@ -8,7 +8,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import CurrentUser
 from app.core.config import settings
 from app.db.session import get_db
-from app.schemas.auth import CurrentUserResponse, ErrorResponse, LoginRequest, LoginResponse
+from app.schemas.auth import (
+    CurrentUserResponse,
+    ErrorResponse,
+    LoginRequest,
+    LoginResponse,
+)
 from app.services.auth import authenticate_user, create_session, revoke_session
 
 router = APIRouter()
@@ -25,7 +30,9 @@ def _to_current_user_response(user: CurrentUser) -> CurrentUserResponse:
     )
 
 
-@router.post("/login", response_model=LoginResponse, responses={401: {"model": ErrorResponse}})
+@router.post(
+    "/login", response_model=LoginResponse, responses={401: {"model": ErrorResponse}}
+)
 async def login(
     payload: LoginRequest,
     request: Request,
@@ -37,7 +44,9 @@ async def login(
     Передаём client_ip для записи в auth audit log — позволяет обнаружить брутфорс.
     """
     client_ip = request.client.host if request.client else None
-    user = await authenticate_user(db, payload.username, payload.password, client_ip=client_ip)
+    user = await authenticate_user(
+        db, payload.username, payload.password, client_ip=client_ip
+    )
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -65,7 +74,9 @@ async def login(
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
-async def logout(request: Request, response: Response, db: AsyncSession = Depends(get_db)) -> None:
+async def logout(
+    request: Request, response: Response, db: AsyncSession = Depends(get_db)
+) -> None:
     """Завершает сессию пользователя и удаляет session cookie."""
     session_token = request.cookies.get(settings.session_cookie_name)
     client_ip = request.client.host if request.client else None
@@ -75,7 +86,9 @@ async def logout(request: Request, response: Response, db: AsyncSession = Depend
     response.delete_cookie(settings.csrf_cookie_name)
 
 
-@router.get("/me", response_model=CurrentUserResponse, responses={401: {"model": ErrorResponse}})
+@router.get(
+    "/me", response_model=CurrentUserResponse, responses={401: {"model": ErrorResponse}}
+)
 async def me(current_user: CurrentUser) -> CurrentUserResponse:
     """Возвращает данные текущего аутентифицированного пользователя."""
     return _to_current_user_response(current_user)

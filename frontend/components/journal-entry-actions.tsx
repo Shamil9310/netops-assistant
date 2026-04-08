@@ -11,8 +11,10 @@ type Props = {
   ticketNumber: string | null;
   activityType: string;
   status: JournalActivityStatus;
+  workDate: string;
   startedAt: string | null;
   endedAt: string | null;
+  endedDate: string | null;
   currentDescription: string | null;
   currentResolution: string | null;
   currentContact: string | null;
@@ -24,8 +26,10 @@ export function JournalEntryActions({
   ticketNumber,
   activityType,
   status,
+  workDate,
   startedAt,
   endedAt,
+  endedDate,
   currentDescription,
   currentResolution,
   currentContact,
@@ -43,8 +47,8 @@ export function JournalEntryActions({
     try {
       const response = await fetch(`/api/journal/entries/${entryId}`, { method: "DELETE" });
       if (!response.ok) {
-        const body = (await response.json()) as { detail?: string };
-        setError(body.detail ?? "Ошибка удаления");
+        const responsePayload = (await response.json()) as { detail?: string };
+        setError(responsePayload.detail ?? "Ошибка удаления");
         return;
       }
       router.refresh();
@@ -73,8 +77,10 @@ export function JournalEntryActions({
           ticketNumber={ticketNumber}
           activityType={activityType}
           status={status}
+          workDate={workDate}
           startedAt={startedAt}
           endedAt={endedAt}
+          endedDate={endedDate}
           description={currentDescription}
           resolution={currentResolution}
           contact={currentContact}

@@ -82,7 +82,8 @@ def render_pdf_bytes(markdown_content: str) -> bytes:
         b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
         b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>",
         b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
-        b"<< /Length %d >>\nstream\n%s\nendstream" % (len(content_stream), content_stream),
+        b"<< /Length %d >>\nstream\n%s\nendstream"
+        % (len(content_stream), content_stream),
     ]
 
     output = b"%PDF-1.4\n"
@@ -96,15 +97,19 @@ def render_pdf_bytes(markdown_content: str) -> bytes:
     output += b"0000000000 65535 f \n"
     for offset in offsets[1:]:
         output += f"{offset:010d} 00000 n \n".encode("utf-8")
-    output += (
-        f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n{xref_offset}\n%%EOF".encode("utf-8")
+    output += f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n{xref_offset}\n%%EOF".encode(
+        "utf-8"
     )
     return output
 
 
-def calculate_export_expiration(generated_at: datetime, retention_days: int) -> datetime:
+def calculate_export_expiration(
+    generated_at: datetime, retention_days: int
+) -> datetime:
     """Возвращает дату истечения хранения выгрузки согласно retention policy."""
-    normalized = generated_at if generated_at.tzinfo else generated_at.replace(tzinfo=UTC)
+    normalized = (
+        generated_at if generated_at.tzinfo else generated_at.replace(tzinfo=UTC)
+    )
     return normalized + timedelta(days=retention_days)
 
 

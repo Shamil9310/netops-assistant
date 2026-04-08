@@ -21,9 +21,9 @@ export function ReportFinalizeButton({ reportId }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ report_id: reportId }),
       });
-      const body = (await response.json()) as { detail?: string };
+      const responsePayload = (await response.json()) as { detail?: string };
       if (!response.ok) {
-        setError(body.detail ?? "Не удалось зафиксировать отчёт");
+        setError(responsePayload.detail ?? "Не удалось зафиксировать отчёт");
         return;
       }
       router.refresh();
@@ -37,7 +37,7 @@ export function ReportFinalizeButton({ reportId }: Props) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
       <button type="button" className="btn btn-sm" onClick={onFinalize} disabled={isSubmitting}>
-        {isSubmitting ? "Фиксация..." : "Зафиксировать (final)"}
+        {isSubmitting ? "Фиксация..." : "Зафиксировать"}
       </button>
       {error && <span className="form-error">{error}</span>}
     </div>

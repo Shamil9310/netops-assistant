@@ -17,28 +17,28 @@ type Payload =
   | { action: "delete_template"; template_id: string }
   | { action: "import_defaults" };
 
-function buildRequest(payload: Payload): { path: string; method: "POST" | "DELETE"; body?: object } | null {
-  if (payload.action === "create_template") {
+function buildRequest(actionPayload: Payload): { path: string; method: "POST" | "DELETE"; body?: object } | null {
+  if (actionPayload.action === "create_template") {
     return {
       path: "/api/v1/templates",
       method: "POST",
       body: {
-        key: payload.key,
-        name: payload.name,
-        category: payload.category,
-        description: payload.description ?? null,
-        template_payload: payload.template_payload,
-        is_active: payload.is_active ?? true,
+        key: actionPayload.key,
+        name: actionPayload.name,
+        category: actionPayload.category,
+        description: actionPayload.description ?? null,
+        template_payload: actionPayload.template_payload,
+        is_active: actionPayload.is_active ?? true,
       },
     };
   }
-  if (payload.action === "delete_template") {
+  if (actionPayload.action === "delete_template") {
     return {
-      path: `/api/v1/templates/${payload.template_id}`,
+      path: `/api/v1/templates/${actionPayload.template_id}`,
       method: "DELETE",
     };
   }
-  if (payload.action === "import_defaults") {
+  if (actionPayload.action === "import_defaults") {
     return {
       path: "/api/v1/templates/import-defaults",
       method: "POST",
@@ -48,8 +48,8 @@ function buildRequest(payload: Payload): { path: string; method: "POST" | "DELET
 }
 
 export async function POST(request: Request) {
-  const payload = (await request.json()) as Payload;
-  const backendRequest = buildRequest(payload);
+  const actionPayload = (await request.json()) as Payload;
+  const backendRequest = buildRequest(actionPayload);
   if (!backendRequest) {
     return NextResponse.json({ detail: "Некорректный action" }, { status: 400 });
   }
@@ -83,9 +83,9 @@ export async function POST(request: Request) {
     return new NextResponse(null, { status: 204 });
   }
 
-  const body = await response.json();
+  const responsePayload = await response.json();
   if (!response.ok) {
-    return NextResponse.json(body, { status: response.status });
+    return NextResponse.json(responsePayload, { status: response.status });
   }
-  return NextResponse.json(body, { status: response.status });
+  return NextResponse.json(responsePayload, { status: response.status });
 }

@@ -11,10 +11,10 @@ function toSingleValue(value: string | string[] | undefined): string {
   return value ?? "";
 }
 
-function formatDate(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return value;
+function formatDateTimeLabel(dateTimeValue: string): string {
+  const parsedDate = new Date(dateTimeValue);
+  if (Number.isNaN(parsedDate.getTime())) {
+    return dateTimeValue;
   }
   return new Intl.DateTimeFormat("ru-RU", {
     day: "2-digit",
@@ -22,10 +22,10 @@ function formatDate(value: string): string {
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
-  }).format(date);
+  }).format(parsedDate);
 }
 
-function mapActivityTypeLabel(activityType: string): string {
+function getActivityTypeLabel(activityType: string): string {
   const labels: Record<string, string> = {
     call: "Звонок",
     ticket: "Заявка",
@@ -87,11 +87,11 @@ export default async function ArchivePage({ searchParams }: { searchParams?: Sea
           </div>
 
           <div style={{ marginBottom: 16 }}>
-            <div className="filter-date-label">External Ref / SR</div>
+            <div className="filter-date-label">Внешняя ссылка / SR</div>
             <input name="external_ref" className="search-input" placeholder="SR11683266" defaultValue={externalRef} />
           </div>
           <div style={{ marginBottom: 16 }}>
-            <div className="filter-date-label">Ticket number</div>
+            <div className="filter-date-label">Номер заявки</div>
             <input name="ticket_number" className="search-input" placeholder="SR11683266" defaultValue={ticketNumber} />
           </div>
 
@@ -137,7 +137,7 @@ export default async function ArchivePage({ searchParams }: { searchParams?: Sea
               <div className="plan-info">
                 <div className="plan-title">{entry.title}</div>
                 <div className="plan-sub">
-                  {formatDate(entry.created_at)} · {entry.work_date} · {mapActivityTypeLabel(entry.activity_type)} · {entry.ticket_number ?? "без SR"}
+                  {formatDateTimeLabel(entry.created_at)} · {entry.work_date} · {getActivityTypeLabel(entry.activity_type)} · {entry.ticket_number ?? "без SR"}
                 </div>
                 {entry.description && <div className="plan-sub" style={{ marginTop: 4 }}>{entry.description}</div>}
               </div>

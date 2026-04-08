@@ -15,7 +15,7 @@ class DailyReportRequest(BaseModel):
 class WeeklyReportRequest(BaseModel):
     """Запрос на генерацию недельного отчёта.
 
-    week_start — понедельник недели, за которую строится отчёт.
+    Поле week_start должно указывать на понедельник нужной недели.
     """
 
     week_start: date

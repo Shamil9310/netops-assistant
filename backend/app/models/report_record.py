@@ -53,11 +53,11 @@ class ReportRecord(Base):
         index=True,
     )
 
-    # Период отчёта в ISO-формате для отображения в истории.
+    # Период отчёта в ISO-формате для показа в истории.
     period_from: Mapped[str] = mapped_column(String(10), nullable=False)
     period_to: Mapped[str] = mapped_column(String(10), nullable=False)
 
-    # Готовый Markdown-контент отчёта.
+    # Готовое содержимое отчёта в формате Markdown.
     content_md: Mapped[str] = mapped_column(Text, nullable=False)
 
     created_at: Mapped[datetime] = mapped_column(

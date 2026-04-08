@@ -3,7 +3,8 @@ import { ReportFinalizeButton } from "@/components/report-finalize-button";
 import { ReportGenerateForm } from "@/components/report-generate-form";
 import { ReportRegenerateDraftButton } from "@/components/report-regenerate-draft-button";
 import { ReportRefreshButton } from "@/components/report-refresh-button";
-import { getReportHistory, getReportPreview } from "@/lib/api";
+import { TeamReportExportForm } from "@/components/team-report-export-form";
+import { getReportHistory, getReportPreview, getTeamUsers } from "@/lib/api";
 import { requireUser } from "@/lib/auth";
 
 type SearchParams = Record<string, string | string[] | undefined>;
@@ -15,10 +16,10 @@ function toSingleValue(value: string | string[] | undefined): string {
   return value ?? "";
 }
 
-function formatDate(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return value;
+function formatDateTimeLabel(dateTimeValue: string): string {
+  const parsedDate = new Date(dateTimeValue);
+  if (Number.isNaN(parsedDate.getTime())) {
+    return dateTimeValue;
   }
   return new Intl.DateTimeFormat("ru-RU", {
     day: "2-digit",
@@ -26,23 +27,26 @@ function formatDate(value: string): string {
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
-  }).format(date);
+  }).format(parsedDate);
 }
 
-function mapReportType(type: string): string {
+function getReportTypeLabel(reportType: string): string {
   const labels: Record<string, string> = {
     daily: "День",
     weekly: "Неделя",
     range: "Период",
     night_work_result: "Ночные работы",
   };
-  return labels[type] ?? type;
+  return labels[reportType] ?? reportType;
 }
 
 export default async function ReportsPage({ searchParams }: { searchParams?: SearchParams }) {
   const user = await requireUser();
   const history = await getReportHistory();
+  const isManagerOrDeveloper = user.role === "manager" || user.role === "developer";
+  const teamUsers = isManagerOrDeveloper ? await getTeamUsers() : null;
   const reportIdFromUrl = toSingleValue(searchParams?.report_id);
+  const teamExportError = toSingleValue(searchParams?.team_export_error);
   const selectedReportId = reportIdFromUrl || history?.[0]?.id || "";
   const preview = selectedReportId ? await getReportPreview(selectedReportId) : null;
   const publicApiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
@@ -59,6 +63,16 @@ export default async function ReportsPage({ searchParams }: { searchParams?: Sea
           <ReportGenerateForm />
         </div>
 
+        {isManagerOrDeveloper && (
+          <>
+            <div className="filter-divider" />
+
+            <div className="filter-group" style={{ marginBottom: 20 }}>
+              <TeamReportExportForm users={teamUsers ?? []} />
+            </div>
+          </>
+        )}
+
         <div className="filter-divider" />
 
         <div className="filter-group" style={{ marginBottom: 20 }}>
@@ -72,18 +86,24 @@ export default async function ReportsPage({ searchParams }: { searchParams?: Sea
                 style={{ textAlign: "left" }}
               >
                 <span className="chip-dot" style={{ background: "var(--blue)" }} />
-                {mapReportType(record.report_type)}
+                {getReportTypeLabel(record.report_type)}
                 <span className="chip-count">{record.period_from}</span>
               </a>
             ))}
             {(history ?? []).length === 0 && (
-              <div className="focus-note">
-                <div className="focus-note-label">Нет данных</div>
-                <p>Сначала сгенерируй отчёт через backend API.</p>
-              </div>
-            )}
+                <div className="focus-note">
+                  <div className="focus-note-label">Нет данных</div>
+                <p>Сначала сгенерируй отчёт через API бэкенда.</p>
+                </div>
+              )}
           </div>
         </div>
+
+        {teamExportError && (
+          <div className="form-error" style={{ marginBottom: 12 }}>
+            {teamExportError}
+          </div>
+        )}
 
         <div className="focus-note">
           <div className="focus-note-label">Примечание</div>
@@ -101,7 +121,7 @@ export default async function ReportsPage({ searchParams }: { searchParams?: Sea
         </div>
 
         <div className="section-label">
-          {preview ? `${mapReportType(preview.report_type)} · ${preview.period_from} — ${preview.period_to}` : "Отчёт не выбран"}
+          {preview ? `${getReportTypeLabel(preview.report_type)} · ${preview.period_from} — ${preview.period_to}` : "Отчёт не выбран"}
         </div>
 
         <div className="report-block">
@@ -110,9 +130,9 @@ export default async function ReportsPage({ searchParams }: { searchParams?: Sea
               <div className="report-header">
                 <div>
                   <div className="report-header-title">
-                    {mapReportType(preview.report_type)} · {preview.period_from} — {preview.period_to}
+                    {getReportTypeLabel(preview.report_type)} · {preview.period_from} — {preview.period_to}
                   </div>
-                  <div className="report-header-sub">Сформирован: {formatDate(preview.generated_at)} · {user.full_name}</div>
+                  <div className="report-header-sub">Сформирован: {formatDateTimeLabel(preview.generated_at)} · {user.full_name}</div>
                   <div className="report-header-sub">Статус: {preview.report_status}</div>
                   {preview.report_status === "final" && preview.updates_after_finalization > 0 && (
                     <div className="report-header-sub">
@@ -140,7 +160,7 @@ export default async function ReportsPage({ searchParams }: { searchParams?: Sea
           ) : (
             <div className="focus-note">
               <div className="focus-note-label">Нет выбранного отчёта</div>
-              <p>Сгенерируй отчёт через backend API и открой его из истории.</p>
+              <p>Сгенерируй отчёт через API бэкенда и открой его из истории.</p>
             </div>
           )}
         </div>
