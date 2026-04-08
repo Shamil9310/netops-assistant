@@ -33,6 +33,8 @@ class ActivityEntryCreateRequest(BaseModel):
     status: ActivityStatus = "open"
     title: str = Field(min_length=3, max_length=255)
     description: str | None = Field(default=None, max_length=5000)
+    resolution: str | None = Field(default=None, max_length=5000)
+    contact: str | None = Field(default=None, max_length=256)
     ticket_number: str | None = Field(default=None, max_length=64)
     started_at: time | None = None
     ended_at: time | None = None
@@ -58,6 +60,8 @@ class ActivityEntryUpdateRequest(BaseModel):
     status: ActivityStatus | None = None
     title: str | None = Field(default=None, min_length=3, max_length=255)
     description: str | None = Field(default=None, max_length=5000)
+    resolution: str | None = Field(default=None, max_length=5000)
+    contact: str | None = Field(default=None, max_length=256)
     ticket_number: str | None = Field(default=None, max_length=64)
     started_at: time | None = None
     ended_at: time | None = None
@@ -80,6 +84,8 @@ class ActivityEntryResponse(BaseModel):
     status: ActivityStatus
     title: str
     description: str | None
+    resolution: str | None
+    contact: str | None
     ticket_number: str | None
     started_at: time | None
     ended_at: time | None

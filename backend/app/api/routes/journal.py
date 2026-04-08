@@ -57,6 +57,8 @@ def to_activity_entry_response(activity_entry) -> ActivityEntryResponse:
         status=activity_entry.status,
         title=activity_entry.title,
         description=activity_entry.description,
+        resolution=activity_entry.resolution,
+        contact=activity_entry.contact,
         ticket_number=activity_entry.ticket_number,
         started_at=activity_entry.started_at.timetz().replace(tzinfo=None) if activity_entry.started_at else None,
         ended_at=activity_entry.finished_at.timetz().replace(tzinfo=None) if activity_entry.finished_at else None,

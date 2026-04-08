@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { SESSION_COOKIE_NAME } from "@/lib/constants";
+import { CSRF_COOKIE_NAME, SESSION_COOKIE_NAME } from "@/lib/constants";
 import { loginWithBackend, type LoginPayload, type LoginResponse } from "@/lib/api";
 
 type ErrorResponse = {
@@ -32,8 +32,11 @@ export async function POST(request: Request) {
     );
   }
 
-  const set_cookie_header = backend_response.headers.get("set-cookie");
-  const session_token = extract_cookie_value(set_cookie_header, SESSION_COOKIE_NAME);
+  const all_set_cookie_headers = backend_response.headers.getSetCookie();
+  console.log("[login] set-cookie headers:", JSON.stringify(all_set_cookie_headers));
+  const session_token = extract_cookie_value_from_list(all_set_cookie_headers, SESSION_COOKIE_NAME);
+  const csrf_token = extract_cookie_value_from_list(all_set_cookie_headers, CSRF_COOKIE_NAME);
+  console.log("[login] session_token found:", !!session_token, "csrf_token found:", !!csrf_token);
 
   if (!session_token) {
     if (is_html_form) {
@@ -58,6 +61,16 @@ export async function POST(request: Request) {
     maxAge: 60 * 60 * 12,
   });
 
+  if (csrf_token) {
+    response.cookies.set(CSRF_COOKIE_NAME, csrf_token, {
+      httpOnly: false,
+      sameSite: "lax",
+      secure: false,
+      path: "/",
+      maxAge: 60 * 60 * 12,
+    });
+  }
+
   return response;
 }
 
@@ -77,14 +90,13 @@ async function read_login_payload(
   return (await request.json()) as LoginPayload;
 }
 
-function extract_cookie_value(
-  set_cookie_header: string | null,
+function extract_cookie_value_from_list(
+  set_cookie_headers: string[],
   cookie_name: string,
 ): string | null {
-  if (!set_cookie_header) {
-    return null;
+  for (const header of set_cookie_headers) {
+    const match = header.match(new RegExp(`${cookie_name}=([^;]+)`));
+    if (match) return match[1];
   }
-
-  const cookie_match = set_cookie_header.match(new RegExp(`${cookie_name}=([^;]+)`));
-  return cookie_match?.[1] ?? null;
+  return null;
 }

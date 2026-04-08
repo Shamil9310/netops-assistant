@@ -4,7 +4,7 @@ import { NextResponse } from "next/server";
 import { SERVER_API_BASE_URL } from "@/lib/api-url";
 import { CSRF_COOKIE_NAME, SESSION_COOKIE_NAME } from "@/lib/constants";
 
-export async function POST(
+export async function DELETE(
   _request: Request,
   { params }: { params: Promise<{ event_id: string }> },
 ) {
@@ -20,25 +20,21 @@ export async function POST(
     ? `${SESSION_COOKIE_NAME}=${sessionToken}; ${CSRF_COOKIE_NAME}=${csrfToken}`
     : `${SESSION_COOKIE_NAME}=${sessionToken}`;
   const headers: HeadersInit = {
-    "Content-Type": "application/json",
     Cookie: cookieHeader,
   };
   if (csrfToken) {
     headers["X-CSRF-Token"] = csrfToken;
   }
 
-  const response = await fetch(
-    `${SERVER_API_BASE_URL}/api/v1/planned-events/${eventId}/convert-to-journal`,
-    {
-      method: "POST",
-      headers,
-      cache: "no-store",
-    },
-  );
+  const response = await fetch(`${SERVER_API_BASE_URL}/api/v1/planned-events/${eventId}`, {
+    method: "DELETE",
+    headers,
+    cache: "no-store",
+  });
 
-  const body = await response.json();
   if (!response.ok) {
+    const body = await response.json();
     return NextResponse.json(body, { status: response.status });
   }
-  return NextResponse.json(body);
+  return new NextResponse(null, { status: 204 });
 }

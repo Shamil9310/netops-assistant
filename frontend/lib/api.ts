@@ -195,6 +195,8 @@ export type JournalEntry = {
   status: JournalActivityStatus;
   title: string;
   description: string | null;
+  resolution: string | null;
+  contact: string | null;
   ticket_number: string | null;
   started_at: string | null;
   ended_at: string | null;
@@ -238,6 +240,8 @@ export type CreateJournalEntryPayload = {
   status?: JournalActivityStatus;
   title: string;
   description?: string | null;
+  resolution?: string | null;
+  contact?: string | null;
   ticket_number?: string | null;
   started_at?: string | null;
   ended_at?: string | null;
@@ -292,8 +296,11 @@ export async function loginWithBackend(payload: LoginPayload): Promise<Response>
 }
 
 export async function logoutWithBackend(sessionToken: string, csrfToken: string | null): Promise<void> {
+  const cookieHeader = csrfToken
+    ? `${SESSION_COOKIE_NAME}=${sessionToken}; ${CSRF_COOKIE_NAME}=${csrfToken}`
+    : `${SESSION_COOKIE_NAME}=${sessionToken}`;
   const headers: HeadersInit = {
-    Cookie: `${SESSION_COOKIE_NAME}=${sessionToken}`,
+    Cookie: cookieHeader,
   };
   if (csrfToken) {
     headers["X-CSRF-Token"] = csrfToken;
@@ -424,9 +431,12 @@ export async function refreshReportWithBackend(reportId: string): Promise<Respon
     });
   }
 
+  const cookieHeader = csrfToken
+    ? `${SESSION_COOKIE_NAME}=${sessionToken}; ${CSRF_COOKIE_NAME}=${csrfToken}`
+    : `${SESSION_COOKIE_NAME}=${sessionToken}`;
   const headers: HeadersInit = {
     "Content-Type": "application/json",
-    Cookie: `${SESSION_COOKIE_NAME}=${sessionToken}`,
+    Cookie: cookieHeader,
   };
   if (csrfToken) {
     headers["X-CSRF-Token"] = csrfToken;
@@ -450,9 +460,12 @@ export async function finalizeReportWithBackend(reportId: string): Promise<Respo
     });
   }
 
+  const cookieHeader = csrfToken
+    ? `${SESSION_COOKIE_NAME}=${sessionToken}; ${CSRF_COOKIE_NAME}=${csrfToken}`
+    : `${SESSION_COOKIE_NAME}=${sessionToken}`;
   const headers: HeadersInit = {
     "Content-Type": "application/json",
-    Cookie: `${SESSION_COOKIE_NAME}=${sessionToken}`,
+    Cookie: cookieHeader,
   };
   if (csrfToken) {
     headers["X-CSRF-Token"] = csrfToken;
@@ -476,9 +489,12 @@ export async function regenerateDraftReportWithBackend(reportId: string): Promis
     });
   }
 
+  const cookieHeader = csrfToken
+    ? `${SESSION_COOKIE_NAME}=${sessionToken}; ${CSRF_COOKIE_NAME}=${csrfToken}`
+    : `${SESSION_COOKIE_NAME}=${sessionToken}`;
   const headers: HeadersInit = {
     "Content-Type": "application/json",
-    Cookie: `${SESSION_COOKIE_NAME}=${sessionToken}`,
+    Cookie: cookieHeader,
   };
   if (csrfToken) {
     headers["X-CSRF-Token"] = csrfToken;
@@ -524,9 +540,12 @@ export async function generateReportWithBackend(payload: GenerateReportPayload):
     });
   }
 
+  const cookieHeader = csrfToken
+    ? `${SESSION_COOKIE_NAME}=${sessionToken}; ${CSRF_COOKIE_NAME}=${csrfToken}`
+    : `${SESSION_COOKIE_NAME}=${sessionToken}`;
   const headers: HeadersInit = {
     "Content-Type": "application/json",
-    Cookie: `${SESSION_COOKIE_NAME}=${sessionToken}`,
+    Cookie: cookieHeader,
   };
   if (csrfToken) {
     headers["X-CSRF-Token"] = csrfToken;
@@ -669,9 +688,12 @@ export async function createJournalEntryWithBackend(payload: CreateJournalEntryP
     });
   }
 
+  const cookieHeader = csrfToken
+    ? `${SESSION_COOKIE_NAME}=${sessionToken}; ${CSRF_COOKIE_NAME}=${csrfToken}`
+    : `${SESSION_COOKIE_NAME}=${sessionToken}`;
   const headers: HeadersInit = {
     "Content-Type": "application/json",
-    Cookie: `${SESSION_COOKIE_NAME}=${sessionToken}`,
+    Cookie: cookieHeader,
   };
   if (csrfToken) {
     headers["X-CSRF-Token"] = csrfToken;

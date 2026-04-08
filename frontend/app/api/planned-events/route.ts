@@ -32,13 +32,17 @@ export async function POST(request: Request) {
   const cookieStore = await cookies();
   const sessionToken = cookieStore.get(SESSION_COOKIE_NAME)?.value;
   const csrfToken = cookieStore.get(CSRF_COOKIE_NAME)?.value;
+  console.log("[planned-events] sessionToken:", !!sessionToken, "csrfToken:", !!csrfToken, "csrfValue:", csrfToken);
   if (!sessionToken) {
     return NextResponse.json({ detail: "Требуется авторизация" }, { status: 401 });
   }
 
+  const cookieHeader = csrfToken
+    ? `${SESSION_COOKIE_NAME}=${sessionToken}; ${CSRF_COOKIE_NAME}=${csrfToken}`
+    : `${SESSION_COOKIE_NAME}=${sessionToken}`;
   const headers: HeadersInit = {
     "Content-Type": "application/json",
-    Cookie: `${SESSION_COOKIE_NAME}=${sessionToken}`,
+    Cookie: cookieHeader,
   };
   if (csrfToken) {
     headers["X-CSRF-Token"] = csrfToken;

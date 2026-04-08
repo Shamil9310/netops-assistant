@@ -1,10 +1,11 @@
 import { Sidebar } from "@/components/sidebar";
 import { JournalCreateForm } from "@/components/journal-create-form";
+import { JournalDateFilter } from "@/components/journal-date-filter";
 import { JournalEntryActions } from "@/components/journal-entry-actions";
 import { getJournalEntries } from "@/lib/api";
 import { requireUser } from "@/lib/auth";
 
-type SearchParams = Record<string, string | string[] | undefined>;
+type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 function toSingleValue(value: string | string[] | undefined): string {
   if (Array.isArray(value)) {
@@ -48,9 +49,12 @@ function formatTime(value: string | null): string {
 
 export default async function JournalPage({ searchParams }: { searchParams?: SearchParams }) {
   const user = await requireUser();
-  const selectedWorkDate = toSingleValue(searchParams?.work_date) || getTodayIsoDate();
+  const resolvedParams = searchParams ? await searchParams : {};
+  const selectedWorkDate = toSingleValue(resolvedParams.work_date) || getTodayIsoDate();
   const journal = await getJournalEntries(selectedWorkDate);
   const items = journal?.items ?? [];
+  const lastEndedAtRaw = [...items].reverse().find((item) => item.ended_at)?.ended_at ?? null;
+  const lastEndedAt = lastEndedAtRaw ? lastEndedAtRaw.slice(0, 5) : null;
 
   return (
     <div className="shell">
@@ -58,7 +62,7 @@ export default async function JournalPage({ searchParams }: { searchParams?: Sea
 
       <aside className="filter-col">
         <div className="filter-col-title">Журнал</div>
-        <JournalCreateForm initialWorkDate={selectedWorkDate} />
+        <JournalCreateForm key={selectedWorkDate} initialWorkDate={selectedWorkDate} lastEndedAt={lastEndedAt} />
       </aside>
 
       <main className="content-col">
@@ -68,10 +72,7 @@ export default async function JournalPage({ searchParams }: { searchParams?: Sea
             <div className="page-sub">Записи за рабочую дату {selectedWorkDate}</div>
           </div>
           <div className="toolbar">
-            <form method="GET">
-              <input name="work_date" type="date" className="filter-date-input" defaultValue={selectedWorkDate} />
-              <button className="btn btn-sm" type="submit">Показать</button>
-            </form>
+            <JournalDateFilter initialDate={selectedWorkDate} />
           </div>
         </div>
 
@@ -97,12 +98,19 @@ export default async function JournalPage({ searchParams }: { searchParams?: Sea
                 {item.is_backdated && <div className="plan-sub">Добавлено задним числом</div>}
                 {item.ticket_number && <div className="plan-sub">Ticket: {item.ticket_number}</div>}
                 {item.description && <div className="plan-sub">{item.description}</div>}
+                {item.resolution && <div className="plan-sub"><strong>Решение:</strong> {item.resolution}</div>}
               </div>
               <div className="plan-actions">
                 <JournalEntryActions
                   entryId={item.id}
-                  currentTitle={item.title}
+                  ticketNumber={item.ticket_number}
+                  activityType={item.activity_type}
+                  status={item.status}
+                  startedAt={item.started_at}
+                  endedAt={item.ended_at}
                   currentDescription={item.description}
+                  currentResolution={item.resolution}
+                  currentContact={item.contact}
                 />
               </div>
             </div>

@@ -1,26 +1,87 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import type { JournalActivityStatus, JournalActivityType } from "@/lib/api";
 
-type Props = {
-  initialWorkDate: string;
+const ACTIVITY_LABELS: Record<JournalActivityType, string> = {
+  task: "Задача",
+  ticket: "Заявка",
+  call: "Звонок",
+  meeting: "Встреча",
+  escalation: "Эскалация",
+  other: "Прочее",
 };
 
-export function JournalCreateForm({ initialWorkDate }: Props) {
+function generateTitle(activityType: JournalActivityType, ticketNumber: string, workDate: string): string {
+  if (ticketNumber.trim()) {
+    return ticketNumber.trim();
+  }
+  return `${ACTIVITY_LABELS[activityType]} ${workDate}`;
+}
+
+function toTimeInputValue(value: string | null | undefined): string {
+  if (!value) {
+    return "";
+  }
+  return value.slice(0, 5);
+}
+
+type Props = {
+  initialWorkDate: string;
+  lastEndedAt?: string | null;
+};
+
+export function JournalCreateForm({ initialWorkDate, lastEndedAt }: Props) {
   const router = useRouter();
   const [workDate, setWorkDate] = useState(initialWorkDate);
   const [activityType, setActivityType] = useState<JournalActivityType>("task");
   const [status, setStatus] = useState<JournalActivityStatus>("open");
-  const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [resolution, setResolution] = useState("");
+  const [contact, setContact] = useState("");
   const [ticketNumber, setTicketNumber] = useState("");
-  const [startedAt, setStartedAt] = useState("");
+  const [startedAt, setStartedAt] = useState(toTimeInputValue(lastEndedAt));
   const [endedAt, setEndedAt] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!startedAt && lastEndedAt) {
+      setStartedAt(toTimeInputValue(lastEndedAt));
+    }
+  }, [lastEndedAt, startedAt]);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    async function fillStartedAtFromLatestEntry() {
+      if (startedAt) {
+        return;
+      }
+
+      try {
+        const response = await fetch(`/api/journal/entries?work_date=${workDate}`, { method: "GET" });
+        if (!response.ok) {
+          return;
+        }
+
+        const data = (await response.json()) as { items?: Array<{ ended_at: string | null }> };
+        const lastEnded = [...(data.items ?? [])].reverse().find((item) => item.ended_at)?.ended_at;
+        if (!isCancelled && lastEnded) {
+          setStartedAt(toTimeInputValue(lastEnded));
+        }
+      } catch {
+        // no-op: if entries cannot be loaded, user can still enter time manually
+      }
+    }
+
+    fillStartedAtFromLatestEntry();
+    return () => {
+      isCancelled = true;
+    };
+  }, [workDate, startedAt]);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -35,8 +96,10 @@ export function JournalCreateForm({ initialWorkDate }: Props) {
           work_date: workDate,
           activity_type: activityType,
           status,
-          title,
+          title: generateTitle(activityType, ticketNumber, workDate),
           description: description || null,
+          resolution: resolution || null,
+          contact: contact || null,
           ticket_number: ticketNumber || null,
           started_at: startedAt || null,
           ended_at: endedAt || null,
@@ -48,10 +111,11 @@ export function JournalCreateForm({ initialWorkDate }: Props) {
         return;
       }
 
-      setTitle("");
       setDescription("");
+      setResolution("");
+      setContact("");
       setTicketNumber("");
-      setStartedAt("");
+      setStartedAt(endedAt || startedAt);
       setEndedAt("");
       router.push(`/journal?work_date=${workDate}`);
       router.refresh();
@@ -83,11 +147,12 @@ export function JournalCreateForm({ initialWorkDate }: Props) {
         <option value="cancelled">Отменена</option>
       </select>
 
-      <input className="filter-date-input" placeholder="Заголовок" value={title} onChange={(event) => setTitle(event.target.value)} required />
       <input className="filter-date-input" placeholder="SR / Ticket" value={ticketNumber} onChange={(event) => setTicketNumber(event.target.value)} />
+      <input className="filter-date-input" placeholder="Контакт (от кого пришло)" value={contact} onChange={(event) => setContact(event.target.value)} />
       <input type="time" className="filter-date-input" value={startedAt} onChange={(event) => setStartedAt(event.target.value)} />
       <input type="time" className="filter-date-input" value={endedAt} onChange={(event) => setEndedAt(event.target.value)} />
       <textarea className="filter-date-input" placeholder="Описание" value={description} onChange={(event) => setDescription(event.target.value)} />
+      <textarea className="filter-date-input" placeholder="Решение" value={resolution} onChange={(event) => setResolution(event.target.value)} />
 
       {error && <div className="form-error">{error}</div>}
       <button type="submit" className="btn btn-primary" disabled={isSubmitting}>

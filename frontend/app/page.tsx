@@ -4,7 +4,7 @@ import { PlannedEventCreateForm } from "@/components/planned-event-create-form";
 import { getDayDashboard, getHealth } from "@/lib/api";
 import { requireUser } from "@/lib/auth";
 
-type SearchParams = Record<string, string | string[] | undefined>;
+type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 function toSingleValue(value: string | string[] | undefined): string {
   if (Array.isArray(value)) {
@@ -62,7 +62,8 @@ function formatDateTime(value: string): string {
 
 export default async function HomePage({ searchParams }: { searchParams?: SearchParams }) {
   const user = await requireUser();
-  const selectedWorkDate = toSingleValue(searchParams?.work_date) || getTodayIsoDate();
+  const resolvedParams = searchParams ? await searchParams : {};
+  const selectedWorkDate = toSingleValue(resolvedParams.work_date) || getTodayIsoDate();
   const health = await getHealth();
   const dashboard = await getDayDashboard(selectedWorkDate);
 

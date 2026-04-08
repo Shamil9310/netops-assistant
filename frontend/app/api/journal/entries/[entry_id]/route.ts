@@ -5,9 +5,12 @@ import { SERVER_API_BASE_URL } from "@/lib/api-url";
 import { CSRF_COOKIE_NAME, SESSION_COOKIE_NAME } from "@/lib/constants";
 
 function buildHeaders(sessionToken: string, csrfToken: string | undefined): HeadersInit {
+  const cookieHeader = csrfToken
+    ? `${SESSION_COOKIE_NAME}=${sessionToken}; ${CSRF_COOKIE_NAME}=${csrfToken}`
+    : `${SESSION_COOKIE_NAME}=${sessionToken}`;
   const headers: HeadersInit = {
     "Content-Type": "application/json",
-    Cookie: `${SESSION_COOKIE_NAME}=${sessionToken}`,
+    Cookie: cookieHeader,
   };
   if (csrfToken) {
     headers["X-CSRF-Token"] = csrfToken;

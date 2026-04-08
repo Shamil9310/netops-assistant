@@ -3,18 +3,38 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { JournalEntryModal } from "@/components/journal-entry-modal";
+
 type Props = {
   entryId: string;
-  currentTitle: string;
+  ticketNumber: string | null;
+  activityType: string;
+  status: string;
+  startedAt: string | null;
+  endedAt: string | null;
   currentDescription: string | null;
+  currentResolution: string | null;
+  currentContact: string | null;
 };
 
-export function JournalEntryActions({ entryId, currentTitle, currentDescription }: Props) {
+export function JournalEntryActions({
+  entryId,
+  ticketNumber,
+  activityType,
+  status,
+  startedAt,
+  endedAt,
+  currentDescription,
+  currentResolution,
+  currentContact,
+}: Props) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   async function onDelete() {
+    if (!window.confirm("Удалить запись?")) return;
     setError(null);
     setIsLoading(true);
     try {
@@ -32,46 +52,32 @@ export function JournalEntryActions({ entryId, currentTitle, currentDescription 
     }
   }
 
-  async function onQuickEdit() {
-    const nextTitle = window.prompt("Новый заголовок", currentTitle)?.trim();
-    if (!nextTitle) {
-      return;
-    }
-    const nextDescription = window.prompt("Новое описание", currentDescription ?? "") ?? "";
-
-    setError(null);
-    setIsLoading(true);
-    try {
-      const response = await fetch(`/api/journal/entries/${entryId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: nextTitle,
-          description: nextDescription || null,
-        }),
-      });
-      if (!response.ok) {
-        const body = (await response.json()) as { detail?: string };
-        setError(body.detail ?? "Ошибка обновления");
-        return;
-      }
-      router.refresh();
-    } catch {
-      setError("Ошибка обновления");
-    } finally {
-      setIsLoading(false);
-    }
-  }
-
   return (
-    <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-      <button type="button" className="btn btn-sm" onClick={onQuickEdit} disabled={isLoading}>
-        Ред.
-      </button>
-      <button type="button" className="btn btn-sm btn-danger" onClick={onDelete} disabled={isLoading}>
-        Удалить
-      </button>
-      {error && <span className="form-error">{error}</span>}
-    </div>
+    <>
+      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <button type="button" className="btn btn-sm" onClick={() => setIsModalOpen(true)} disabled={isLoading}>
+          Подробно
+        </button>
+        <button type="button" className="btn btn-sm btn-danger" onClick={onDelete} disabled={isLoading}>
+          Удалить
+        </button>
+        {error && <span className="form-error">{error}</span>}
+      </div>
+
+      {isModalOpen && (
+        <JournalEntryModal
+          entryId={entryId}
+          ticketNumber={ticketNumber}
+          activityType={activityType}
+          status={status}
+          startedAt={startedAt}
+          endedAt={endedAt}
+          description={currentDescription}
+          resolution={currentResolution}
+          contact={currentContact}
+          onClose={() => setIsModalOpen(false)}
+        />
+      )}
+    </>
   );
 }

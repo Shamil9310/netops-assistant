@@ -40,7 +40,15 @@ async def create_activity_entry(
     payload: ActivityEntryCreateRequest,
 ) -> ActivityEntry:
     """Создаёт новую запись журнала для текущего пользователя."""
-    started_at_dt = _combine_work_date_and_time(payload.work_date, payload.started_at)
+    started_at_value = payload.started_at
+    if started_at_value is None:
+        started_at_value = await _get_last_finished_time_for_date(
+            session=session,
+            user_id=user.id,
+            work_date=payload.work_date,
+        )
+
+    started_at_dt = _combine_work_date_and_time(payload.work_date, started_at_value)
     ended_at_dt = _combine_work_date_and_time(payload.work_date, payload.ended_at)
 
     activity_entry = ActivityEntry(
@@ -50,6 +58,8 @@ async def create_activity_entry(
         status=payload.status,
         title=payload.title.strip(),
         description=payload.description.strip() if payload.description else None,
+        resolution=payload.resolution.strip() if payload.resolution else None,
+        contact=payload.contact.strip() if payload.contact else None,
         external_ref=payload.ticket_number.strip() if payload.ticket_number else None,
         ticket_number=payload.ticket_number.strip() if payload.ticket_number else None,
         started_at=started_at_dt,
@@ -93,6 +103,10 @@ async def update_activity_entry(
         entry.title = payload.title.strip()
     if payload.description is not None:
         entry.description = payload.description.strip() if payload.description else None
+    if payload.resolution is not None:
+        entry.resolution = payload.resolution.strip() if payload.resolution else None
+    if payload.contact is not None:
+        entry.contact = payload.contact.strip() if payload.contact else None
     if payload.ticket_number is not None:
         normalized_ticket = payload.ticket_number.strip() if payload.ticket_number else None
         entry.ticket_number = normalized_ticket
@@ -141,3 +155,23 @@ def _combine_work_date_and_time(work_date: date, value: time | None) -> datetime
     if value is None:
         return None
     return datetime.combine(work_date, value, tzinfo=UTC)
+
+
+async def _get_last_finished_time_for_date(
+    session: AsyncSession,
+    user_id: UUID,
+    work_date: date,
+) -> time | None:
+    """Возвращает время завершения последней записи за рабочую дату."""
+    result = await session.execute(
+        select(ActivityEntry.finished_at)
+        .where(ActivityEntry.user_id == user_id)
+        .where(ActivityEntry.work_date == work_date)
+        .where(ActivityEntry.finished_at.is_not(None))
+        .order_by(ActivityEntry.finished_at.desc(), ActivityEntry.created_at.desc())
+        .limit(1)
+    )
+    finished_at = result.scalar_one_or_none()
+    if finished_at is None:
+        return None
+    return finished_at.timetz().replace(tzinfo=None)

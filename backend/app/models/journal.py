@@ -80,6 +80,12 @@ class ActivityEntry(Base):
     # Описание — детали, действия, результаты. Опционально.
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
 
+    # Решение — что было сделано для устранения проблемы/выполнения заявки.
+    resolution: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Контакт — от кого пришла заявка/задача (имя, отдел, email).
+    contact: Mapped[str | None] = mapped_column(String(256), nullable=True)
+
     # Номер заявки/SR/тикета во внешней системе — для привязки к ITSM.
     external_ref: Mapped[str | None] = mapped_column(String(128), nullable=True, index=True)
     # Явное поле тикета для нового контракта journal API.

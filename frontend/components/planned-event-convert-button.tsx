@@ -32,10 +32,34 @@ export function PlannedEventConvertButton({ eventId }: Props) {
     }
   }
 
+  async function onDelete() {
+    if (!window.confirm("Удалить плановое событие?")) return;
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      const response = await fetch(`/api/planned-events/${eventId}`, {
+        method: "DELETE",
+      });
+      if (!response.ok) {
+        const body = (await response.json()) as { detail?: string };
+        setError(body.detail ?? "Ошибка удаления");
+        return;
+      }
+      router.refresh();
+    } catch {
+      setError("Ошибка соединения");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
   return (
     <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
       <button type="button" className="btn btn-sm" onClick={onConvert} disabled={isSubmitting}>
         В журнал
+      </button>
+      <button type="button" className="btn btn-sm btn-danger" onClick={onDelete} disabled={isSubmitting}>
+        Удалить
       </button>
       {error && <span className="form-error">{error}</span>}
     </div>
