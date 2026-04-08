@@ -13,7 +13,23 @@ export async function POST() {
     await logoutWithBackend(sessionToken, csrfToken);
   }
 
-  cookieStore.delete(SESSION_COOKIE_NAME);
-  cookieStore.delete(CSRF_COOKIE_NAME);
-  return new NextResponse(null, { status: 204 });
+  const response = new NextResponse(null, { status: 204 });
+
+  response.cookies.set(SESSION_COOKIE_NAME, "", {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: false,
+    path: "/",
+    maxAge: 0,
+  });
+
+  response.cookies.set(CSRF_COOKIE_NAME, "", {
+    httpOnly: false,
+    sameSite: "lax",
+    secure: false,
+    path: "/",
+    maxAge: 0,
+  });
+
+  return response;
 }

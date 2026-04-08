@@ -4,12 +4,13 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { JournalEntryModal } from "@/components/journal-entry-modal";
+import type { JournalActivityStatus } from "@/lib/api";
 
 type Props = {
   entryId: string;
   ticketNumber: string | null;
   activityType: string;
-  status: string;
+  status: JournalActivityStatus;
   startedAt: string | null;
   endedAt: string | null;
   currentDescription: string | null;

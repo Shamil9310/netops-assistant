@@ -19,7 +19,7 @@ export async function POST(request: Request) {
 
   if (!backend_response.ok) {
     if (is_html_form) {
-      return NextResponse.redirect(new URL("/login?error=1", request.url), { status: 303 });
+      return redirectTo("/login?error=1");
     }
 
     return NextResponse.json(
@@ -33,14 +33,12 @@ export async function POST(request: Request) {
   }
 
   const all_set_cookie_headers = backend_response.headers.getSetCookie();
-  console.log("[login] set-cookie headers:", JSON.stringify(all_set_cookie_headers));
   const session_token = extract_cookie_value_from_list(all_set_cookie_headers, SESSION_COOKIE_NAME);
   const csrf_token = extract_cookie_value_from_list(all_set_cookie_headers, CSRF_COOKIE_NAME);
-  console.log("[login] session_token found:", !!session_token, "csrf_token found:", !!csrf_token);
 
   if (!session_token) {
     if (is_html_form) {
-      return NextResponse.redirect(new URL("/login?error=1", request.url), { status: 303 });
+      return redirectTo("/login?error=1");
     }
 
     return NextResponse.json(
@@ -50,7 +48,7 @@ export async function POST(request: Request) {
   }
 
   const response = is_html_form
-    ? NextResponse.redirect(new URL("/", request.url), { status: 303 })
+    ? redirectTo("/")
     : NextResponse.json(response_body);
 
   response.cookies.set(SESSION_COOKIE_NAME, session_token, {
@@ -99,4 +97,10 @@ function extract_cookie_value_from_list(
     if (match) return match[1];
   }
   return null;
+}
+
+function redirectTo(path: string): NextResponse {
+  const response = new NextResponse(null, { status: 303 });
+  response.headers.set("Location", path);
+  return response;
 }

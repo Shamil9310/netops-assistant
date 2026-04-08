@@ -9,8 +9,7 @@ export function LoginForm({ has_error = false }: LoginFormProps) {
         <span className="field-label">Логин</span>
         <input
           name="username"
-          defaultValue="engineer"
-          placeholder="engineer"
+          placeholder="Введите логин"
           autoComplete="username"
         />
       </label>
@@ -20,7 +19,6 @@ export function LoginForm({ has_error = false }: LoginFormProps) {
         <input
           name="password"
           type="password"
-          defaultValue="engineer123"
           placeholder="Введите пароль"
           autoComplete="current-password"
         />
