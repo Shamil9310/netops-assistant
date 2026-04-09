@@ -16,6 +16,8 @@ def main() -> None:
         check=True,
     )
 
+def test_fail() -> None:
+    assert 1 == 2
 
 if __name__ == "__main__":
     main()

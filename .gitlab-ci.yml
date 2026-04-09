@@ -68,3 +68,27 @@ backend_pytest:
       pip install -e .[dev]
       cd ..
       python doctor.py pytest
+
+backend_coverage:
+  stage: test
+  tags:
+    - netops
+  coverage: '/TOTAL\s+\d+\s+\d+\s+(\d+%)/'
+  script:
+    - |
+      cd "$CI_PROJECT_DIR"
+      "${PYTHON314_BIN}" -m venv .venv
+      source .venv/bin/activate
+      pip install --upgrade pip
+      cd backend
+      pip install -e .[dev]
+      cd ..
+      python doctor.py coverage
+  artifacts:
+    when: always
+    paths:
+      - backend/coverage.xml
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: backend/coverage.xml

@@ -39,9 +39,17 @@ class DoctorCommand:
     ci: bool = False
 
 
+@dataclass(slots=True)
+class DependencyInstallPlan:
+    key: str
+    title: str
+    description: str
+
+
 ROOT_DIR = Path(__file__).resolve().parent
 BACKEND_DIR = ROOT_DIR / "backend"
 FRONTEND_DIR = ROOT_DIR / "frontend"
+DEFAULT_BACKEND_COVERAGE_THRESHOLD = 50
 FRONTEND_UI_DIRS = (FRONTEND_DIR / "app", FRONTEND_DIR / "components")
 FRONTEND_CODE_DIRS = (
     FRONTEND_DIR / "app",
@@ -107,13 +115,14 @@ CHECK_CHOICES = (
     "pep8",
     "mypy",
     "pytest",
+    "coverage",
     "localization",
     "names",
     "comments",
     "build",
 )
 CHECKS_BY_SCOPE = {
-    "backend": ["compileall", "ruff", "black", "pep8", "mypy", "pytest"],
+    "backend": ["compileall", "ruff", "black", "pep8", "mypy", "pytest", "coverage"],
     "frontend": ["localization", "names", "comments", "build"],
     "all": [
         "compileall",
@@ -122,6 +131,7 @@ CHECKS_BY_SCOPE = {
         "pep8",
         "mypy",
         "pytest",
+        "coverage",
         "localization",
         "names",
         "comments",
@@ -136,6 +146,7 @@ BACKEND_AUTOFIX_TRIGGER_CHECKS = {
     "mypy",
     "pytest",
 }
+LAST_CHECK_RESULTS: list[CheckResult] = []
 
 
 def print_action(message: str) -> None:
@@ -185,9 +196,13 @@ def build_error_details(
 
 
 def detect_backend_python() -> str:
-    venv_python = BACKEND_DIR / ".venv" / "bin" / "python"
-    if venv_python.exists():
-        return str(venv_python)
+    candidate_pythons = (
+        BACKEND_DIR / ".venv" / "bin" / "python",
+        ROOT_DIR / ".venv" / "bin" / "python",
+    )
+    for candidate_python in candidate_pythons:
+        if candidate_python.exists():
+            return str(candidate_python)
     return sys.executable
 
 
@@ -207,6 +222,59 @@ def check_backend_compile(python_bin: str, full: bool = False) -> CheckResult:
             result,
             "Не удалось выполнить compileall",
             max_lines=None if full else 8,
+        ),
+    )
+
+
+def check_backend_coverage(python_bin: str, full: bool = False) -> CheckResult:
+    has_pytest_cov = run_command(
+        [
+            python_bin,
+            "-c",
+            "import importlib.util; print(importlib.util.find_spec('pytest_cov') is not None)",
+        ],
+        cwd=BACKEND_DIR,
+    )
+    if has_pytest_cov.returncode != 0 or "True" not in has_pytest_cov.stdout:
+        return CheckResult(
+            "backend: покрытие тестами (coverage)",
+            CheckStatus.SKIP,
+            "pytest-cov не установлен (активируй backend/.venv и установи dev-зависимости)",
+        )
+
+    command = [
+        python_bin,
+        "-m",
+        "pytest",
+        "--cov=app",
+        "--cov-report=term-missing",
+        "--cov-report=xml:coverage.xml",
+        f"--cov-fail-under={DEFAULT_BACKEND_COVERAGE_THRESHOLD}",
+        "-q",
+    ]
+    result = run_command(command, cwd=BACKEND_DIR)
+    if result.returncode == 0:
+        coverage_line = next(
+            (line for line in result.stdout.splitlines() if "TOTAL" in line), ""
+        )
+        details_parts: list[str] = []
+        if coverage_line:
+            details_parts.append(coverage_line.strip())
+        details_parts.append(f"XML-отчёт сохранён в {Path('backend') / 'coverage.xml'}")
+        return CheckResult(
+            "backend: покрытие тестами (coverage)",
+            CheckStatus.PASS,
+            "\n".join(details_parts),
+        )
+
+    return CheckResult(
+        "backend: покрытие тестами (coverage)",
+        CheckStatus.FAIL,
+        build_error_details(
+            command,
+            result,
+            "Покрытие ниже порога или тесты упали",
+            max_lines=None if full else 12,
         ),
     )
 
@@ -702,6 +770,159 @@ def try_backend_autofix(python_bin: str) -> list[str]:
     return messages
 
 
+def collect_installable_dependency_plans(
+    results: list[CheckResult],
+) -> list[DependencyInstallPlan]:
+    plans: list[DependencyInstallPlan] = []
+    seen_keys: set[str] = set()
+
+    for result in results:
+        if result.status != CheckStatus.SKIP:
+            continue
+
+        if result.name.startswith("backend:") and (
+            "не установлен" in result.details
+            or "активируй backend/.venv" in result.details
+            or "dev-зависимости" in result.details
+        ):
+            if "backend-dev" not in seen_keys:
+                plans.append(
+                    DependencyInstallPlan(
+                        key="backend-dev",
+                        title="backend: виртуальное окружение и dev-зависимости",
+                        description="Создать `backend/.venv`, обновить `pip` и установить `pip install -e .[dev]`.",
+                    )
+                )
+                seen_keys.add("backend-dev")
+            continue
+
+        if (
+            result.name == "frontend: сборка"
+            and "frontend/node_modules" in result.details
+        ):
+            if "frontend-node-modules" not in seen_keys:
+                plans.append(
+                    DependencyInstallPlan(
+                        key="frontend-node-modules",
+                        title="frontend: зависимости npm",
+                        description="Выполнить `npm install` в каталоге `frontend`.",
+                    )
+                )
+                seen_keys.add("frontend-node-modules")
+
+    return plans
+
+
+def ensure_backend_venv() -> tuple[bool, str]:
+    backend_venv_python = BACKEND_DIR / ".venv" / "bin" / "python"
+    if backend_venv_python.exists():
+        return True, ""
+
+    bootstrap_python = shutil.which("python3") or sys.executable
+    command = [bootstrap_python, "-m", "venv", str(BACKEND_DIR / ".venv")]
+    result = run_command(command, cwd=ROOT_DIR)
+    if result.returncode == 0:
+        return True, ""
+
+    return False, build_error_details(
+        command,
+        result,
+        "Не удалось создать backend/.venv",
+        max_lines=12,
+    )
+
+
+def install_backend_dev_dependencies() -> tuple[bool, str]:
+    created, details = ensure_backend_venv()
+    if not created:
+        return False, details
+
+    backend_python = str(BACKEND_DIR / ".venv" / "bin" / "python")
+    commands = [
+        [backend_python, "-m", "pip", "install", "--upgrade", "pip"],
+        [backend_python, "-m", "pip", "install", "-e", ".[dev]"],
+    ]
+
+    for command in commands:
+        result = run_command(command, cwd=BACKEND_DIR)
+        if result.returncode != 0:
+            return False, build_error_details(
+                command,
+                result,
+                "Не удалось установить backend-зависимости",
+                max_lines=12,
+            )
+
+    return True, ""
+
+
+def install_frontend_node_modules() -> tuple[bool, str]:
+    if shutil.which("npm") is None:
+        return (
+            False,
+            "npm не найден. Автоматически установить frontend-зависимости нельзя.",
+        )
+
+    command = ["npm", "install"]
+    result = run_command(command, cwd=FRONTEND_DIR)
+    if result.returncode == 0:
+        return True, ""
+
+    return False, build_error_details(
+        command,
+        result,
+        "Не удалось установить frontend-зависимости",
+        max_lines=12,
+    )
+
+
+def install_dependency_plans(plans: list[DependencyInstallPlan]) -> bool:
+    for plan in plans:
+        print_action(f"Устанавливаю зависимости: {plan.title}")
+        match plan.key:
+            case "backend-dev":
+                ok, details = install_backend_dev_dependencies()
+            case "frontend-node-modules":
+                ok, details = install_frontend_node_modules()
+            case _:
+                ok = False
+                details = f"Неизвестный план установки: {plan.key}"
+
+        if not ok:
+            print(f"[ОШИБКА] Не удалось завершить установку: {plan.title}")
+            if details:
+                for line in details.splitlines():
+                    print(f"  {line}")
+            return False
+
+    return True
+
+
+def prompt_yes_no(prompt_text: str) -> bool:
+    answer = input(prompt_text).strip().lower()
+    return answer in {"y", "yes", "д", "да"}
+
+
+def prompt_install_missing_dependencies(results: list[CheckResult]) -> bool:
+    install_plans = collect_installable_dependency_plans(results)
+    if not install_plans:
+        return False
+
+    print("")
+    print_action(
+        "Некоторые проверки пропущены из-за отсутствующих зависимостей. Можно установить их сейчас."
+    )
+    for index, plan in enumerate(install_plans, start=1):
+        print(f"  {index}. {plan.title}")
+        print(f"     {plan.description}")
+
+    if not prompt_yes_no("Установить сейчас? [y/N]: "):
+        print_action("Установку зависимостей пропускаю по выбору пользователя.")
+        return False
+
+    return install_dependency_plans(install_plans)
+
+
 def print_result(result: CheckResult) -> None:
     status_label = {
         CheckStatus.PASS: "ОК",
@@ -769,15 +990,20 @@ def print_available_checks() -> None:
     print("")
     print("Как запускать:")
     print("  doctor all")
+    print("  doctor --scope backend")
+    print("  doctor --scope frontend --quick")
     print("  doctor mypy")
     print("  doctor mypy,pytest")
+    print("  doctor coverage")
     print("  doctor mypy autofix")
     print("  doctor all quick")
     print("  doctor mypy full")
     print("")
     print("Модификаторы:")
     print("  quick     пропустить долгие проверки, например build")
-    print("  autofix   применить доступные безопасные исправления для выбранных проверок")
+    print(
+        "  autofix   применить доступные безопасные исправления для выбранных проверок"
+    )
     print("  full      показать полный текст ошибок без обрезки")
     print("")
     print("Команды:")
@@ -852,25 +1078,70 @@ def prompt_for_command(prompt_text: str = "doctor> ") -> DoctorCommand:
 def parse_args() -> DoctorCommand:
     raw_argv = sys.argv[1:]
 
-    ci_mode = (
-        "--ci" in raw_argv
-        or not sys.stdin.isatty()
-        or not sys.stdout.isatty()
-    )
+    ci_mode = "--ci" in raw_argv or not sys.stdin.isatty() or not sys.stdout.isatty()
     filtered_argv = [a for a in raw_argv if a != "--ci"]
 
-    if not filtered_argv:
+    scope_value: str | None = None
+    compatibility_tokens: list[str] = []
+    index = 0
+    while index < len(filtered_argv):
+        token = filtered_argv[index]
+        if token == "--scope":
+            if index + 1 >= len(filtered_argv):
+                raise SystemExit(
+                    "Флаг --scope требует значение: backend, frontend или all"
+                )
+            scope_value = filtered_argv[index + 1].strip().lower()
+            index += 2
+            continue
+        if token.startswith("--scope="):
+            scope_value = token.split("=", 1)[1].strip().lower()
+            index += 1
+            continue
+        if token == "--quick":
+            compatibility_tokens.append("quick")
+            index += 1
+            continue
+        if token == "--autofix":
+            compatibility_tokens.append("autofix")
+            index += 1
+            continue
+        if token == "--full":
+            compatibility_tokens.append("full")
+            index += 1
+            continue
+        compatibility_tokens.append(token)
+        index += 1
+
+    expanded_scope_checks: list[str] = []
+    if scope_value is not None:
+        if scope_value not in CHECKS_BY_SCOPE:
+            available_scopes = ", ".join(CHECKS_BY_SCOPE)
+            raise SystemExit(
+                f"Неизвестный scope: {scope_value}. Доступные scope: {available_scopes}"
+            )
+        expanded_scope_checks = CHECKS_BY_SCOPE[scope_value]
+
+    if not compatibility_tokens:
         if ci_mode:
-            print_action("CI-режим: проверки не указаны. Передай имена проверок аргументами.")
+            print_action(
+                "CI-режим: проверки не указаны. Передай имена проверок аргументами."
+            )
             raise SystemExit(1)
         print_available_checks()
         return prompt_for_command()
 
-    if len(filtered_argv) == 1 and filtered_argv[0].strip().lower() in {"help", "--help", "-h"}:
+    if len(compatibility_tokens) == 1 and compatibility_tokens[0].strip().lower() in {
+        "help",
+        "--help",
+        "-h",
+    }:
         print_available_checks()
         raise SystemExit(0)
 
-    command = parse_command_tokens(filtered_argv)
+    command = parse_command_tokens(compatibility_tokens)
+    if expanded_scope_checks:
+        command.checks = list(dict.fromkeys([*expanded_scope_checks, *command.checks]))
     if ci_mode:
         command.ci = True
     return command
@@ -893,7 +1164,9 @@ def run_autofix_for_checks(requested_checks: list[str], python_bin: str) -> list
             )
 
     unsupported_checks = [
-        check for check in requested_checks if check not in BACKEND_AUTOFIX_TRIGGER_CHECKS
+        check
+        for check in requested_checks
+        if check not in BACKEND_AUTOFIX_TRIGGER_CHECKS
     ]
     if unsupported_checks:
         joined_checks = ", ".join(unsupported_checks)
@@ -941,6 +1214,11 @@ def run_named_check(
                 "backend: автотесты (pytest)",
                 lambda: check_backend_pytest(python_bin, full=full),
             )
+        case "coverage":
+            return timed_check(
+                "backend: покрытие тестами (coverage)",
+                lambda: check_backend_coverage(python_bin, full=full),
+            )
         case "localization":
             return timed_check(
                 "frontend: локализация интерфейса", check_frontend_localization
@@ -974,13 +1252,20 @@ def run_named_check(
 
 
 def run_checks(command: DoctorCommand) -> int:
+    global LAST_CHECK_RESULTS
+
     python_bin = detect_backend_python()
     results: list[CheckResult] = []
     started_total = perf_counter()
     requested_checks = resolve_requested_checks(command)
 
+    quick_mode = "yes" if command.quick else "no"
+    autofix_mode = "yes" if command.autofix else "no"
+    full_mode = "yes" if command.full else "no"
     print_action(
-        f"Старт doctor: quick={'yes' if command.quick else 'no'}, autofix={'yes' if command.autofix else 'no'}, full={'yes' if command.full else 'no'}"
+        f"Старт doctor: quick={quick_mode}, "
+        f"autofix={autofix_mode}, "
+        f"full={full_mode}"
     )
     print_action(f"Выбранные проверки: {', '.join(requested_checks)}")
 
@@ -990,12 +1275,15 @@ def run_checks(command: DoctorCommand) -> int:
             print(f"[АВТОФИКС] {message}")
 
     for check_name in requested_checks:
-        results.append(run_named_check(check_name, python_bin, command.quick, command.full))
+        results.append(
+            run_named_check(check_name, python_bin, command.quick, command.full)
+        )
 
     for result in results:
         print_result(result)
     total_duration_sec = perf_counter() - started_total
     print_summary(results, total_duration_sec)
+    LAST_CHECK_RESULTS = list(results)
 
     has_failures = any(r.status == CheckStatus.FAIL for r in results)
     return 1 if has_failures else 0
@@ -1017,9 +1305,17 @@ def main() -> int:
             return last_exit_code
 
         if not command.checks:
-            print_action("Не выбраны проверки. Введи help, exit, all или нужные проверки.")
+            print_action(
+                "Не выбраны проверки. Введи help, exit, all или нужные проверки."
+            )
         else:
             last_exit_code = run_checks(command)
+            if prompt_install_missing_dependencies(LAST_CHECK_RESULTS):
+                print("")
+                print_action(
+                    "Зависимости установлены. Повторно запускаю те же проверки."
+                )
+                last_exit_code = run_checks(command)
 
         print("")
         print_action("Я закончил. Что дальше? Введи следующую проверку, help или exit.")

@@ -329,11 +329,153 @@ def test_parse_args_supports_help_without_dashes(monkeypatch, capsys) -> None:
     except SystemExit as exc:
         assert exc.code == 0
     else:
-        raise AssertionError("parse_args должен завершаться через SystemExit для doctor help")
+        raise AssertionError(
+            "parse_args должен завершаться через SystemExit для doctor help"
+        )
 
     captured = capsys.readouterr()
     assert "NetOps Assistant doctor" in captured.out
     assert "compileall" in captured.out
+
+
+def test_parse_args_supports_scope_flag(monkeypatch) -> None:
+    doctor = import_doctor_module()
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["doctor.py", "--scope", "backend", "--quick", "--autofix"],
+    )
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: False)
+    monkeypatch.setattr(sys.stdout, "isatty", lambda: False)
+
+    args = doctor.parse_args()
+
+    assert args.checks == doctor.CHECKS_BY_SCOPE["backend"]
+    assert args.quick is True
+    assert args.autofix is True
+    assert args.ci is True
+
+
+def test_detect_backend_python_uses_root_venv_when_backend_venv_is_absent(
+    monkeypatch, tmp_path: Path
+) -> None:
+    doctor = import_doctor_module()
+    backend_dir = tmp_path / "backend"
+    root_venv_python = tmp_path / ".venv" / "bin" / "python"
+    backend_dir.mkdir()
+    root_venv_python.parent.mkdir(parents=True)
+    root_venv_python.write_text("", encoding="utf-8")
+
+    monkeypatch.setattr(doctor, "ROOT_DIR", tmp_path)
+    monkeypatch.setattr(doctor, "BACKEND_DIR", backend_dir)
+
+    detected_python = doctor.detect_backend_python()
+
+    assert detected_python == str(root_venv_python)
+
+
+def test_check_backend_coverage_reports_xml_output(monkeypatch) -> None:
+    doctor = import_doctor_module()
+
+    completed_results = iter(
+        [
+            doctor.subprocess.CompletedProcess(
+                args=["python", "-c", "import pytest_cov"],
+                returncode=0,
+                stdout="True\n",
+                stderr="",
+            ),
+            doctor.subprocess.CompletedProcess(
+                args=["python", "-m", "pytest"],
+                returncode=0,
+                stdout="tests passed\nTOTAL 100 10 90%\n",
+                stderr="",
+            ),
+        ]
+    )
+
+    monkeypatch.setattr(
+        doctor,
+        "run_command",
+        lambda command, cwd: next(completed_results),
+    )
+
+    check_result = doctor.check_backend_coverage("python")
+
+    assert check_result.status == doctor.CheckStatus.PASS
+    assert "TOTAL 100 10 90%" in check_result.details
+    assert "backend/coverage.xml" in check_result.details
+
+
+def test_collect_installable_dependency_plans_finds_backend_and_frontend_items() -> (
+    None
+):
+    doctor = import_doctor_module()
+
+    results = [
+        doctor.CheckResult(
+            name="backend: автотесты (pytest)",
+            status=doctor.CheckStatus.SKIP,
+            details="pytest не установлен (активируй backend/.venv и установи dev-зависимости)",
+        ),
+        doctor.CheckResult(
+            name="frontend: сборка",
+            status=doctor.CheckStatus.SKIP,
+            details="нет frontend/node_modules (выполни npm install)",
+        ),
+    ]
+
+    plans = doctor.collect_installable_dependency_plans(results)
+
+    assert [plan.key for plan in plans] == ["backend-dev", "frontend-node-modules"]
+
+
+def test_prompt_install_missing_dependencies_skips_install_on_negative_answer(
+    monkeypatch, capsys
+) -> None:
+    doctor = import_doctor_module()
+    results = [
+        doctor.CheckResult(
+            name="backend: автотесты (pytest)",
+            status=doctor.CheckStatus.SKIP,
+            details="pytest не установлен (активируй backend/.venv и установи dev-зависимости)",
+        )
+    ]
+
+    monkeypatch.setattr("builtins.input", lambda _: "n")
+
+    installed = doctor.prompt_install_missing_dependencies(results)
+
+    captured = capsys.readouterr()
+    assert installed is False
+    assert "Установку зависимостей пропускаю" in captured.out
+
+
+def test_prompt_install_missing_dependencies_installs_selected_plans(
+    monkeypatch,
+) -> None:
+    doctor = import_doctor_module()
+    results = [
+        doctor.CheckResult(
+            name="backend: покрытие тестами (coverage)",
+            status=doctor.CheckStatus.SKIP,
+            details="pytest-cov не установлен (активируй backend/.venv и установи dev-зависимости)",
+        )
+    ]
+    installed_plans: list[list[str]] = []
+
+    monkeypatch.setattr("builtins.input", lambda _: "y")
+    monkeypatch.setattr(
+        doctor,
+        "install_dependency_plans",
+        lambda plans: installed_plans.append([plan.key for plan in plans]) or True,
+    )
+
+    installed = doctor.prompt_install_missing_dependencies(results)
+
+    assert installed is True
+    assert installed_plans == [["backend-dev"]]
 
 
 def test_parse_args_without_arguments_shows_available_checks(
@@ -398,7 +540,9 @@ def test_main_keeps_running_until_exit(monkeypatch) -> None:
     monkeypatch.setattr(
         doctor,
         "prompt_for_command",
-        lambda prompt_text="doctor> ": doctor.DoctorCommand(checks=[], should_exit=True),
+        lambda prompt_text="doctor> ": doctor.DoctorCommand(
+            checks=[], should_exit=True
+        ),
     )
 
     exit_code = doctor.main()
