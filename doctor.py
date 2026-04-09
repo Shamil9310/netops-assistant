@@ -28,6 +28,16 @@ class CheckResult:
     duration_sec: float = 0.0
 
 
+@dataclass(slots=True)
+class DoctorCommand:
+    checks: list[str]
+    quick: bool = False
+    autofix: bool = False
+    full: bool = False
+    show_help: bool = False
+    should_exit: bool = False
+
+
 ROOT_DIR = Path(__file__).resolve().parent
 BACKEND_DIR = ROOT_DIR / "backend"
 FRONTEND_DIR = ROOT_DIR / "frontend"
@@ -88,9 +98,52 @@ COMPLEXITY_PATTERNS = (
 COMMENT_REQUIRED_MIN_LINES = 150
 COMMENT_REQUIRED_MIN_COMPLEXITY = 10
 COMMENT_REQUIRED_MIN_COMMENTS = 2
+CHECK_CHOICES = (
+    "all",
+    "compileall",
+    "ruff",
+    "black",
+    "pep8",
+    "mypy",
+    "pytest",
+    "localization",
+    "names",
+    "comments",
+    "build",
+)
+CHECKS_BY_SCOPE = {
+    "backend": ["compileall", "ruff", "black", "pep8", "mypy", "pytest"],
+    "frontend": ["localization", "names", "comments", "build"],
+    "all": [
+        "compileall",
+        "ruff",
+        "black",
+        "pep8",
+        "mypy",
+        "pytest",
+        "localization",
+        "names",
+        "comments",
+        "build",
+    ],
+}
+BACKEND_AUTOFIX_TRIGGER_CHECKS = {
+    "compileall",
+    "ruff",
+    "black",
+    "pep8",
+    "mypy",
+    "pytest",
+}
+
+
+def print_action(message: str) -> None:
+    print(f"[doctor] {message}", flush=True)
 
 
 def run_command(command: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
+    relative_cwd = cwd.relative_to(ROOT_DIR) if cwd != ROOT_DIR else Path(".")
+    print_action(f"Запуск команды в {relative_cwd}: {shell_join(command)}")
     return subprocess.run(
         command,
         cwd=cwd,
@@ -108,7 +161,7 @@ def build_error_details(
     command: list[str],
     result: subprocess.CompletedProcess[str],
     fallback_message: str,
-    max_lines: int = 8,
+    max_lines: int | None = 8,
 ) -> str:
     output_lines: list[str] = []
     for raw_line in (result.stderr + "\n" + result.stdout).splitlines():
@@ -119,9 +172,12 @@ def build_error_details(
     if not output_lines:
         output_lines = [fallback_message]
 
-    preview = output_lines[:max_lines]
-    if len(output_lines) > max_lines:
-        preview.append("... (обрезано)")
+    if max_lines is None:
+        preview = output_lines
+    else:
+        preview = output_lines[:max_lines]
+        if len(output_lines) > max_lines:
+            preview.append("... (обрезано)")
 
     joined_preview = "\n".join(preview)
     return f"Команда: {shell_join(command)}\n{joined_preview}"
@@ -134,7 +190,7 @@ def detect_backend_python() -> str:
     return sys.executable
 
 
-def check_backend_compile(python_bin: str) -> CheckResult:
+def check_backend_compile(python_bin: str, full: bool = False) -> CheckResult:
     command = [python_bin, "-m", "compileall", "app"]
     result = run_command(command, cwd=BACKEND_DIR)
     if result.returncode == 0:
@@ -145,11 +201,16 @@ def check_backend_compile(python_bin: str) -> CheckResult:
     return CheckResult(
         "backend: проверка синтаксиса (compileall)",
         CheckStatus.FAIL,
-        build_error_details(command, result, "Не удалось выполнить compileall"),
+        build_error_details(
+            command,
+            result,
+            "Не удалось выполнить compileall",
+            max_lines=None if full else 8,
+        ),
     )
 
 
-def check_backend_pytest(python_bin: str) -> CheckResult:
+def check_backend_pytest(python_bin: str, full: bool = False) -> CheckResult:
     has_pytest = run_command(
         [
             python_bin,
@@ -173,11 +234,16 @@ def check_backend_pytest(python_bin: str) -> CheckResult:
     return CheckResult(
         "backend: автотесты (pytest)",
         CheckStatus.FAIL,
-        build_error_details(command, result, "Тесты не прошли"),
+        build_error_details(
+            command,
+            result,
+            "Тесты не прошли",
+            max_lines=None if full else 8,
+        ),
     )
 
 
-def check_backend_lint(python_bin: str) -> CheckResult:
+def check_backend_lint(python_bin: str, full: bool = False) -> CheckResult:
     has_ruff = run_command(
         [
             python_bin,
@@ -206,11 +272,16 @@ def check_backend_lint(python_bin: str) -> CheckResult:
     return CheckResult(
         "backend: линтер (ruff)",
         CheckStatus.FAIL,
-        build_error_details(command, result, "ruff нашёл ошибки"),
+        build_error_details(
+            command,
+            result,
+            "ruff нашёл ошибки",
+            max_lines=None if full else 8,
+        ),
     )
 
 
-def check_backend_format(python_bin: str) -> CheckResult:
+def check_backend_format(python_bin: str, full: bool = False) -> CheckResult:
     has_black = run_command(
         [
             python_bin,
@@ -241,11 +312,16 @@ def check_backend_format(python_bin: str) -> CheckResult:
     return CheckResult(
         "backend: форматирование (black --check)",
         CheckStatus.FAIL,
-        build_error_details(command, result, "black обнаружил неотформатированный код"),
+        build_error_details(
+            command,
+            result,
+            "black обнаружил неотформатированный код",
+            max_lines=None if full else 8,
+        ),
     )
 
 
-def check_backend_pep8(python_bin: str) -> CheckResult:
+def check_backend_pep8(python_bin: str, full: bool = False) -> CheckResult:
     has_pycodestyle = run_command(
         [
             python_bin,
@@ -276,11 +352,49 @@ def check_backend_pep8(python_bin: str) -> CheckResult:
     return CheckResult(
         "backend: PEP8 (pycodestyle)",
         CheckStatus.FAIL,
-        build_error_details(command, result, "pycodestyle нашёл нарушения PEP8"),
+        build_error_details(
+            command,
+            result,
+            "pycodestyle нашёл нарушения PEP8",
+            max_lines=None if full else 8,
+        ),
     )
 
 
-def check_frontend_build() -> CheckResult:
+def check_backend_mypy(python_bin: str, full: bool = False) -> CheckResult:
+    has_mypy = run_command(
+        [
+            python_bin,
+            "-c",
+            "import importlib.util; print(importlib.util.find_spec('mypy') is not None)",
+        ],
+        cwd=ROOT_DIR,
+    )
+    if has_mypy.returncode != 0 or "True" not in has_mypy.stdout:
+        return CheckResult(
+            "backend: типизация (mypy)",
+            CheckStatus.SKIP,
+            "mypy не установлен",
+        )
+
+    command = [python_bin, "-m", "mypy", "app"]
+    result = run_command(command, cwd=BACKEND_DIR)
+    if result.returncode == 0:
+        return CheckResult("backend: типизация (mypy)", CheckStatus.PASS)
+
+    return CheckResult(
+        "backend: типизация (mypy)",
+        CheckStatus.FAIL,
+        build_error_details(
+            command,
+            result,
+            "mypy нашёл ошибки",
+            max_lines=None if full else 8,
+        ),
+    )
+
+
+def check_frontend_build(full: bool = False) -> CheckResult:
     if shutil.which("npm") is None:
         return CheckResult("frontend: сборка", CheckStatus.SKIP, "npm не найден")
 
@@ -299,7 +413,12 @@ def check_frontend_build() -> CheckResult:
     return CheckResult(
         "frontend: сборка",
         CheckStatus.FAIL,
-        build_error_details(command, result, "Сборка frontend завершилась ошибкой"),
+        build_error_details(
+            command,
+            result,
+            "Сборка frontend завершилась ошибкой",
+            max_lines=None if full else 8,
+        ),
     )
 
 
@@ -609,6 +728,7 @@ def print_summary(results: list[CheckResult], total_duration_sec: float) -> None
 
 
 def timed_check(name: str, fn: Callable[[], CheckResult]) -> CheckResult:
+    print_action(f"Начинаю проверку: {name}")
     started = perf_counter()
     result = fn()
     result.name = name
@@ -616,99 +736,244 @@ def timed_check(name: str, fn: Callable[[], CheckResult]) -> CheckResult:
     return result
 
 
-def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="NetOps Assistant doctor: автоматические проверки проекта"
-    )
-    parser.add_argument(
-        "--scope",
-        choices=["all", "backend", "frontend"],
-        default="all",
-        help="какие проверки запускать (по умолчанию: all)",
-    )
-    parser.add_argument(
-        "--quick",
-        action="store_true",
-        help="быстрый режим: пропустить долгие проверки (например frontend сборку)",
-    )
-    parser.add_argument(
-        "--autofix",
-        action="store_true",
-        help="Перед проверками автоматически исправить то, что безопасно чинится (`ruff --fix`, `black`).",
-    )
-    return parser.parse_args()
+def parse_check_tokens(raw_checks: list[str] | None) -> list[str]:
+    if not raw_checks:
+        return []
+
+    checks: list[str] = []
+    for raw_value in raw_checks:
+        for chunk in raw_value.split(","):
+            normalized = chunk.strip().lower()
+            if not normalized:
+                continue
+            if normalized not in CHECK_CHOICES:
+                available = ", ".join(CHECK_CHOICES)
+                raise argparse.ArgumentTypeError(
+                    f"Неизвестная проверка: {normalized}. Доступные проверки: {available}"
+                )
+            checks.append(normalized)
+
+    unique_checks = list(dict.fromkeys(checks))
+    if "all" in unique_checks:
+        return CHECKS_BY_SCOPE["all"]
+    return unique_checks
 
 
-def main() -> int:
-    args = parse_args()
-    python_bin = detect_backend_python()
-    results: list[CheckResult] = []
-    started_total = perf_counter()
+def print_available_checks() -> None:
+    print("NetOps Assistant doctor")
+    print("")
+    print("Доступные проверки:")
+    for check_name in CHECKS_BY_SCOPE["all"]:
+        print(f"  - {check_name}")
+    print("")
+    print("Как запускать:")
+    print("  doctor all")
+    print("  doctor mypy")
+    print("  doctor mypy,pytest")
+    print("  doctor mypy autofix")
+    print("  doctor all quick")
+    print("  doctor mypy full")
+    print("")
+    print("Модификаторы:")
+    print("  quick     пропустить долгие проверки, например build")
+    print("  autofix   применить доступные безопасные исправления для выбранных проверок")
+    print("  full      показать полный текст ошибок без обрезки")
+    print("")
+    print("Команды:")
+    print("  help      показать список ещё раз")
+    print("  exit      завершить doctor")
 
-    if args.autofix and args.scope in {"all", "backend"}:
-        autofix_messages = try_backend_autofix(python_bin)
-        for message in autofix_messages:
-            print(f"[АВТОФИКС] {message}")
 
-    if args.scope in {"all", "backend"}:
-        results.append(
-            timed_check(
+def parse_command_tokens(raw_tokens: list[str]) -> DoctorCommand:
+    normalized_tokens: list[str] = []
+    for raw_token in raw_tokens:
+        for chunk in raw_token.split(","):
+            normalized = chunk.strip().lower().lstrip("-")
+            if normalized:
+                normalized_tokens.append(normalized)
+
+    if not normalized_tokens:
+        return DoctorCommand(checks=[])
+
+    if len(normalized_tokens) == 1 and normalized_tokens[0] in {"help", "h", "?"}:
+        return DoctorCommand(checks=[], show_help=True)
+
+    if len(normalized_tokens) == 1 and normalized_tokens[0] in {"exit", "quit", "q"}:
+        return DoctorCommand(checks=[], should_exit=True)
+
+    quick = False
+    autofix = False
+    full = False
+    checks: list[str] = []
+
+    for token in normalized_tokens:
+        if token in {"help", "h", "?"}:
+            return DoctorCommand(checks=[], show_help=True)
+        if token in {"exit", "quit", "q"}:
+            return DoctorCommand(checks=[], should_exit=True)
+        if token == "quick":
+            quick = True
+            continue
+        if token in {"autofix", "fix"}:
+            autofix = True
+            continue
+        if token == "full":
+            full = True
+            continue
+        checks.append(token)
+
+    return DoctorCommand(
+        checks=parse_check_tokens(checks),
+        quick=quick,
+        autofix=autofix,
+        full=full,
+    )
+
+
+def prompt_for_command(prompt_text: str = "doctor> ") -> DoctorCommand:
+    while True:
+        print("")
+        user_value = input(prompt_text).strip()
+        if not user_value:
+            print_action("Пустая команда. Введи help, exit, all или нужные проверки.")
+            continue
+        try:
+            command = parse_command_tokens(user_value.split())
+        except argparse.ArgumentTypeError as exc:
+            print_action(str(exc))
+            continue
+        if command.show_help:
+            print_available_checks()
+            continue
+        return command
+
+
+def parse_args() -> DoctorCommand:
+    raw_argv = sys.argv[1:]
+    if not raw_argv:
+        print_available_checks()
+        return prompt_for_command()
+    if len(raw_argv) == 1 and raw_argv[0].strip().lower() in {"help", "--help", "-h"}:
+        print_available_checks()
+        raise SystemExit(0)
+    return parse_command_tokens(raw_argv)
+
+
+def resolve_requested_checks(command: DoctorCommand) -> list[str]:
+    return command.checks
+
+
+def run_autofix_for_checks(requested_checks: list[str], python_bin: str) -> list[str]:
+    messages: list[str] = []
+
+    if any(check in BACKEND_AUTOFIX_TRIGGER_CHECKS for check in requested_checks):
+        backend_messages = try_backend_autofix(python_bin)
+        if backend_messages:
+            messages.extend(backend_messages)
+        else:
+            messages.append(
+                "Для выбранных backend-проверок не найдено доступных автоисправлений"
+            )
+
+    unsupported_checks = [
+        check for check in requested_checks if check not in BACKEND_AUTOFIX_TRIGGER_CHECKS
+    ]
+    if unsupported_checks:
+        joined_checks = ", ".join(unsupported_checks)
+        messages.append(
+            f"Для проверок {joined_checks} безопасные автоисправления пока не реализованы"
+        )
+
+    return messages
+
+
+def run_named_check(
+    check_name: str,
+    python_bin: str,
+    quick: bool,
+    full: bool,
+) -> CheckResult:
+    match check_name:
+        case "compileall":
+            return timed_check(
                 "backend: проверка синтаксиса (compileall)",
-                lambda: check_backend_compile(python_bin),
+                lambda: check_backend_compile(python_bin, full=full),
             )
-        )
-        results.append(
-            timed_check(
-                "backend: линтер (ruff)", lambda: check_backend_lint(python_bin)
+        case "ruff":
+            return timed_check(
+                "backend: линтер (ruff)",
+                lambda: check_backend_lint(python_bin, full=full),
             )
-        )
-        results.append(
-            timed_check(
+        case "black":
+            return timed_check(
                 "backend: форматирование (black --check)",
-                lambda: check_backend_format(python_bin),
+                lambda: check_backend_format(python_bin, full=full),
             )
-        )
-        results.append(
-            timed_check(
+        case "pep8":
+            return timed_check(
                 "backend: PEP8 (pycodestyle)",
-                lambda: check_backend_pep8(python_bin),
+                lambda: check_backend_pep8(python_bin, full=full),
             )
-        )
-        results.append(
-            timed_check(
-                "backend: автотесты (pytest)", lambda: check_backend_pytest(python_bin)
+        case "mypy":
+            return timed_check(
+                "backend: типизация (mypy)",
+                lambda: check_backend_mypy(python_bin, full=full),
             )
-        )
-
-    if args.scope in {"all", "frontend"}:
-        results.append(
-            timed_check("frontend: локализация интерфейса", check_frontend_localization)
-        )
-        results.append(
-            timed_check(
+        case "pytest":
+            return timed_check(
+                "backend: автотесты (pytest)",
+                lambda: check_backend_pytest(python_bin, full=full),
+            )
+        case "localization":
+            return timed_check(
+                "frontend: локализация интерфейса", check_frontend_localization
+            )
+        case "names":
+            return timed_check(
                 "frontend: понятные внутренние имена",
                 check_frontend_internal_names,
             )
-        )
-        results.append(
-            timed_check(
+        case "comments":
+            return timed_check(
                 "frontend: поясняющие комментарии в сложных файлах",
                 check_frontend_explanatory_comments,
             )
-        )
-        if args.quick:
-            results.append(
-                timed_check(
+        case "build":
+            if quick:
+                return timed_check(
                     "frontend: сборка",
                     lambda: CheckResult(
                         "frontend: сборка",
                         CheckStatus.SKIP,
-                        "пропущено из-за --quick",
+                        "пропущено из-за quick",
                     ),
                 )
+            return timed_check(
+                "frontend: сборка",
+                lambda: check_frontend_build(full=full),
             )
-        else:
-            results.append(timed_check("frontend: сборка", check_frontend_build))
+        case _:
+            raise ValueError(f"Неизвестная проверка: {check_name}")
+
+
+def run_checks(command: DoctorCommand) -> int:
+    python_bin = detect_backend_python()
+    results: list[CheckResult] = []
+    started_total = perf_counter()
+    requested_checks = resolve_requested_checks(command)
+
+    print_action(
+        f"Старт doctor: quick={'yes' if command.quick else 'no'}, autofix={'yes' if command.autofix else 'no'}, full={'yes' if command.full else 'no'}"
+    )
+    print_action(f"Выбранные проверки: {', '.join(requested_checks)}")
+
+    if command.autofix:
+        autofix_messages = run_autofix_for_checks(requested_checks, python_bin)
+        for message in autofix_messages:
+            print(f"[АВТОФИКС] {message}")
+
+    for check_name in requested_checks:
+        results.append(run_named_check(check_name, python_bin, command.quick, command.full))
 
     for result in results:
         print_result(result)
@@ -717,6 +982,25 @@ def main() -> int:
 
     has_failures = any(r.status == CheckStatus.FAIL for r in results)
     return 1 if has_failures else 0
+
+
+def main() -> int:
+    command = parse_args()
+    last_exit_code = 0
+
+    while True:
+        if command.should_exit:
+            print_action("Завершаю doctor")
+            return last_exit_code
+
+        if not command.checks:
+            print_action("Не выбраны проверки. Введи help, exit, all или нужные проверки.")
+        else:
+            last_exit_code = run_checks(command)
+
+        print("")
+        print_action("Я закончил. Что дальше? Введи следующую проверку, help или exit.")
+        command = prompt_for_command()
 
 
 if __name__ == "__main__":

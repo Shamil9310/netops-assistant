@@ -235,3 +235,171 @@ def test_check_frontend_localization_passes_on_russian_ui(
 
     assert check_result.status == doctor.CheckStatus.PASS
     assert check_result.details == ""
+
+
+def test_parse_check_tokens_supports_single_check() -> None:
+    doctor = import_doctor_module()
+
+    parsed = doctor.parse_check_tokens(["mypy"])
+
+    assert parsed == ["mypy"]
+
+
+def test_parse_check_tokens_supports_comma_separated_values() -> None:
+    doctor = import_doctor_module()
+
+    parsed = doctor.parse_check_tokens(["mypy,pytest", "ruff"])
+
+    assert parsed == ["mypy", "pytest", "ruff"]
+
+
+def test_parse_check_tokens_expands_all_keyword() -> None:
+    doctor = import_doctor_module()
+
+    parsed = doctor.parse_check_tokens(["all"])
+
+    assert parsed == doctor.CHECKS_BY_SCOPE["all"]
+
+
+def test_resolve_requested_checks_uses_explicit_check_list() -> None:
+    doctor = import_doctor_module()
+
+    class Args:
+        checks = ["mypy", "pytest"]
+
+    resolved = doctor.resolve_requested_checks(Args())
+
+    assert resolved == ["mypy", "pytest"]
+
+
+def test_parse_command_tokens_supports_quick_and_autofix_modifiers() -> None:
+    doctor = import_doctor_module()
+
+    command = doctor.parse_command_tokens(["mypy,pytest", "quick", "autofix", "full"])
+
+    assert command.checks == ["mypy", "pytest"]
+    assert command.quick is True
+    assert command.autofix is True
+    assert command.full is True
+
+
+def test_parse_command_tokens_supports_exit_command() -> None:
+    doctor = import_doctor_module()
+
+    command = doctor.parse_command_tokens(["exit"])
+
+    assert command.should_exit is True
+    assert command.checks == []
+
+
+def test_run_autofix_for_checks_uses_backend_autofix_for_backend_checks(
+    monkeypatch,
+) -> None:
+    doctor = import_doctor_module()
+
+    monkeypatch.setattr(
+        doctor,
+        "try_backend_autofix",
+        lambda python_bin: ["Автоисправление backend выполнено"],
+    )
+
+    messages = doctor.run_autofix_for_checks(["mypy"], "python")
+
+    assert messages == ["Автоисправление backend выполнено"]
+
+
+def test_run_autofix_for_checks_reports_missing_autofix_for_frontend_checks() -> None:
+    doctor = import_doctor_module()
+
+    messages = doctor.run_autofix_for_checks(["build", "localization"], "python")
+
+    assert (
+        "Для проверок build, localization безопасные автоисправления пока не реализованы"
+        in messages
+    )
+
+
+def test_parse_args_supports_help_without_dashes(monkeypatch, capsys) -> None:
+    doctor = import_doctor_module()
+
+    monkeypatch.setattr(sys, "argv", ["doctor.py", "help"])
+
+    try:
+        doctor.parse_args()
+    except SystemExit as exc:
+        assert exc.code == 0
+    else:
+        raise AssertionError("parse_args должен завершаться через SystemExit для doctor help")
+
+    captured = capsys.readouterr()
+    assert "NetOps Assistant doctor" in captured.out
+    assert "compileall" in captured.out
+
+
+def test_parse_args_without_arguments_shows_available_checks(
+    monkeypatch, capsys
+) -> None:
+    doctor = import_doctor_module()
+
+    monkeypatch.setattr(sys, "argv", ["doctor.py"])
+    monkeypatch.setattr("builtins.input", lambda _: "mypy,pytest")
+
+    args = doctor.parse_args()
+
+    captured = capsys.readouterr()
+    assert "Доступные проверки" in captured.out
+    assert "doctor all" in captured.out
+    assert args.checks == ["mypy", "pytest"]
+    assert args.quick is False
+    assert args.autofix is False
+    assert args.full is False
+
+
+def test_build_error_details_returns_full_output_when_requested() -> None:
+    doctor = import_doctor_module()
+
+    result = doctor.subprocess.CompletedProcess(
+        args=["python", "-m", "mypy"],
+        returncode=1,
+        stdout="line3\nline4",
+        stderr="line1\nline2",
+    )
+
+    details = doctor.build_error_details(
+        ["python", "-m", "mypy"],
+        result,
+        "fallback",
+        max_lines=None,
+    )
+
+    assert "line1" in details
+    assert "line2" in details
+    assert "line3" in details
+    assert "line4" in details
+    assert "... (обрезано)" not in details
+
+
+def test_main_keeps_running_until_exit(monkeypatch) -> None:
+    doctor = import_doctor_module()
+    executed_checks: list[list[str]] = []
+
+    monkeypatch.setattr(
+        doctor,
+        "parse_args",
+        lambda: doctor.DoctorCommand(checks=["mypy"]),
+    )
+    monkeypatch.setattr(
+        doctor,
+        "run_checks",
+        lambda command: executed_checks.append(command.checks) or 0,
+    )
+    monkeypatch.setattr(
+        doctor,
+        "prompt_for_command",
+        lambda prompt_text="doctor> ": doctor.DoctorCommand(checks=[], should_exit=True),
+    )
+
+    exit_code = doctor.main()
+
+    assert exit_code == 0
+    assert executed_checks == [["mypy"]]
