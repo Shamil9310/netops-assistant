@@ -131,4 +131,5 @@ async def csrf_middleware(request: Request, call_next):
 
 @app.get("/", tags=["root"])
 def root() -> dict[str, str]:
+    """Возвращает простой ответ для корневого URL приложения."""
     return {"message": "NetOps Assistant API is running"}

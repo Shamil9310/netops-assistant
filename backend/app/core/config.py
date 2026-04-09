@@ -16,6 +16,8 @@ _BACKEND_ENV_FILE = _BACKEND_ROOT_DIR / ".env"
 
 
 class Settings(BaseSettings):
+    """Централизованные настройки backend-приложения."""
+
     # Используем абсолютный путь к файлу backend/.env, чтобы настройки не зависели
     # от текущей рабочей директории процесса.
     model_config = SettingsConfigDict(

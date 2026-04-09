@@ -11,5 +11,6 @@ SessionLocal = async_sessionmaker(
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
+    """Отдаёт асинхронную сессию БД для FastAPI-зависимостей."""
     async with SessionLocal() as session:
         yield session

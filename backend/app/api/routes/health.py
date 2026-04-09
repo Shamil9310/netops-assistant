@@ -9,6 +9,7 @@ router = APIRouter()
 
 @router.get("")
 def healthcheck() -> dict[str, str]:
+    """Возвращает статус сервиса и базовые метаданные окружения."""
     return {
         "status": "ok",
         "app": settings.app_name,

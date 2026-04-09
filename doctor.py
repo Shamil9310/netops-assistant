@@ -13,6 +13,11 @@ from pathlib import Path
 from time import perf_counter
 from typing import Callable
 
+try:
+    import readline
+except ImportError:
+    readline = None
+
 
 class CheckStatus(StrEnum):
     PASS = "PASS"
@@ -34,6 +39,7 @@ class DoctorCommand:
     quick: bool = False
     autofix: bool = False
     full: bool = False
+    report_mode: str | None = None
     show_help: bool = False
     should_exit: bool = False
     ci: bool = False
@@ -124,6 +130,8 @@ CHECK_CHOICES = (
     "comments",
     "build",
 )
+REPORT_MODES = ("issues", "errors", "skips")
+COMMAND_KEYWORDS = ("help", "exit", "quick", "autofix", "fix", "full", "report")
 CHECKS_BY_SCOPE = {
     "backend": [
         "compileall",
@@ -536,7 +544,6 @@ def check_backend_interrogate(python_bin: str, full: bool = False) -> CheckResul
         "-c",
         "backend/pyproject.toml",
         "backend/app",
-        "doctor.py",
     ]
     result = run_command(command, cwd=ROOT_DIR)
     if result.returncode == 0:
@@ -1080,6 +1087,47 @@ def print_summary(results: list[CheckResult], total_duration_sec: float) -> None
     print(f"  Общее время:    {total_duration_sec:.2f}s")
 
 
+def get_report_statuses(report_mode: str) -> tuple[CheckStatus, ...]:
+    match report_mode:
+        case "issues":
+            return (CheckStatus.FAIL, CheckStatus.SKIP)
+        case "errors":
+            return (CheckStatus.FAIL,)
+        case "skips":
+            return (CheckStatus.SKIP,)
+        case _:
+            raise ValueError(f"Неизвестный режим отчёта: {report_mode}")
+
+
+def print_last_report(results: list[CheckResult], report_mode: str) -> None:
+    selected_statuses = get_report_statuses(report_mode)
+    filtered_results = [
+        result for result in results if result.status in selected_statuses
+    ]
+
+    print("")
+    match report_mode:
+        case "issues":
+            report_title = "Отчёт по ошибкам и пропускам"
+            empty_message = "В последнем запуске нет ошибок или пропущенных проверок."
+        case "errors":
+            report_title = "Отчёт только по ошибкам"
+            empty_message = "В последнем запуске ошибок нет."
+        case "skips":
+            report_title = "Отчёт только по пропускам"
+            empty_message = "В последнем запуске пропущенных проверок нет."
+        case _:
+            raise ValueError(f"Неизвестный режим отчёта: {report_mode}")
+
+    print(report_title)
+    if not filtered_results:
+        print_action(empty_message)
+        return
+
+    for result in filtered_results:
+        print_result(result)
+
+
 def timed_check(name: str, fn: Callable[[], CheckResult]) -> CheckResult:
     print_action(f"Начинаю проверку: {name}")
     started = perf_counter()
@@ -1129,6 +1177,9 @@ def print_available_checks() -> None:
     print("  doctor mypy autofix")
     print("  doctor all quick")
     print("  doctor mypy full")
+    print("  doctor report issues")
+    print("  doctor report errors")
+    print("  doctor report skips")
     print("")
     print("Модификаторы:")
     print("  quick     пропустить долгие проверки, например build")
@@ -1139,14 +1190,98 @@ def print_available_checks() -> None:
     print("")
     print("Команды:")
     print("  help      показать список ещё раз")
+    print("  report issues  показать только ошибки и пропуски последнего запуска")
+    print("  report errors  показать только ошибки последнего запуска")
+    print("  report skips   показать только пропуски последнего запуска")
     print("  exit      завершить doctor")
+
+
+def print_command_hints() -> None:
+    print("Подсказки по командам:")
+    print("  all | --scope backend | --scope frontend")
+    print("  mypy | pytest | coverage | build")
+    print("  quick | autofix | full")
+    print("  report issues | report errors | report skips")
+    print("  help | exit")
+
+
+def normalize_command_token(raw_token: str) -> str:
+    normalized = raw_token.strip().lower().lstrip("-")
+    normalized = re.sub(r"[^a-z?]", "", normalized)
+    return normalized
+
+
+def build_completion_candidates(line_buffer: str) -> list[str]:
+    normalized_line = line_buffer.lstrip()
+    ends_with_space = normalized_line.endswith(" ")
+    raw_parts = normalized_line.split()
+
+    if not raw_parts:
+        return [
+            *CHECK_CHOICES,
+            *COMMAND_KEYWORDS,
+            "--scope",
+        ]
+
+    current_fragment = ""
+    completed_parts = raw_parts
+    if not ends_with_space:
+        current_fragment = normalize_command_token(raw_parts[-1])
+        completed_parts = raw_parts[:-1]
+
+    normalized_parts = [normalize_command_token(part) for part in completed_parts]
+    normalized_parts = [part for part in normalized_parts if part]
+
+    if normalized_parts[:1] == ["report"]:
+        options = list(REPORT_MODES)
+    else:
+        options = [
+            *CHECK_CHOICES,
+            *COMMAND_KEYWORDS,
+            "--scope",
+            "backend",
+            "frontend",
+        ]
+
+    if current_fragment:
+        return [
+            option
+            for option in options
+            if normalize_command_token(option).startswith(current_fragment)
+        ]
+    return options
+
+
+def doctor_completer(text: str, state: int) -> str | None:
+    del text
+    if readline is None:
+        return None
+
+    options = build_completion_candidates(readline.get_line_buffer())
+    unique_options = list(dict.fromkeys(options))
+    if state < len(unique_options):
+        return unique_options[state]
+    return None
+
+
+def configure_readline() -> None:
+    if readline is None:
+        return
+
+    readline.set_completer(doctor_completer)
+    readline_doc = (getattr(readline, "__doc__", "") or "").lower()
+    if "libedit" in readline_doc:
+        readline.parse_and_bind("bind ^I rl_complete")
+    else:
+        readline.parse_and_bind("tab: complete")
+    readline.set_completer_delims(" \t\n")
 
 
 def parse_command_tokens(raw_tokens: list[str]) -> DoctorCommand:
     normalized_tokens: list[str] = []
     for raw_token in raw_tokens:
         for chunk in raw_token.split(","):
-            normalized = chunk.strip().lower().lstrip("-")
+            normalized = normalize_command_token(chunk)
             if normalized:
                 normalized_tokens.append(normalized)
 
@@ -1158,6 +1293,17 @@ def parse_command_tokens(raw_tokens: list[str]) -> DoctorCommand:
 
     if len(normalized_tokens) == 1 and normalized_tokens[0] in {"exit", "quit", "q"}:
         return DoctorCommand(checks=[], should_exit=True)
+
+    if normalized_tokens[0] == "report":
+        if len(normalized_tokens) != 2 or normalized_tokens[1] not in {
+            "issues",
+            "errors",
+            "skips",
+        }:
+            raise argparse.ArgumentTypeError(
+                "Команда report поддерживает только режимы: issues, errors, skips"
+            )
+        return DoctorCommand(checks=[], report_mode=normalized_tokens[1])
 
     quick = False
     autofix = False
@@ -1189,6 +1335,7 @@ def parse_command_tokens(raw_tokens: list[str]) -> DoctorCommand:
 
 
 def prompt_for_command(prompt_text: str = "doctor> ") -> DoctorCommand:
+    configure_readline()
     while True:
         print("")
         user_value = input(prompt_text).strip()
@@ -1451,9 +1598,17 @@ def main() -> int:
             return last_exit_code
 
         if not command.checks:
-            print_action(
-                "Не выбраны проверки. Введи help, exit, all или нужные проверки."
-            )
+            if command.report_mode is not None:
+                if not LAST_CHECK_RESULTS:
+                    print_action(
+                        "Пока нет результатов проверок. Сначала запусти хотя бы одну проверку."
+                    )
+                else:
+                    print_last_report(LAST_CHECK_RESULTS, command.report_mode)
+            else:
+                print_action(
+                    "Не выбраны проверки. Введи help, exit, all или нужные проверки."
+                )
         else:
             last_exit_code = run_checks(command)
             if prompt_install_missing_dependencies(LAST_CHECK_RESULTS):
@@ -1463,6 +1618,8 @@ def main() -> int:
                 )
                 last_exit_code = run_checks(command)
 
+        print("")
+        print_command_hints()
         print("")
         print_action("Я закончил. Что дальше? Введи следующую проверку, help или exit.")
         command = prompt_for_command()

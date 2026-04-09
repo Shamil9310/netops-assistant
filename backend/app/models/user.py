@@ -25,6 +25,8 @@ class UserRole(StrEnum):
 
 
 class User(Base):
+    """Пользователь системы с учётными данными и ролью доступа."""
+
     __tablename__ = "users"
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)

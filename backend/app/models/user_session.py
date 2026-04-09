@@ -10,6 +10,8 @@ from app.db.base import Base
 
 
 class UserSession(Base):
+    """Сессия пользователя с токеном доступа и сроком действия."""
+
     __tablename__ = "user_sessions"
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)

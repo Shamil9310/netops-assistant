@@ -50,6 +50,7 @@ def _require_role(*allowed_roles: UserRole):
     async def _check_role(
         user: Annotated[User, Depends(_get_authenticated_user)],
     ) -> User:
+        """Проверяет, что у текущего пользователя есть одна из разрешённых ролей."""
         if user.role not in allowed_set:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,

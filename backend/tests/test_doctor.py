@@ -291,6 +291,82 @@ def test_parse_command_tokens_supports_quick_and_autofix_modifiers() -> None:
     assert command.full is True
 
 
+def test_parse_command_tokens_supports_report_issues_command() -> None:
+    doctor = import_doctor_module()
+
+    command = doctor.parse_command_tokens(["report", "issues"])
+
+    assert command.checks == []
+    assert command.report_mode == "issues"
+
+
+def test_build_completion_candidates_suggests_top_level_commands() -> None:
+    doctor = import_doctor_module()
+
+    candidates = doctor.build_completion_candidates("")
+
+    assert "all" in candidates
+    assert "report" in candidates
+    assert "--scope" in candidates
+
+
+def test_build_completion_candidates_filters_report_modes() -> None:
+    doctor = import_doctor_module()
+
+    candidates = doctor.build_completion_candidates("report e")
+
+    assert candidates == ["errors"]
+
+
+def test_configure_readline_uses_libedit_binding(monkeypatch) -> None:
+    doctor = import_doctor_module()
+
+    class FakeReadline:
+        __doc__ = "Importing this module enables command line editing using libedit."
+
+        def __init__(self) -> None:
+            self.bindings: list[str] = []
+            self.completer = None
+            self.delims = None
+
+        def set_completer(self, completer) -> None:
+            self.completer = completer
+
+        def parse_and_bind(self, binding: str) -> None:
+            self.bindings.append(binding)
+
+        def set_completer_delims(self, delims: str) -> None:
+            self.delims = delims
+
+    fake_readline = FakeReadline()
+    monkeypatch.setattr(doctor, "readline", fake_readline)
+
+    doctor.configure_readline()
+
+    assert fake_readline.completer is doctor.doctor_completer
+    assert fake_readline.bindings == ["bind ^I rl_complete"]
+    assert fake_readline.delims == " \t\n"
+
+
+def test_parse_command_tokens_ignores_garbled_prefix_before_all() -> None:
+    doctor = import_doctor_module()
+
+    command = doctor.parse_command_tokens(["ф�all"])
+
+    assert command.checks == doctor.CHECKS_BY_SCOPE["all"]
+
+
+def test_parse_command_tokens_rejects_unknown_report_mode() -> None:
+    doctor = import_doctor_module()
+
+    try:
+        doctor.parse_command_tokens(["report", "success"])
+    except doctor.argparse.ArgumentTypeError as exc:
+        assert "issues, errors, skips" in str(exc)
+    else:
+        raise AssertionError("Ожидали ошибку для неизвестного режима report")
+
+
 def test_parse_command_tokens_supports_exit_command() -> None:
     doctor = import_doctor_module()
 
@@ -598,6 +674,51 @@ def test_build_error_details_returns_full_output_when_requested() -> None:
     assert "... (обрезано)" not in details
 
 
+def test_print_last_report_shows_only_errors_and_skips(capsys) -> None:
+    doctor = import_doctor_module()
+    results = [
+        doctor.CheckResult(
+            name="backend: линтер (ruff)",
+            status=doctor.CheckStatus.PASS,
+        ),
+        doctor.CheckResult(
+            name="backend: автотесты (pytest)",
+            status=doctor.CheckStatus.FAIL,
+            details="Тесты не прошли",
+            duration_sec=1.2,
+        ),
+        doctor.CheckResult(
+            name="frontend: сборка",
+            status=doctor.CheckStatus.SKIP,
+            details="пропущено из-за quick",
+            duration_sec=0.0,
+        ),
+    ]
+
+    doctor.print_last_report(results, "issues")
+
+    captured = capsys.readouterr()
+    assert "Отчёт по ошибкам и пропускам" in captured.out
+    assert "backend: автотесты (pytest)" in captured.out
+    assert "frontend: сборка" in captured.out
+    assert "backend: линтер (ruff)" not in captured.out
+
+
+def test_print_last_report_reports_when_no_errors_or_skips(capsys) -> None:
+    doctor = import_doctor_module()
+    results = [
+        doctor.CheckResult(
+            name="backend: линтер (ruff)",
+            status=doctor.CheckStatus.PASS,
+        )
+    ]
+
+    doctor.print_last_report(results, "issues")
+
+    captured = capsys.readouterr()
+    assert "В последнем запуске нет ошибок или пропущенных проверок." in captured.out
+
+
 def test_main_keeps_running_until_exit(monkeypatch) -> None:
     doctor = import_doctor_module()
     executed_checks: list[list[str]] = []
@@ -624,3 +745,78 @@ def test_main_keeps_running_until_exit(monkeypatch) -> None:
 
     assert exit_code == 0
     assert executed_checks == [["mypy"]]
+
+
+def test_main_prints_last_report_without_rerunning_checks(monkeypatch, capsys) -> None:
+    doctor = import_doctor_module()
+    executed_checks: list[list[str]] = []
+    prompted_commands = iter(
+        [
+            doctor.DoctorCommand(checks=[], report_mode="issues"),
+            doctor.DoctorCommand(checks=[], should_exit=True),
+        ]
+    )
+
+    monkeypatch.setattr(
+        doctor,
+        "parse_args",
+        lambda: doctor.DoctorCommand(checks=["mypy"]),
+    )
+    monkeypatch.setattr(
+        doctor,
+        "run_checks",
+        lambda command: executed_checks.append(command.checks) or 0,
+    )
+    monkeypatch.setattr(
+        doctor,
+        "prompt_for_command",
+        lambda prompt_text="doctor> ": next(prompted_commands),
+    )
+    monkeypatch.setattr(
+        doctor,
+        "LAST_CHECK_RESULTS",
+        [
+            doctor.CheckResult(
+                name="backend: автотесты (pytest)",
+                status=doctor.CheckStatus.FAIL,
+                details="Тесты не прошли",
+            )
+        ],
+    )
+
+    exit_code = doctor.main()
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert executed_checks == [["mypy"]]
+    assert "Отчёт по ошибкам и пропускам" in captured.out
+    assert "backend: автотесты (pytest)" in captured.out
+
+
+def test_main_prints_command_hints_after_iteration(monkeypatch, capsys) -> None:
+    doctor = import_doctor_module()
+
+    monkeypatch.setattr(
+        doctor,
+        "parse_args",
+        lambda: doctor.DoctorCommand(checks=["mypy"]),
+    )
+    monkeypatch.setattr(
+        doctor,
+        "run_checks",
+        lambda command: 0,
+    )
+    monkeypatch.setattr(
+        doctor,
+        "prompt_for_command",
+        lambda prompt_text="doctor> ": doctor.DoctorCommand(
+            checks=[], should_exit=True
+        ),
+    )
+
+    exit_code = doctor.main()
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "Подсказки по командам:" in captured.out
+    assert "report issues | report errors | report skips" in captured.out
