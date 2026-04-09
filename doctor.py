@@ -36,6 +36,7 @@ class DoctorCommand:
     full: bool = False
     show_help: bool = False
     should_exit: bool = False
+    ci: bool = False
 
 
 ROOT_DIR = Path(__file__).resolve().parent
@@ -850,13 +851,29 @@ def prompt_for_command(prompt_text: str = "doctor> ") -> DoctorCommand:
 
 def parse_args() -> DoctorCommand:
     raw_argv = sys.argv[1:]
-    if not raw_argv:
+
+    ci_mode = (
+        "--ci" in raw_argv
+        or not sys.stdin.isatty()
+        or not sys.stdout.isatty()
+    )
+    filtered_argv = [a for a in raw_argv if a != "--ci"]
+
+    if not filtered_argv:
+        if ci_mode:
+            print_action("CI-режим: проверки не указаны. Передай имена проверок аргументами.")
+            raise SystemExit(1)
         print_available_checks()
         return prompt_for_command()
-    if len(raw_argv) == 1 and raw_argv[0].strip().lower() in {"help", "--help", "-h"}:
+
+    if len(filtered_argv) == 1 and filtered_argv[0].strip().lower() in {"help", "--help", "-h"}:
         print_available_checks()
         raise SystemExit(0)
-    return parse_command_tokens(raw_argv)
+
+    command = parse_command_tokens(filtered_argv)
+    if ci_mode:
+        command.ci = True
+    return command
 
 
 def resolve_requested_checks(command: DoctorCommand) -> list[str]:
@@ -987,6 +1004,12 @@ def run_checks(command: DoctorCommand) -> int:
 def main() -> int:
     command = parse_args()
     last_exit_code = 0
+
+    if command.ci:
+        if not command.checks:
+            print_action("CI-режим: проверки не указаны.")
+            return 1
+        return run_checks(command)
 
     while True:
         if command.should_exit:
