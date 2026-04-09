@@ -44,7 +44,7 @@ doctor:
     - netops
   script:
     - |
-      cd /builds/$CI_PROJECT_PATH
+      cd "$CI_PROJECT_DIR"
       "${PYTHON314_BIN}" -m venv .venv
       source .venv/bin/activate
       pip install --upgrade pip
