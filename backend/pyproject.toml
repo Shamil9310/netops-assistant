@@ -22,6 +22,9 @@ dependencies = [
 dev = [
   "pytest==8.4.2",
   "pytest-asyncio==1.2.0",
+  "ruff==0.13.1",
+  "black==25.9.0",
+  "pycodestyle==2.14.0",
 ]
 
 [tool.setuptools]

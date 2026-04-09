@@ -16,7 +16,7 @@ backend_imports:
       "${PYTHON314_BIN}" -m venv .venv
       source .venv/bin/activate
       pip install --upgrade pip
-      pip install -e .
+      pip install -e .[dev]
       python -c "from app.main import app; from app.core.config import settings; from app.services.journal import create_activity_entry; print('backend imports OK'); print(app.title); print(settings.environment)"
 
 frontend_build:
@@ -51,7 +51,7 @@ doctor:
 
       # backend зависимости
       cd backend
-      pip install -e .
+      pip install -e .[dev]
       cd ..
 
       # frontend зависимости
