@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from enum import StrEnum
 from datetime import UTC, datetime
 from uuid import UUID
 
@@ -84,7 +85,7 @@ _STEP_ALLOWED_TRANSITIONS: dict[NightWorkStepStatus, set[NightWorkStepStatus]] =
 }
 
 
-def _validate_transition[T](
+def _validate_transition[T: StrEnum](
     current_status: T, next_status: T, allowed: dict[T, set[T]], object_name: str
 ) -> None:
     """Проверяет, допустим ли переход статуса для сущности.

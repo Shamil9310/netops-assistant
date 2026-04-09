@@ -84,7 +84,7 @@ class LDAPAuthProvider:
             return None
 
         try:
-            from ldap3 import ALL, Connection, Server, Tls
+            from ldap3 import ALL, Connection, Server, Tls  # type: ignore[import-untyped]
         except ImportError:
             logger.exception("LDAP provider недоступен: пакет ldap3 не установлен")
             return None

@@ -7,6 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import CurrentUser
 from app.db.session import get_db
+from app.models.journal import ActivityEntry
+from app.models.planned_event import PlannedEvent
 from app.schemas.planned_event import (
     PlannedEventCreateRequest,
     PlannedEventResponse,
@@ -18,7 +20,7 @@ from app.services import planned_event as event_service
 router = APIRouter()
 
 
-def _to_response(event: object) -> PlannedEventResponse:
+def _to_response(event: PlannedEvent) -> PlannedEventResponse:
     """Преобразует ORM-модель PlannedEvent в схему ответа API."""
     return PlannedEventResponse(
         id=str(event.id),
@@ -39,16 +41,19 @@ def _to_response(event: object) -> PlannedEventResponse:
     )
 
 
-def _to_activity_entry_response(activity_entry: object) -> ActivityEntryResponse:
+def _to_activity_entry_response(activity_entry: ActivityEntry) -> ActivityEntryResponse:
     return ActivityEntryResponse(
         id=str(activity_entry.id),
         user_id=str(activity_entry.user_id),
         work_date=activity_entry.work_date,
-        activity_type=activity_entry.activity_type,
-        status=activity_entry.status,
+        activity_type=activity_entry.activity_type,  # type: ignore[arg-type]
+        status=activity_entry.status,  # type: ignore[arg-type]
         title=activity_entry.title,
         description=activity_entry.description,
+        resolution=activity_entry.resolution,
+        contact=activity_entry.contact,
         ticket_number=activity_entry.ticket_number,
+        task_url=activity_entry.task_url,
         started_at=(
             activity_entry.started_at.timetz().replace(tzinfo=None)
             if activity_entry.started_at
@@ -58,6 +63,9 @@ def _to_activity_entry_response(activity_entry: object) -> ActivityEntryResponse
             activity_entry.finished_at.timetz().replace(tzinfo=None)
             if activity_entry.finished_at
             else None
+        ),
+        ended_date=(
+            activity_entry.finished_at.date() if activity_entry.finished_at else None
         ),
         is_backdated=activity_entry.created_at.date() > activity_entry.work_date,
         created_at=activity_entry.created_at,

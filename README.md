@@ -138,6 +138,7 @@ NetOps Assistant — внутренний web-сервис для команды
 - зафиксированные voiced requirements;
 - roadmap на 30 спринтов.
 - правила разработки и качества кода: `docs/CODING_RULES.md`.
+- backlog продуктовых идей: `docs/PRODUCT_BACKLOG.md`.
 
 ### Базовые правила и рамки спринтов
 - обязательные правила кода: `RULES.md`;

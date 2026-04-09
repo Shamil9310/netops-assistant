@@ -331,7 +331,7 @@ async def import_default_templates(
             name=str(default_template["name"]),
             category=str(default_template["category"]),
             description=str(default_template["description"]),
-            template_payload=dict(default_template["template_payload"]),
+            template_payload=dict(default_template["template_payload"]),  # type: ignore[call-overload]
             is_active=bool(default_template["is_active"]),
         )
         session.add(template)

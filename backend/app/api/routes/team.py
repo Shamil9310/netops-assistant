@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import CurrentUser, require_developer, require_manager
 from app.db.session import get_db
+from app.models.team import Team
 from app.models.user import User, UserRole
 from app.schemas.team import (
     TeamCreateRequest,
@@ -28,7 +29,7 @@ from app.services.auth import get_user_by_username, hash_password
 router = APIRouter()
 
 
-def _to_team_response(team: object) -> TeamResponse:
+def _to_team_response(team: Team) -> TeamResponse:
     """Преобразует ORM-модель Team в схему ответа API."""
     return TeamResponse(
         id=str(team.id),
@@ -85,7 +86,10 @@ async def create_team(
 ) -> TeamResponse:
     """Создаёт новую команду. Доступно только разработчику."""
     team = await team_service.create_team(
-        db, payload.name, payload.description, payload.manager_id
+        db,
+        payload.name,
+        payload.description,
+        UUID(payload.manager_id) if payload.manager_id else None,
     )
     return _to_team_response(team)
 
@@ -107,7 +111,11 @@ async def update_team(
             status_code=status.HTTP_404_NOT_FOUND, detail="Команда не найдена"
         )
     updated = await team_service.update_team(
-        db, team, payload.name, payload.description, payload.manager_id
+        db,
+        team,
+        payload.name,
+        payload.description,
+        UUID(payload.manager_id) if payload.manager_id else None,
     )
     return _to_team_response(updated)
 

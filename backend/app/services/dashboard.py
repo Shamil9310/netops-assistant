@@ -24,11 +24,14 @@ def _to_entry_response(entry: ActivityEntry) -> ActivityEntryResponse:
         id=str(entry.id),
         user_id=str(entry.user_id),
         work_date=entry.work_date,
-        activity_type=entry.activity_type,
-        status=entry.status,
+        activity_type=entry.activity_type,  # type: ignore[arg-type]
+        status=entry.status,  # type: ignore[arg-type]
         title=entry.title,
         description=entry.description,
+        resolution=entry.resolution,
+        contact=entry.contact,
         ticket_number=entry.ticket_number or entry.external_ref,
+        task_url=entry.task_url,
         started_at=(
             entry.started_at.timetz().replace(tzinfo=None) if entry.started_at else None
         ),
@@ -37,6 +40,8 @@ def _to_entry_response(entry: ActivityEntry) -> ActivityEntryResponse:
             if entry.finished_at
             else None
         ),
+        ended_date=(entry.finished_at.date() if entry.finished_at else None),
+        is_backdated=entry.created_at.date() > entry.work_date,
         created_at=entry.created_at,
         updated_at=entry.updated_at,
     )

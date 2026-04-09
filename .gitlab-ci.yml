@@ -38,7 +38,8 @@ deploy_vm:
     - main
   script:
     - /home/corp.tele2.ru/admin.isaev/netops-assistant/scripts/deploy_vm.sh
-doctor:
+
+backend_ruff:
   stage: test
   tags:
     - netops
@@ -48,16 +49,22 @@ doctor:
       "${PYTHON314_BIN}" -m venv .venv
       source .venv/bin/activate
       pip install --upgrade pip
-
-      # backend зависимости
       cd backend
       pip install -e .[dev]
       cd ..
+      python doctor.py ruff
 
-      # frontend зависимости
-      cd frontend
-      npm install
+backend_pytest:
+  stage: test
+  tags:
+    - netops
+  script:
+    - |
+      cd "$CI_PROJECT_DIR"
+      "${PYTHON314_BIN}" -m venv .venv
+      source .venv/bin/activate
+      pip install --upgrade pip
+      cd backend
+      pip install -e .[dev]
       cd ..
-
-      # запуск Doctor
-      python doctor.py
+      python doctor.py pytest
