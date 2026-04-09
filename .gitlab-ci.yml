@@ -38,3 +38,26 @@ deploy_vm:
     - main
   script:
     - /home/corp.tele2.ru/admin.isaev/netops-assistant/scripts/deploy_vm.sh
+doctor:
+  stage: test
+  tags:
+    - netops
+  script:
+    - |
+      cd /builds/$CI_PROJECT_PATH
+      "${PYTHON314_BIN}" -m venv .venv
+      source .venv/bin/activate
+      pip install --upgrade pip
+
+      # backend зависимости
+      cd backend
+      pip install -e .
+      cd ..
+
+      # frontend зависимости
+      cd frontend
+      npm install
+      cd ..
+
+      # запуск Doctor
+      python doctor.py
