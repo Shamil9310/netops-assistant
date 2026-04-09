@@ -27,6 +27,9 @@ dev = [
   "black==25.9.0",
   "pycodestyle==2.14.0",
   "mypy==1.18.2",
+  "eradicate==2.3.0",
+  "interrogate==1.7.0",
+  "pydocstyle==6.3.0",
 ]
 
 [tool.setuptools]
@@ -44,3 +47,14 @@ omit = ["app/migrations/*", "app/alembic/*"]
 show_missing = true
 skip_covered = false
 fail_under = 50
+
+[tool.interrogate]
+fail-under = 80
+ignore-init-method = true
+ignore-init-module = true
+ignore-magic = true
+ignore-module = true
+ignore-nested-functions = true
+ignore-private = true
+ignore-property-decorators = true
+exclude = ["tests", "alembic"]

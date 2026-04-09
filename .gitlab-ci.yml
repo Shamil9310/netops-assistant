@@ -92,3 +92,48 @@ backend_coverage:
       coverage_report:
         coverage_format: cobertura
         path: backend/coverage.xml
+
+backend_eradicate:
+  stage: test
+  tags:
+    - netops
+  script:
+    - |
+      cd "$CI_PROJECT_DIR"
+      "${PYTHON314_BIN}" -m venv .venv
+      source .venv/bin/activate
+      pip install --upgrade pip
+      cd backend
+      pip install -e .[dev]
+      cd ..
+      python doctor.py eradicate
+
+backend_interrogate:
+  stage: test
+  tags:
+    - netops
+  script:
+    - |
+      cd "$CI_PROJECT_DIR"
+      "${PYTHON314_BIN}" -m venv .venv
+      source .venv/bin/activate
+      pip install --upgrade pip
+      cd backend
+      pip install -e .[dev]
+      cd ..
+      python doctor.py interrogate
+
+backend_pydocstyle:
+  stage: test
+  tags:
+    - netops
+  script:
+    - |
+      cd "$CI_PROJECT_DIR"
+      "${PYTHON314_BIN}" -m venv .venv
+      source .venv/bin/activate
+      pip install --upgrade pip
+      cd backend
+      pip install -e .[dev]
+      cd ..
+      python doctor.py pydocstyle

@@ -114,6 +114,9 @@ CHECK_CHOICES = (
     "black",
     "pep8",
     "mypy",
+    "eradicate",
+    "interrogate",
+    "pydocstyle",
     "pytest",
     "coverage",
     "localization",
@@ -122,7 +125,18 @@ CHECK_CHOICES = (
     "build",
 )
 CHECKS_BY_SCOPE = {
-    "backend": ["compileall", "ruff", "black", "pep8", "mypy", "pytest", "coverage"],
+    "backend": [
+        "compileall",
+        "ruff",
+        "black",
+        "pep8",
+        "mypy",
+        "eradicate",
+        "interrogate",
+        "pydocstyle",
+        "pytest",
+        "coverage",
+    ],
     "frontend": ["localization", "names", "comments", "build"],
     "all": [
         "compileall",
@@ -130,6 +144,9 @@ CHECKS_BY_SCOPE = {
         "black",
         "pep8",
         "mypy",
+        "eradicate",
+        "interrogate",
+        "pydocstyle",
         "pytest",
         "coverage",
         "localization",
@@ -204,6 +221,18 @@ def detect_backend_python() -> str:
         if candidate_python.exists():
             return str(candidate_python)
     return sys.executable
+
+
+def has_python_module(python_bin: str, module_name: str, cwd: Path) -> bool:
+    result = run_command(
+        [
+            python_bin,
+            "-c",
+            f"import importlib.util; print(importlib.util.find_spec('{module_name}') is not None)",
+        ],
+        cwd=cwd,
+    )
+    return result.returncode == 0 and "True" in result.stdout
 
 
 def check_backend_compile(python_bin: str, full: bool = False) -> CheckResult:
@@ -431,15 +460,7 @@ def check_backend_pep8(python_bin: str, full: bool = False) -> CheckResult:
 
 
 def check_backend_mypy(python_bin: str, full: bool = False) -> CheckResult:
-    has_mypy = run_command(
-        [
-            python_bin,
-            "-c",
-            "import importlib.util; print(importlib.util.find_spec('mypy') is not None)",
-        ],
-        cwd=ROOT_DIR,
-    )
-    if has_mypy.returncode != 0 or "True" not in has_mypy.stdout:
+    if not has_python_module(python_bin, "mypy", ROOT_DIR):
         return CheckResult(
             "backend: типизация (mypy)",
             CheckStatus.SKIP,
@@ -459,6 +480,116 @@ def check_backend_mypy(python_bin: str, full: bool = False) -> CheckResult:
             result,
             "mypy нашёл ошибки",
             max_lines=None if full else 8,
+        ),
+    )
+
+
+def check_backend_eradicate(python_bin: str, full: bool = False) -> CheckResult:
+    if not has_python_module(python_bin, "eradicate", ROOT_DIR):
+        return CheckResult(
+            "backend: закомментированный код (eradicate)",
+            CheckStatus.SKIP,
+            "eradicate не установлен",
+        )
+
+    command = [
+        python_bin,
+        "-m",
+        "eradicate",
+        "--recursive",
+        "--error",
+        "backend/app",
+        "backend/tests",
+        "doctor.py",
+    ]
+    result = run_command(command, cwd=ROOT_DIR)
+    if result.returncode == 0:
+        return CheckResult(
+            "backend: закомментированный код (eradicate)",
+            CheckStatus.PASS,
+        )
+
+    return CheckResult(
+        "backend: закомментированный код (eradicate)",
+        CheckStatus.FAIL,
+        build_error_details(
+            command,
+            result,
+            "eradicate нашёл закомментированный код",
+            max_lines=None if full else 8,
+        ),
+    )
+
+
+def check_backend_interrogate(python_bin: str, full: bool = False) -> CheckResult:
+    if not has_python_module(python_bin, "interrogate", ROOT_DIR):
+        return CheckResult(
+            "backend: покрытие docstring (interrogate)",
+            CheckStatus.SKIP,
+            "interrogate не установлен",
+        )
+
+    command = [
+        python_bin,
+        "-m",
+        "interrogate",
+        "-c",
+        "backend/pyproject.toml",
+        "backend/app",
+        "doctor.py",
+    ]
+    result = run_command(command, cwd=ROOT_DIR)
+    if result.returncode == 0:
+        return CheckResult(
+            "backend: покрытие docstring (interrogate)",
+            CheckStatus.PASS,
+            result.stdout.strip(),
+        )
+
+    return CheckResult(
+        "backend: покрытие docstring (interrogate)",
+        CheckStatus.FAIL,
+        build_error_details(
+            command,
+            result,
+            "interrogate нашёл недостаточное покрытие docstring",
+            max_lines=None if full else 12,
+        ),
+    )
+
+
+def check_backend_pydocstyle(python_bin: str, full: bool = False) -> CheckResult:
+    if not has_python_module(python_bin, "pydocstyle", ROOT_DIR):
+        return CheckResult(
+            "backend: стиль docstring (pydocstyle)",
+            CheckStatus.SKIP,
+            "pydocstyle не установлен",
+        )
+
+    command = [
+        python_bin,
+        "-m",
+        "pydocstyle",
+        "--convention=pep257",
+        "--add-ignore=D100,D101,D102,D103,D104,D105,D106,D107,D203,D213",
+        "backend/app",
+        "doctor.py",
+    ]
+    result = run_command(command, cwd=ROOT_DIR)
+    if result.returncode == 0:
+        return CheckResult(
+            "backend: стиль docstring (pydocstyle)",
+            CheckStatus.PASS,
+        )
+
+    return CheckResult(
+        "backend: стиль docstring (pydocstyle)",
+        CheckStatus.FAIL,
+        build_error_details(
+            command,
+            result,
+            "pydocstyle нашёл проблемы в существующих docstring",
+            max_lines=None if full else 12,
         ),
     )
 
@@ -1208,6 +1339,21 @@ def run_named_check(
             return timed_check(
                 "backend: типизация (mypy)",
                 lambda: check_backend_mypy(python_bin, full=full),
+            )
+        case "eradicate":
+            return timed_check(
+                "backend: закомментированный код (eradicate)",
+                lambda: check_backend_eradicate(python_bin, full=full),
+            )
+        case "interrogate":
+            return timed_check(
+                "backend: покрытие docstring (interrogate)",
+                lambda: check_backend_interrogate(python_bin, full=full),
+            )
+        case "pydocstyle":
+            return timed_check(
+                "backend: стиль docstring (pydocstyle)",
+                lambda: check_backend_pydocstyle(python_bin, full=full),
             )
         case "pytest":
             return timed_check(

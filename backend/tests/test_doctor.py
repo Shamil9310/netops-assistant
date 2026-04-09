@@ -261,6 +261,14 @@ def test_parse_check_tokens_expands_all_keyword() -> None:
     assert parsed == doctor.CHECKS_BY_SCOPE["all"]
 
 
+def test_parse_check_tokens_supports_new_quality_checks() -> None:
+    doctor = import_doctor_module()
+
+    parsed = doctor.parse_check_tokens(["eradicate,interrogate,pydocstyle"])
+
+    assert parsed == ["eradicate", "interrogate", "pydocstyle"]
+
+
 def test_resolve_requested_checks_uses_explicit_check_list() -> None:
     doctor = import_doctor_module()
 
@@ -406,6 +414,73 @@ def test_check_backend_coverage_reports_xml_output(monkeypatch) -> None:
     assert check_result.status == doctor.CheckStatus.PASS
     assert "TOTAL 100 10 90%" in check_result.details
     assert "backend/coverage.xml" in check_result.details
+
+
+def test_check_backend_eradicate_passes_when_no_commented_code(monkeypatch) -> None:
+    doctor = import_doctor_module()
+
+    monkeypatch.setattr(
+        doctor, "has_python_module", lambda python_bin, module_name, cwd: True
+    )
+    monkeypatch.setattr(
+        doctor,
+        "run_command",
+        lambda command, cwd: doctor.subprocess.CompletedProcess(
+            args=command,
+            returncode=0,
+            stdout="",
+            stderr="",
+        ),
+    )
+
+    check_result = doctor.check_backend_eradicate("python")
+
+    assert check_result.status == doctor.CheckStatus.PASS
+
+
+def test_check_backend_interrogate_reports_summary_on_success(monkeypatch) -> None:
+    doctor = import_doctor_module()
+
+    monkeypatch.setattr(
+        doctor, "has_python_module", lambda python_bin, module_name, cwd: True
+    )
+    monkeypatch.setattr(
+        doctor,
+        "run_command",
+        lambda command, cwd: doctor.subprocess.CompletedProcess(
+            args=command,
+            returncode=0,
+            stdout="RESULT: PASSED (minimum: 80.0%, actual: 91.0%)\n",
+            stderr="",
+        ),
+    )
+
+    check_result = doctor.check_backend_interrogate("python")
+
+    assert check_result.status == doctor.CheckStatus.PASS
+    assert "RESULT: PASSED" in check_result.details
+
+
+def test_check_backend_pydocstyle_passes_on_clean_docstrings(monkeypatch) -> None:
+    doctor = import_doctor_module()
+
+    monkeypatch.setattr(
+        doctor, "has_python_module", lambda python_bin, module_name, cwd: True
+    )
+    monkeypatch.setattr(
+        doctor,
+        "run_command",
+        lambda command, cwd: doctor.subprocess.CompletedProcess(
+            args=command,
+            returncode=0,
+            stdout="",
+            stderr="",
+        ),
+    )
+
+    check_result = doctor.check_backend_pydocstyle("python")
+
+    assert check_result.status == doctor.CheckStatus.PASS
 
 
 def test_collect_installable_dependency_plans_finds_backend_and_frontend_items() -> (
