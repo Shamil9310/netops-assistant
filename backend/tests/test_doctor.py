@@ -342,6 +342,8 @@ def test_parse_args_without_arguments_shows_available_checks(
     doctor = import_doctor_module()
 
     monkeypatch.setattr(sys, "argv", ["doctor.py"])
+    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
+    monkeypatch.setattr(sys.stdout, "isatty", lambda: True)
     monkeypatch.setattr("builtins.input", lambda _: "mypy,pytest")
 
     args = doctor.parse_args()
