@@ -12,7 +12,7 @@ function getSections(role: string) {
       title: "Работа",
       items: [
         { href: "/", icon: "◈", label: "Сегодня" },
-        { href: "/journal", icon: "☰", label: "Журнал" },
+        { href: "/journal", icon: "☰", label: "Журнал дня" },
         { href: "/reports", icon: "⬡", label: "Отчёты" },
         { href: "/plans", icon: "◻", label: "Ночные работы" },
         { href: "/templates", icon: "◎", label: "Шаблоны" },

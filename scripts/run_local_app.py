@@ -1,4 +1,11 @@
-кенен#!/usr/bin/env python3
+#!/usr/bin/env python3
+"""Единый сценарий локальной подготовки и запуска проекта.
+
+Этот файл является центральной точкой логики для двух shell-скриптов:
+- run_local.sh запускает полный локальный сценарий;
+- setup_local.sh выполняет только подготовку окружения без старта сервисов.
+"""
+
 from __future__ import annotations
 
 import argparse
@@ -14,7 +21,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
-ROOT_DIR = Path(__file__).resolve().parent
+ROOT_DIR = Path(__file__).resolve().parent.parent
 BACKEND_DIR = ROOT_DIR / "backend"
 FRONTEND_DIR = ROOT_DIR / "frontend"
 RUNTIME_DIR = ROOT_DIR / ".dev_runtime" / "run_local"
@@ -312,13 +319,13 @@ def ensure_python() -> str:
     return python_path
 
 
-def ensure_backend_venv(python_bin: str) -> str:
-    venv_dir = BACKEND_DIR / ".venv"
+def ensure_root_venv(python_bin: str) -> str:
+    venv_dir = ROOT_DIR / ".venv"
     if not venv_dir.exists():
         run_command([python_bin, "-m", "venv", str(venv_dir)])
-        print_line("Создано backend виртуальное окружение")
+        print_line("Создано корневое виртуальное окружение проекта")
     else:
-        print_line("Backend виртуальное окружение уже существует")
+        print_line("Корневое виртуальное окружение проекта уже существует")
     return str(venv_dir / "bin" / "python")
 
 
@@ -349,7 +356,7 @@ def ensure_backend_env() -> None:
 
 def run_alembic_migrations(venv_python: str) -> None:
     env = os.environ.copy()
-    env["PATH"] = f"{BACKEND_DIR / '.venv' / 'bin'}:{env.get('PATH', '')}"
+    env["PATH"] = f"{ROOT_DIR / '.venv' / 'bin'}:{env.get('PATH', '')}"
     run_command(
         [venv_python, "-m", "alembic", "upgrade", "head"], cwd=BACKEND_DIR, env=env
     )
@@ -380,10 +387,21 @@ def ensure_frontend_env() -> None:
     print_line("Frontend .env.local создан")
 
 
-def run_doctor() -> None:
-    print_line("Запускаю doctor перед подготовкой и стартом...")
+def run_doctor(setup_only: bool = False) -> None:
+    doctor_command = [sys.executable, str(ROOT_DIR / "doctor.py")]
+    if setup_only:
+        print_line(
+            "Запускаю doctor перед подготовкой в неинтерактивном режиме: выполняю all и завершаюсь..."
+        )
+        doctor_command.extend(["--ci", "all"])
+    else:
+        print_line(
+            "Запускаю doctor перед подготовкой и стартом в неинтерактивном режиме: выполняю all с autofix..."
+        )
+        doctor_command.extend(["--ci", "all", "--autofix"])
+
     result = subprocess.run(
-        [sys.executable, str(ROOT_DIR / "doctor.py"), "--autofix"],
+        doctor_command,
         cwd=ROOT_DIR,
         check=False,
     )
@@ -398,7 +416,7 @@ def run_setup() -> None:
     ensure_postgres()
     ensure_database()
     python_bin = ensure_python()
-    venv_python = ensure_backend_venv(python_bin)
+    venv_python = ensure_root_venv(python_bin)
     ensure_backend_dependencies(venv_python)
     ensure_backend_env()
     run_alembic_migrations(venv_python)
@@ -409,10 +427,10 @@ def run_setup() -> None:
 
 def start_backend() -> subprocess.Popen[str]:
     log_handle = BACKEND_LOG.open("w", encoding="utf-8")
-    uvicorn_bin = BACKEND_DIR / ".venv" / "bin" / "uvicorn"
+    uvicorn_bin = ROOT_DIR / ".venv" / "bin" / "uvicorn"
     if not uvicorn_bin.exists():
         raise RuntimeError(
-            "Не найден backend/.venv/bin/uvicorn. setup_local.sh должен создать окружение."
+            "Не найден .venv/bin/uvicorn. setup_local.sh должен создать окружение."
         )
 
     print_line("Запускаю backend...")
@@ -476,7 +494,7 @@ def main() -> int:
     try:
         ensure_runtime_dir()
         if not args.skip_doctor:
-            run_doctor()
+            run_doctor(setup_only=args.setup_only)
         if not args.skip_setup:
             run_setup()
         if args.setup_only:

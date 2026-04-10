@@ -105,7 +105,10 @@ export default async function JournalPage({ searchParams }: { searchParams?: Sea
             <div key={entry.id} className="plan-item">
               <div className="plan-icon status">●</div>
               <div className="plan-info">
-                <div className="plan-title">{entry.title}</div>
+                <div className="plan-title" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                  <span>{entry.title}</span>
+                  {entry.ticket_number && <span className="badge task">BPM</span>}
+                </div>
                 <div className="plan-sub">
                   {labelForActivityType(entry.activity_type)} · {labelForStatus(entry.status)} · {formatEntryTimeRange(entry.work_date, entry.started_at, entry.ended_at, entry.ended_date)}
                 </div>
@@ -114,7 +117,7 @@ export default async function JournalPage({ searchParams }: { searchParams?: Sea
                 {entry.task_url && (
                   <div className="plan-sub">
                     <a href={entry.task_url} target="_blank" rel="noreferrer">
-                      Открыть задачу
+                      Открыть карточку в задачах
                     </a>
                   </div>
                 )}

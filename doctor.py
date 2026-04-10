@@ -172,10 +172,22 @@ BACKEND_AUTOFIX_TRIGGER_CHECKS = {
     "pytest",
 }
 LAST_CHECK_RESULTS: list[CheckResult] = []
+ANSI_RED = "\033[31m"
+ANSI_RESET = "\033[0m"
 
 
 def print_action(message: str) -> None:
     print(f"[doctor] {message}", flush=True)
+
+
+def supports_ansi_colors() -> bool:
+    return sys.stdout.isatty() and os.environ.get("TERM", "").lower() != "dumb"
+
+
+def colorize_red(text: str) -> str:
+    if not supports_ansi_colors():
+        return text
+    return f"{ANSI_RED}{text}{ANSI_RESET}"
 
 
 def run_command(command: list[str], cwd: Path) -> subprocess.CompletedProcess[str]:
@@ -221,10 +233,7 @@ def build_error_details(
 
 
 def detect_backend_python() -> str:
-    candidate_pythons = (
-        BACKEND_DIR / ".venv" / "bin" / "python",
-        ROOT_DIR / ".venv" / "bin" / "python",
-    )
+    candidate_pythons = (ROOT_DIR / ".venv" / "bin" / "python",)
     for candidate_python in candidate_pythons:
         if candidate_python.exists():
             return str(candidate_python)
@@ -276,7 +285,7 @@ def check_backend_coverage(python_bin: str, full: bool = False) -> CheckResult:
         return CheckResult(
             "backend: покрытие тестами (coverage)",
             CheckStatus.SKIP,
-            "pytest-cov не установлен (активируй backend/.venv и установи dev-зависимости)",
+            "pytest-cov не установлен (активируй .venv и установи dev-зависимости)",
         )
 
     command = [
@@ -329,7 +338,7 @@ def check_backend_pytest(python_bin: str, full: bool = False) -> CheckResult:
         return CheckResult(
             "backend: автотесты (pytest)",
             CheckStatus.SKIP,
-            "pytest не установлен (активируй backend/.venv и установи dev-зависимости)",
+            "pytest не установлен (активируй .venv и установи dev-зависимости)",
         )
 
     command = [python_bin, "-m", "pytest", "-q"]
@@ -920,7 +929,7 @@ def collect_installable_dependency_plans(
 
         if result.name.startswith("backend:") and (
             "не установлен" in result.details
-            or "активируй backend/.venv" in result.details
+            or "активируй .venv" in result.details
             or "dev-зависимости" in result.details
         ):
             if "backend-dev" not in seen_keys:
@@ -928,7 +937,7 @@ def collect_installable_dependency_plans(
                     DependencyInstallPlan(
                         key="backend-dev",
                         title="backend: виртуальное окружение и dev-зависимости",
-                        description="Создать `backend/.venv`, обновить `pip` и установить `pip install -e .[dev]`.",
+                        description="Создать корневой `.venv`, обновить `pip` и установить `pip install -e .[dev]`.",
                     )
                 )
                 seen_keys.add("backend-dev")
@@ -951,13 +960,13 @@ def collect_installable_dependency_plans(
     return plans
 
 
-def ensure_backend_venv() -> tuple[bool, str]:
-    backend_venv_python = BACKEND_DIR / ".venv" / "bin" / "python"
-    if backend_venv_python.exists():
+def ensure_root_venv() -> tuple[bool, str]:
+    root_venv_python = ROOT_DIR / ".venv" / "bin" / "python"
+    if root_venv_python.exists():
         return True, ""
 
     bootstrap_python = shutil.which("python3") or sys.executable
-    command = [bootstrap_python, "-m", "venv", str(BACKEND_DIR / ".venv")]
+    command = [bootstrap_python, "-m", "venv", str(ROOT_DIR / ".venv")]
     result = run_command(command, cwd=ROOT_DIR)
     if result.returncode == 0:
         return True, ""
@@ -965,17 +974,17 @@ def ensure_backend_venv() -> tuple[bool, str]:
     return False, build_error_details(
         command,
         result,
-        "Не удалось создать backend/.venv",
+        "Не удалось создать .venv",
         max_lines=12,
     )
 
 
 def install_backend_dev_dependencies() -> tuple[bool, str]:
-    created, details = ensure_backend_venv()
+    created, details = ensure_root_venv()
     if not created:
         return False, details
 
-    backend_python = str(BACKEND_DIR / ".venv" / "bin" / "python")
+    backend_python = str(ROOT_DIR / ".venv" / "bin" / "python")
     commands = [
         [backend_python, "-m", "pip", "install", "--upgrade", "pip"],
         [backend_python, "-m", "pip", "install", "-e", ".[dev]"],
@@ -1061,16 +1070,22 @@ def prompt_install_missing_dependencies(results: list[CheckResult]) -> bool:
     return install_dependency_plans(install_plans)
 
 
-def print_result(result: CheckResult) -> None:
+def print_result(result: CheckResult, include_details: bool = True) -> None:
     status_label = {
         CheckStatus.PASS: "ОК",
         CheckStatus.FAIL: "ОШИБКА",
         CheckStatus.SKIP: "ПРОПУЩЕНО",
     }[result.status]
-    print(f"[{status_label}] {result.name} ({result.duration_sec:.2f}s)")
-    if result.details:
+    line = f"[{status_label}] {result.name} ({result.duration_sec:.2f}s)"
+    if result.status == CheckStatus.FAIL:
+        line = colorize_red(line)
+    print(line)
+    if include_details and result.details:
         for line in result.details.splitlines():
-            print(f"  {line}")
+            detail_line = f"  {line}"
+            if result.status == CheckStatus.FAIL:
+                detail_line = colorize_red(detail_line)
+            print(detail_line)
 
 
 def print_summary(results: list[CheckResult], total_duration_sec: float) -> None:
@@ -1085,6 +1100,20 @@ def print_summary(results: list[CheckResult], total_duration_sec: float) -> None
     print(f"  Ошибки:         {failed}")
     print(f"  Пропущено:      {skipped}")
     print(f"  Общее время:    {total_duration_sec:.2f}s")
+
+
+def print_failures_at_end(results: list[CheckResult]) -> None:
+    failed_results = [result for result in results if result.status == CheckStatus.FAIL]
+    if not failed_results:
+        return
+
+    print("")
+    print("")
+    print(colorize_red("Ошибки doctor"))
+    print("")
+    for result in failed_results:
+        print_result(result, include_details=True)
+        print("")
 
 
 def get_report_statuses(report_mode: str) -> tuple[CheckStatus, ...]:
@@ -1573,9 +1602,10 @@ def run_checks(command: DoctorCommand) -> int:
         )
 
     for result in results:
-        print_result(result)
+        print_result(result, include_details=result.status != CheckStatus.FAIL)
     total_duration_sec = perf_counter() - started_total
     print_summary(results, total_duration_sec)
+    print_failures_at_end(results)
     LAST_CHECK_RESULTS = list(results)
 
     has_failures = any(r.status == CheckStatus.FAIL for r in results)

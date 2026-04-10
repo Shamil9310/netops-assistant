@@ -441,9 +441,7 @@ def test_parse_args_supports_scope_flag(monkeypatch) -> None:
     assert args.ci is True
 
 
-def test_detect_backend_python_uses_root_venv_when_backend_venv_is_absent(
-    monkeypatch, tmp_path: Path
-) -> None:
+def test_detect_backend_python_uses_root_venv(monkeypatch, tmp_path: Path) -> None:
     doctor = import_doctor_module()
     backend_dir = tmp_path / "backend"
     root_venv_python = tmp_path / ".venv" / "bin" / "python"
@@ -568,7 +566,7 @@ def test_collect_installable_dependency_plans_finds_backend_and_frontend_items()
         doctor.CheckResult(
             name="backend: автотесты (pytest)",
             status=doctor.CheckStatus.SKIP,
-            details="pytest не установлен (активируй backend/.venv и установи dev-зависимости)",
+            details="pytest не установлен (активируй .venv и установи dev-зависимости)",
         ),
         doctor.CheckResult(
             name="frontend: сборка",
@@ -590,7 +588,7 @@ def test_prompt_install_missing_dependencies_skips_install_on_negative_answer(
         doctor.CheckResult(
             name="backend: автотесты (pytest)",
             status=doctor.CheckStatus.SKIP,
-            details="pytest не установлен (активируй backend/.venv и установи dev-зависимости)",
+            details="pytest не установлен (активируй .venv и установи dev-зависимости)",
         )
     ]
 
@@ -611,7 +609,7 @@ def test_prompt_install_missing_dependencies_installs_selected_plans(
         doctor.CheckResult(
             name="backend: покрытие тестами (coverage)",
             status=doctor.CheckStatus.SKIP,
-            details="pytest-cov не установлен (активируй backend/.venv и установи dev-зависимости)",
+            details="pytest-cov не установлен (активируй .venv и установи dev-зависимости)",
         )
     ]
     installed_plans: list[list[str]] = []

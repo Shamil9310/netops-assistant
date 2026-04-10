@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Удобная точка входа для запуска doctor как обычной команды.
+# Если в проекте уже создан корневой .venv, используем его Python.
+# Иначе запускаем doctor.py через системный python3.
+
+SOURCE_PATH="${BASH_SOURCE[0]}"
+while [[ -L "${SOURCE_PATH}" ]]; do
+  SOURCE_DIR="$(cd -P "$(dirname "${SOURCE_PATH}")" && pwd)"
+  SOURCE_PATH="$(readlink "${SOURCE_PATH}")"
+  [[ "${SOURCE_PATH}" != /* ]] && SOURCE_PATH="${SOURCE_DIR}/${SOURCE_PATH}"
+done
+
+ROOT_DIR="$(cd -P "$(dirname "${SOURCE_PATH}")" && pwd)"
+PROJECT_PYTHON="${ROOT_DIR}/.venv/bin/python"
+
+if [[ -x "${PROJECT_PYTHON}" ]]; then
+  exec "${PROJECT_PYTHON}" "${ROOT_DIR}/doctor.py" "$@"
+fi
+
+exec python3 "${ROOT_DIR}/doctor.py" "$@"
