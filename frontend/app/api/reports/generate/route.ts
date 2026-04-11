@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { extractErrorMessage } from "@/lib/api-error";
 import { generateReportWithBackend, type GenerateReportPayload, type ReportPreview } from "@/lib/api";
 
 function isValidPayload(payload: unknown): payload is GenerateReportPayload {
@@ -42,15 +43,12 @@ export async function POST(request: Request) {
   }
 
   const backendResponse = await generateReportWithBackend(requestPayload);
-  const responsePayload = (await backendResponse.json()) as
-    | ReportPreview
-    | { detail?: string };
+  const responsePayload = (await backendResponse.json()) as ReportPreview | unknown;
   if (!backendResponse.ok) {
-    const detail =
-      "detail" in responsePayload && responsePayload.detail
-        ? responsePayload.detail
-        : "Не удалось сгенерировать отчёт";
-    return NextResponse.json({ detail }, { status: backendResponse.status });
+    return NextResponse.json(
+      { detail: extractErrorMessage(responsePayload, "Не удалось сгенерировать отчёт") },
+      { status: backendResponse.status },
+    );
   }
 
   return NextResponse.json(responsePayload, { status: 201 });

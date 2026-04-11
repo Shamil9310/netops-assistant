@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
+import { extractErrorMessage } from "@/lib/api-error";
 import { SERVER_API_BASE_URL } from "@/lib/api-url";
 import { SESSION_COOKIE_NAME } from "@/lib/constants";
 
@@ -35,8 +36,7 @@ export async function GET(request: Request) {
   });
 
   if (!backendResponse.ok) {
-    const detail = await readBackendErrorDetail(backendResponse);
-    return redirectWithError(detail ?? "Не удалось выгрузить отчёт");
+    return redirectWithError(await readBackendErrorDetail(backendResponse));
   }
 
   const contentType = backendResponse.headers.get("Content-Type") ?? "text/markdown; charset=utf-8";
@@ -81,16 +81,13 @@ function buildBackendPath(searchParams: URLSearchParams, userId: string, reportT
   return null;
 }
 
-async function readBackendErrorDetail(response: Response): Promise<string | null> {
+async function readBackendErrorDetail(response: Response): Promise<string> {
   try {
-    const errorPayload = (await response.json()) as { detail?: unknown };
-    if (typeof errorPayload.detail === "string" && errorPayload.detail.trim()) {
-      return errorPayload.detail;
-    }
+    const errorPayload = await response.json();
+    return extractErrorMessage(errorPayload, "Не удалось выгрузить отчёт");
   } catch {
-    return null;
+    return "Не удалось выгрузить отчёт";
   }
-  return null;
 }
 
 function redirectWithError(detail: string): NextResponse {

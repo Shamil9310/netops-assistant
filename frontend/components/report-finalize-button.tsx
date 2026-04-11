@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { extractErrorMessage } from "@/lib/api-error";
+
 type Props = {
   reportId: string;
 };
@@ -21,9 +23,9 @@ export function ReportFinalizeButton({ reportId }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ report_id: reportId }),
       });
-      const responsePayload = (await response.json()) as { detail?: string };
+      const responsePayload = (await response.json()) as unknown;
       if (!response.ok) {
-        setError(responsePayload.detail ?? "Не удалось зафиксировать отчёт");
+        setError(extractErrorMessage(responsePayload, "Не удалось зафиксировать отчёт"));
         return;
       }
       router.refresh();

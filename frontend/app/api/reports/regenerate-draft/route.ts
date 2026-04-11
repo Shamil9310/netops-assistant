@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { extractErrorMessage } from "@/lib/api-error";
 import { regenerateDraftReportWithBackend, type ReportPreview } from "@/lib/api";
 
 export async function POST(request: Request) {
@@ -11,15 +12,12 @@ export async function POST(request: Request) {
   const backendResponse = await regenerateDraftReportWithBackend(
     requestPayload.report_id,
   );
-  const responsePayload = (await backendResponse.json()) as
-    | ReportPreview
-    | { detail?: string };
+  const responsePayload = (await backendResponse.json()) as ReportPreview | unknown;
   if (!backendResponse.ok) {
-    const detail =
-      "detail" in responsePayload && responsePayload.detail
-        ? responsePayload.detail
-        : "Не удалось пересобрать draft";
-    return NextResponse.json({ detail }, { status: backendResponse.status });
+    return NextResponse.json(
+      { detail: extractErrorMessage(responsePayload, "Не удалось пересобрать draft") },
+      { status: backendResponse.status },
+    );
   }
   return NextResponse.json(responsePayload, { status: 201 });
 }

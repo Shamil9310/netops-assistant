@@ -9,8 +9,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 # Небезопасные значения по умолчанию, которые запрещено использовать
 # в тестовой и боевой среде. Вынесены в константы, чтобы не было "магических строк".
 _UNSAFE_SECRET_KEY = "dev-only-change-me"
-_UNSAFE_BOOTSTRAP_PASSWORD = "engineer123"
-_UNSAFE_BOOTSTRAP_USERNAME = "engineer"
+_UNSAFE_BOOTSTRAP_PASSWORD = "12345678"
+_UNSAFE_BOOTSTRAP_USERNAME = "shamil.isaev"
 _BACKEND_ROOT_DIR = Path(__file__).resolve().parents[2]
 _BACKEND_ENV_FILE = _BACKEND_ROOT_DIR / ".env"
 

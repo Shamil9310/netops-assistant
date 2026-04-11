@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 
+import { extractErrorMessage } from "@/lib/api-error";
+
 type BlockOption = { id: string; title: string };
 type StepOption = { id: string; block_id: string; title: string };
 
@@ -84,9 +86,9 @@ export function NightWorkControls({
       const responsePayload =
         response.status === 204
           ? null
-          : ((await response.json()) as { detail?: string });
+          : ((await response.json()) as unknown);
       if (!response.ok) {
-        setError(responsePayload?.detail ?? "Операция не выполнена");
+        setError(extractErrorMessage(responsePayload, "Операция не выполнена"));
         return false;
       }
       router.refresh();
@@ -228,13 +230,13 @@ export function NightWorkControls({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ report_type: "night_work_result", plan_id: selectedPlanId }),
       });
-      const responsePayload = (await response.json()) as {
-        report_id?: string;
-        detail?: string;
-      };
+      const responsePayload = (await response.json()) as { report_id?: string } & Record<string, unknown>;
       if (!response.ok || !responsePayload.report_id) {
         setError(
-          responsePayload.detail ?? "Не удалось сформировать отчёт ночных работ",
+          extractErrorMessage(
+            responsePayload,
+            "Не удалось сформировать отчёт ночных работ",
+          ),
         );
         return;
       }

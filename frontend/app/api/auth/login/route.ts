@@ -1,11 +1,8 @@
 import { NextResponse } from "next/server";
 
+import { extractErrorMessage } from "@/lib/api-error";
 import { CSRF_COOKIE_NAME, SESSION_COOKIE_NAME } from "@/lib/constants";
 import { loginWithBackend, type LoginPayload, type LoginResponse } from "@/lib/api";
-
-type ErrorResponse = {
-  detail?: string;
-};
 
 export async function POST(request: Request) {
   const contentType = request.headers.get("content-type") ?? "";
@@ -15,7 +12,7 @@ export async function POST(request: Request) {
   const requestPayload = await readLoginPayload(request, isHtmlForm);
   const backendResponse = await loginWithBackend(requestPayload);
 
-  const responsePayload = (await backendResponse.json()) as LoginResponse | ErrorResponse;
+  const responsePayload = (await backendResponse.json()) as LoginResponse | unknown;
 
   if (!backendResponse.ok) {
     if (isHtmlForm) {
@@ -24,9 +21,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json(
       {
-        detail: "detail" in responsePayload && responsePayload.detail
-          ? responsePayload.detail
-          : "Ошибка входа",
+        detail: extractErrorMessage(responsePayload, "Ошибка входа"),
       },
       { status: backendResponse.status },
     );
@@ -48,13 +43,13 @@ export async function POST(request: Request) {
   }
 
   const response = isHtmlForm
-    ? redirectTo("/")
+    ? redirectTo("/today")
     : NextResponse.json(responsePayload);
 
   response.cookies.set(SESSION_COOKIE_NAME, sessionToken, {
     httpOnly: true,
     sameSite: "lax",
-    secure: false,
+    secure: process.env.NODE_ENV === "production",
     path: "/",
     maxAge: 60 * 60 * 12,
   });
@@ -63,7 +58,7 @@ export async function POST(request: Request) {
     response.cookies.set(CSRF_COOKIE_NAME, csrfToken, {
       httpOnly: false,
       sameSite: "lax",
-      secure: false,
+      secure: process.env.NODE_ENV === "production",
       path: "/",
       maxAge: 60 * 60 * 12,
     });

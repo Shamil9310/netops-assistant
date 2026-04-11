@@ -12,6 +12,35 @@ type CreatePlannedEventPayload = {
   scheduled_at: string;
 };
 
+type BackendErrorDetail = string | Array<{ msg?: unknown } | unknown> | Record<string, unknown>;
+
+function extractErrorMessage(responsePayload: unknown): string {
+  if (
+    typeof responsePayload !== "object" ||
+    responsePayload === null ||
+    !("detail" in responsePayload)
+  ) {
+    return "Не удалось создать событие";
+  }
+
+  const detail = (responsePayload as { detail?: BackendErrorDetail }).detail;
+  if (typeof detail === "string") {
+    return detail;
+  }
+
+  if (Array.isArray(detail) && detail.length > 0) {
+    const firstItem = detail[0];
+    if (typeof firstItem === "object" && firstItem !== null && "msg" in firstItem) {
+      const message = (firstItem as { msg?: unknown }).msg;
+      if (typeof message === "string") {
+        return message;
+      }
+    }
+  }
+
+  return "Не удалось создать событие";
+}
+
 function isValidPayload(payload: unknown): payload is CreatePlannedEventPayload {
   if (typeof payload !== "object" || payload === null) {
     return false;
@@ -56,7 +85,10 @@ export async function POST(request: Request) {
 
   const responsePayload = await response.json();
   if (!response.ok) {
-    return NextResponse.json(responsePayload, { status: response.status });
+    return NextResponse.json(
+      { detail: extractErrorMessage(responsePayload) },
+      { status: response.status },
+    );
   }
   return NextResponse.json(responsePayload, { status: 201 });
 }

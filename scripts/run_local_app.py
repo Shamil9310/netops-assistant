@@ -329,9 +329,33 @@ def ensure_root_venv(python_bin: str) -> str:
     return str(venv_dir / "bin" / "python")
 
 
+def resolve_project_venv_python() -> str:
+    """Возвращает Python из корневого виртуального окружения проекта.
+
+    Эта функция используется перед каждым локальным запуском backend.
+    Даже если разработчик уже однажды выполнил setup, мы всё равно должны
+    знать, каким именно Python запускать Alembic, чтобы миграции применялись
+    в том же окружении, что и само приложение.
+    """
+    venv_python = ROOT_DIR / ".venv" / "bin" / "python"
+    if not venv_python.exists():
+        raise RuntimeError(
+            "Не найден Python в корневом .venv. "
+            "Сначала выполни подготовку окружения через setup_local.sh или run_local.sh."
+        )
+    return str(venv_python)
+
+
 def ensure_backend_dependencies(venv_python: str) -> None:
-    run_command([venv_python, "-m", "pip", "install", "-e", "."], cwd=BACKEND_DIR)
-    print_line("Backend зависимости установлены")
+    """Устанавливает backend runtime и dev-зависимости в корневой `.venv`.
+
+    Почему ставим именно `.[dev]`, а не только базовый пакет:
+    - `run_local` и `setup_local` обязаны готовить проект к `doctor`;
+    - `doctor` использует pytest, mypy, black, ruff и другие dev-инструменты;
+    - без extras локальный запуск может остановиться ещё до старта приложения.
+    """
+    run_command([venv_python, "-m", "pip", "install", "-e", ".[dev]"], cwd=BACKEND_DIR)
+    print_line("Backend runtime и dev-зависимости установлены")
 
 
 def ensure_backend_env() -> None:
@@ -361,6 +385,12 @@ def run_alembic_migrations(venv_python: str) -> None:
         [venv_python, "-m", "alembic", "upgrade", "head"], cwd=BACKEND_DIR, env=env
     )
     print_line("Миграции Alembic применены")
+
+
+def ensure_backend_schema_ready(venv_python: str) -> None:
+    """Гарантирует, что локальный backend стартует только на актуальной схеме БД."""
+    print_line("Проверяю актуальность схемы БД перед стартом backend...")
+    run_alembic_migrations(venv_python)
 
 
 def ensure_node() -> None:
@@ -393,12 +423,17 @@ def run_doctor(setup_only: bool = False) -> None:
         print_line(
             "Запускаю doctor перед подготовкой в неинтерактивном режиме: выполняю all и завершаюсь..."
         )
-        doctor_command.extend(["--ci", "all"])
+        doctor_command.extend(["--ci", "all", "--bootstrap-missing"])
     else:
         print_line(
             "Запускаю doctor перед подготовкой и стартом в неинтерактивном режиме: выполняю all с autofix..."
         )
-        doctor_command.extend(["--ci", "all", "--autofix"])
+        doctor_command.extend(["--ci", "all", "--autofix", "--bootstrap-missing"])
+
+    print_line(f"Корень проекта: {ROOT_DIR}")
+    print_line(f"Python запуска run_local: {sys.executable}")
+    print_line(f"Ожидаемый Python проекта: {ROOT_DIR / '.venv' / 'bin' / 'python'}")
+    print_line(f"Команда doctor: {' '.join(doctor_command)}")
 
     result = subprocess.run(
         doctor_command,
@@ -493,16 +528,21 @@ def main() -> int:
 
     try:
         ensure_runtime_dir()
-        if not args.skip_doctor:
-            run_doctor(setup_only=args.setup_only)
+        print_line(f"Рабочий каталог проекта: {ROOT_DIR}")
+        print_line(f"Каталог backend: {BACKEND_DIR}")
+        print_line(f"Каталог frontend: {FRONTEND_DIR}")
+        print_line(f"Корневой .venv: {ROOT_DIR / '.venv'}")
         if not args.skip_setup:
             run_setup()
+        if not args.skip_doctor:
+            run_doctor(setup_only=args.setup_only)
         if args.setup_only:
             print_line("Подготовка окружения завершена.")
             return 0
 
         free_port_or_fail(BACKEND_PORT)
         free_port_or_fail(FRONTEND_PORT)
+        ensure_backend_schema_ready(resolve_project_venv_python())
 
         BACKEND_PROCESS = start_backend()
         wait_for_http(
@@ -526,8 +566,8 @@ def main() -> int:
         print_line("Приложение запущено:")
         print(f"  Frontend: http://localhost:{FRONTEND_PORT}")
         print(f"  Backend : http://localhost:{BACKEND_PORT}")
-        print("  Логин   : engineer")
-        print("  Пароль  : engineer123")
+        print("  Логин   : shamil.isaev")
+        print("  Пароль  : 12345678")
         print(f"  Логи    : {RUNTIME_DIR}")
         print()
         print_line("Для остановки нажми Ctrl+C")

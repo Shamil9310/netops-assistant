@@ -38,6 +38,7 @@ class DoctorCommand:
     checks: list[str]
     quick: bool = False
     autofix: bool = False
+    bootstrap_missing: bool = True
     full: bool = False
     report_mode: str | None = None
     show_help: bool = False
@@ -70,7 +71,6 @@ FRONTEND_UI_EXTENSIONS = {".ts", ".tsx"}
 ALLOWED_UI_ENGLISH_WORDS = {
     "API",
     "BGP",
-    "BPM",
     "CPU",
     "DOCX",
     "email",
@@ -131,7 +131,16 @@ CHECK_CHOICES = (
     "build",
 )
 REPORT_MODES = ("issues", "errors", "skips")
-COMMAND_KEYWORDS = ("help", "exit", "quick", "autofix", "fix", "full", "report")
+COMMAND_KEYWORDS = (
+    "help",
+    "exit",
+    "quick",
+    "autofix",
+    "fix",
+    "bootstrap",
+    "full",
+    "report",
+)
 CHECKS_BY_SCOPE = {
     "backend": [
         "compileall",
@@ -238,6 +247,27 @@ def detect_backend_python() -> str:
         if candidate_python.exists():
             return str(candidate_python)
     return sys.executable
+
+
+def detect_git_branch() -> str | None:
+    result = subprocess.run(
+        ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+        cwd=ROOT_DIR,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    branch_name = result.stdout.strip()
+    if result.returncode != 0 or not branch_name:
+        return None
+    return branch_name
+
+
+def should_bootstrap_missing_dependencies() -> bool:
+    branch_name = detect_git_branch()
+    if branch_name is None:
+        return False
+    return branch_name not in {"main", "developer"}
 
 
 def has_python_module(python_bin: str, module_name: str, cwd: Path) -> bool:
@@ -457,6 +487,7 @@ def check_backend_pep8(python_bin: str, full: bool = False) -> CheckResult:
         "-m",
         "pycodestyle",
         "--max-line-length=140",
+        "--ignore=E203,W503",
         "backend/app",
         "backend/tests",
         "doctor.py",
@@ -1070,6 +1101,21 @@ def prompt_install_missing_dependencies(results: list[CheckResult]) -> bool:
     return install_dependency_plans(install_plans)
 
 
+def print_missing_dependency_suggestions(results: list[CheckResult]) -> None:
+    install_plans = collect_installable_dependency_plans(results)
+    if not install_plans:
+        return
+
+    print("")
+    print_action("Некоторые проверки пропущены из-за отсутствующих зависимостей.")
+    for plan in install_plans:
+        print(f"  - {plan.title}")
+        print(f"    {plan.description}")
+    print_action(
+        "Чтобы продолжить вручную, запусти doctor в интерактивном режиме или выполни команды из подсказок выше."
+    )
+
+
 def print_result(result: CheckResult, include_details: bool = True) -> None:
     status_label = {
         CheckStatus.PASS: "ОК",
@@ -1336,6 +1382,7 @@ def parse_command_tokens(raw_tokens: list[str]) -> DoctorCommand:
 
     quick = False
     autofix = False
+    bootstrap_missing = True
     full = False
     checks: list[str] = []
 
@@ -1350,6 +1397,9 @@ def parse_command_tokens(raw_tokens: list[str]) -> DoctorCommand:
         if token in {"autofix", "fix"}:
             autofix = True
             continue
+        if token in {"bootstrap", "bootstrap-missing", "install-missing"}:
+            bootstrap_missing = True
+            continue
         if token == "full":
             full = True
             continue
@@ -1359,6 +1409,7 @@ def parse_command_tokens(raw_tokens: list[str]) -> DoctorCommand:
         checks=parse_check_tokens(checks),
         quick=quick,
         autofix=autofix,
+        bootstrap_missing=bootstrap_missing,
         full=full,
     )
 
@@ -1411,6 +1462,10 @@ def parse_args() -> DoctorCommand:
             continue
         if token == "--autofix":
             compatibility_tokens.append("autofix")
+            index += 1
+            continue
+        if token in {"--bootstrap-missing", "--install-missing"}:
+            compatibility_tokens.append("bootstrap")
             index += 1
             continue
         if token == "--full":
@@ -1577,16 +1632,25 @@ def run_checks(command: DoctorCommand) -> int:
     global LAST_CHECK_RESULTS
 
     python_bin = detect_backend_python()
-    results: list[CheckResult] = []
     started_total = perf_counter()
     requested_checks = resolve_requested_checks(command)
 
+    def execute_checks() -> list[CheckResult]:
+        results_local: list[CheckResult] = []
+        for check_name in requested_checks:
+            results_local.append(
+                run_named_check(check_name, python_bin, command.quick, command.full)
+            )
+        return results_local
+
     quick_mode = "yes" if command.quick else "no"
     autofix_mode = "yes" if command.autofix else "no"
+    bootstrap_mode = "yes" if command.bootstrap_missing else "no"
     full_mode = "yes" if command.full else "no"
     print_action(
         f"Старт doctor: quick={quick_mode}, "
         f"autofix={autofix_mode}, "
+        f"bootstrap={bootstrap_mode}, "
         f"full={full_mode}"
     )
     print_action(f"Выбранные проверки: {', '.join(requested_checks)}")
@@ -1596,19 +1660,45 @@ def run_checks(command: DoctorCommand) -> int:
         for message in autofix_messages:
             print(f"[АВТОФИКС] {message}")
 
-    for check_name in requested_checks:
-        results.append(
-            run_named_check(check_name, python_bin, command.quick, command.full)
-        )
+    results = execute_checks()
+    unresolved_missing_dependencies = False
+    if command.bootstrap_missing:
+        install_plans = collect_installable_dependency_plans(results)
+        if install_plans:
+            if should_bootstrap_missing_dependencies():
+                branch_name = detect_git_branch() or "unknown"
+                print("")
+                print_action(
+                    f"Ветка `{branch_name}` не относится к `main` или `developer`. "
+                    "Автоматически ставлю недостающие зависимости."
+                )
+                if install_dependency_plans(install_plans):
+                    print("")
+                    print_action(
+                        "Зависимости установлены. Повторно запускаю те же проверки."
+                    )
+                    results = execute_checks()
+                    if collect_installable_dependency_plans(results):
+                        unresolved_missing_dependencies = True
+                else:
+                    unresolved_missing_dependencies = True
+            else:
+                unresolved_missing_dependencies = True
 
     for result in results:
         print_result(result, include_details=result.status != CheckStatus.FAIL)
     total_duration_sec = perf_counter() - started_total
     print_summary(results, total_duration_sec)
+    if unresolved_missing_dependencies or (
+        command.ci and not command.bootstrap_missing
+    ):
+        print_missing_dependency_suggestions(results)
     print_failures_at_end(results)
     LAST_CHECK_RESULTS = list(results)
 
     has_failures = any(r.status == CheckStatus.FAIL for r in results)
+    if unresolved_missing_dependencies:
+        has_failures = True
     return 1 if has_failures else 0
 
 

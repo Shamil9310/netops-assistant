@@ -5,6 +5,7 @@ import { ReportRegenerateDraftButton } from "@/components/report-regenerate-draf
 import { ReportRefreshButton } from "@/components/report-refresh-button";
 import { TeamReportExportForm } from "@/components/team-report-export-form";
 import { getReportHistory, getReportPreview, getTeamUsers } from "@/lib/api";
+import { formatDateLabel, formatDateTimeLabel } from "@/lib/date-format";
 import { requireUser } from "@/lib/auth";
 
 type SearchParams = Record<string, string | string[] | undefined>;
@@ -14,20 +15,6 @@ function toSingleValue(value: string | string[] | undefined): string {
     return value[0] ?? "";
   }
   return value ?? "";
-}
-
-function formatDateTimeLabel(dateTimeValue: string): string {
-  const parsedDate = new Date(dateTimeValue);
-  if (Number.isNaN(parsedDate.getTime())) {
-    return dateTimeValue;
-  }
-  return new Intl.DateTimeFormat("ru-RU", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(parsedDate);
 }
 
 function getReportTypeLabel(reportType: string): string {
@@ -87,7 +74,7 @@ export default async function ReportsPage({ searchParams }: { searchParams?: Sea
               >
                 <span className="chip-dot" style={{ background: "var(--blue)" }} />
                 {getReportTypeLabel(record.report_type)}
-                <span className="chip-count">{record.period_from}</span>
+                <span className="chip-count">{formatDateLabel(record.period_from)}</span>
               </a>
             ))}
             {(history ?? []).length === 0 && (
@@ -120,8 +107,32 @@ export default async function ReportsPage({ searchParams }: { searchParams?: Sea
           </div>
         </div>
 
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 16 }}>
+          <div className="report-block" style={{ padding: 18 }}>
+            <div className="badge task">История</div>
+            <div className="page-title" style={{ fontSize: "2.2rem", marginTop: 10, WebkitTextFillColor: "initial", background: "none", color: "var(--text)" }}>
+              {(history ?? []).length}
+            </div>
+            <div className="page-sub">Сгенерированных отчётов</div>
+          </div>
+          <div className="report-block" style={{ padding: 18 }}>
+            <div className="badge bgp">Выбран</div>
+            <div className="page-title" style={{ fontSize: "2.2rem", marginTop: 10, WebkitTextFillColor: "initial", background: "none", color: "var(--text)" }}>
+              {selectedReportId ? "1" : "0"}
+            </div>
+            <div className="page-sub">Активный предпросмотр</div>
+          </div>
+          <div className="report-block" style={{ padding: 18 }}>
+            <div className="badge acl">Доступ</div>
+            <div className="page-title" style={{ fontSize: "2.2rem", marginTop: 10, WebkitTextFillColor: "initial", background: "none", color: "var(--text)" }}>
+              {isManagerOrDeveloper ? "полный" : "ограничен"}
+            </div>
+            <div className="page-sub">Роль пользователя</div>
+          </div>
+        </div>
+
         <div className="section-label">
-          {preview ? `${getReportTypeLabel(preview.report_type)} · ${preview.period_from} — ${preview.period_to}` : "Отчёт не выбран"}
+          {preview ? `${getReportTypeLabel(preview.report_type)} · ${formatDateLabel(preview.period_from)} — ${formatDateLabel(preview.period_to)}` : "Отчёт не выбран"}
         </div>
 
         <div className="report-block">
@@ -130,7 +141,7 @@ export default async function ReportsPage({ searchParams }: { searchParams?: Sea
               <div className="report-header">
                 <div>
                   <div className="report-header-title">
-                    {getReportTypeLabel(preview.report_type)} · {preview.period_from} — {preview.period_to}
+                    {getReportTypeLabel(preview.report_type)} · {formatDateLabel(preview.period_from)} — {formatDateLabel(preview.period_to)}
                   </div>
                   <div className="report-header-sub">Сформирован: {formatDateTimeLabel(preview.generated_at)} · {user.full_name}</div>
                   <div className="report-header-sub">Статус: {preview.report_status}</div>

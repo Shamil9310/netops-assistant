@@ -84,6 +84,8 @@ class ActivityEntry(Base):
     resolution: Mapped[str | None] = mapped_column(Text, nullable=True)
     # От кого пришла задача: имя, отдел, электронная почта, телефон.
     contact: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    # Название услуги или сервиса, с которым связана запись.
+    service: Mapped[str | None] = mapped_column(String(256), nullable=True, index=True)
 
     # Номер заявки или SR во внешней системе.
     # Нужен, чтобы связать запись журнала с внешним процессом или обращением.
@@ -95,7 +97,7 @@ class ActivityEntry(Base):
     ticket_number: Mapped[str | None] = mapped_column(
         String(128), nullable=True, index=True
     )
-    # Ссылка на карточку задачи во внешней системе, например в BPM.
+    # Ссылка на карточку задачи во внешней системе или в рабочем источнике.
     task_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
 
     # Фактическое время начала работы.

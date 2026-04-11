@@ -47,6 +47,24 @@ export default async function DeveloperPage() {
           </div>
         </div>
 
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+            gap: 16,
+          }}
+        >
+          {widgets.map((widget) => (
+            <div key={widget.title} className="report-block" style={{ padding: 18 }}>
+              <div className="badge task">{widget.title}</div>
+              <div className="page-title" style={{ fontSize: "2.2rem", marginTop: 10, WebkitTextFillColor: "initial", background: "none", color: "var(--text)" }}>
+                {widget.value}
+              </div>
+              <div className="page-sub">{widget.note}</div>
+            </div>
+          ))}
+        </div>
+
         <div className="section-label">Ключевые метрики</div>
         <div className="plan-list" style={{ marginBottom: 24 }}>
           {widgets.map((widget) => (

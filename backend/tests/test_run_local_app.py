@@ -91,9 +91,11 @@ def test_bootstrap_scripts_keep_dev_extras_installation() -> None:
     deploy_vm_script = (project_root_dir / "scripts" / "deploy_vm.sh").read_text(
         encoding="utf-8"
     )
+    doctor_script = (project_root_dir / "doctor").read_text(encoding="utf-8")
 
     assert 'pip", "install", "-e", ".[dev]"' in run_local_script
     assert 'pip install -e ".[dev]"' in deploy_vm_script
+    assert "--bootstrap-missing" in doctor_script
     assert "pip install -e ." not in deploy_vm_script
 
 

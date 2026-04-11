@@ -1,9 +1,19 @@
 from __future__ import annotations
 
 from datetime import date
+from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    HTTPException,
+    Query,
+    Request,
+    UploadFile,
+    status,
+)
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -13,13 +23,27 @@ from app.schemas.journal import (
     ActivityEntryListResponse,
     ActivityEntryResponse,
     ActivityEntryUpdateRequest,
+    BulkJournalImportRequest,
+    BulkJournalImportPreviewResponse,
+    BulkJournalImportResponse,
+    JournalBulkDeleteResponse,
+    JournalDeduplicationResponse,
+    JournalSelectedDeleteRequest,
 )
 from app.services.auth import get_current_user
 from app.services.journal import (
     create_activity_entry,
+    delete_activity_entries_for_date,
+    delete_all_activity_entries,
+    delete_selected_activity_entries,
+    delete_duplicate_activity_entries_for_date,
     delete_activity_entry,
     get_activity_entry_by_id,
+    import_activity_entries_from_excel_workbook,
+    import_activity_entries_from_text,
     list_activity_entries_for_date,
+    preview_activity_entries_from_excel_workbook,
+    preview_activity_entries_from_text,
     update_activity_entry,
 )
 
@@ -59,6 +83,7 @@ def to_activity_entry_response(activity_entry) -> ActivityEntryResponse:
         description=activity_entry.description,
         resolution=activity_entry.resolution,
         contact=activity_entry.contact,
+        service=activity_entry.service,
         ticket_number=activity_entry.ticket_number,
         task_url=activity_entry.task_url,
         started_at=(
@@ -158,6 +183,22 @@ async def patch_activity_entry(
     return to_activity_entry_response(updated)
 
 
+@router.get("/entries/{entry_id}", response_model=ActivityEntryResponse)
+async def get_activity_entry(
+    entry_id: UUID,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> ActivityEntryResponse:
+    """Возвращает одну запись журнала владельца."""
+    current_user = await require_authenticated_user(request, db)
+    entry = await get_activity_entry_by_id(db, str(current_user.id), str(entry_id))
+    if entry is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Запись не найдена"
+        )
+    return to_activity_entry_response(entry)
+
+
 @router.delete("/entries/{entry_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def remove_activity_entry(
     entry_id: UUID,
@@ -172,3 +213,194 @@ async def remove_activity_entry(
             status_code=status.HTTP_404_NOT_FOUND, detail="Запись не найдена"
         )
     await delete_activity_entry(db, entry)
+
+
+@router.post("/entries/delete-for-date", response_model=JournalBulkDeleteResponse)
+async def remove_activity_entries_for_date(
+    request: Request,
+    work_date: date = Query(
+        description="Рабочая дата, за которую нужно удалить все записи"
+    ),
+    db: AsyncSession = Depends(get_db),
+) -> JournalBulkDeleteResponse:
+    """Удаляет все записи текущего пользователя за выбранную рабочую дату."""
+    current_user = await require_authenticated_user(request, db)
+    removed_count = await delete_activity_entries_for_date(
+        session=db,
+        user_id=str(current_user.id),
+        work_date=work_date,
+    )
+    return JournalBulkDeleteResponse(
+        scope="work_date",
+        removed=removed_count,
+        work_date=work_date,
+    )
+
+
+@router.post("/entries/delete-all", response_model=JournalBulkDeleteResponse)
+async def remove_all_activity_entries(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> JournalBulkDeleteResponse:
+    """Удаляет все записи журнала текущего пользователя."""
+    current_user = await require_authenticated_user(request, db)
+    removed_count = await delete_all_activity_entries(
+        session=db,
+        user_id=str(current_user.id),
+    )
+    return JournalBulkDeleteResponse(
+        scope="all",
+        removed=removed_count,
+        work_date=None,
+    )
+
+
+@router.post("/entries/delete-selected", response_model=JournalBulkDeleteResponse)
+async def remove_selected_activity_entries(
+    payload: JournalSelectedDeleteRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> JournalBulkDeleteResponse:
+    """Удаляет только выбранные записи журнала текущего пользователя."""
+    current_user = await require_authenticated_user(request, db)
+    removed_count = await delete_selected_activity_entries(
+        session=db,
+        user_id=str(current_user.id),
+        entry_ids=payload.entry_ids,
+    )
+    return JournalBulkDeleteResponse(
+        scope="selected",
+        removed=removed_count,
+        work_date=None,
+    )
+
+
+@router.post("/entries/deduplicate", response_model=JournalDeduplicationResponse)
+async def deduplicate_activity_entries(
+    request: Request,
+    work_date: date = Query(
+        description="Рабочая дата, в рамках которой нужно удалить дубли"
+    ),
+    db: AsyncSession = Depends(get_db),
+) -> JournalDeduplicationResponse:
+    """Удаляет дубли журналa текущего пользователя за выбранную рабочую дату."""
+    current_user = await require_authenticated_user(request, db)
+    removed_count, duplicate_ticket_numbers = (
+        await delete_duplicate_activity_entries_for_date(
+            session=db,
+            user_id=str(current_user.id),
+            work_date=work_date,
+        )
+    )
+    return JournalDeduplicationResponse(
+        work_date=work_date,
+        removed=removed_count,
+        duplicate_ticket_numbers=duplicate_ticket_numbers,
+    )
+
+
+@router.post(
+    "/entries/import",
+    response_model=BulkJournalImportResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def import_activity_entries(
+    payload: BulkJournalImportRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> BulkJournalImportResponse:
+    """Импортирует несколько записей журнала из текста."""
+    current_user = await require_authenticated_user(request, db)
+    try:
+        created_entries, warnings = await import_activity_entries_from_text(
+            session=db,
+            user=current_user,
+            payload=payload,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        ) from exc
+
+    return BulkJournalImportResponse(
+        created=len(created_entries),
+        items=[to_activity_entry_response(entry) for entry in created_entries],
+        warnings=warnings,
+    )
+
+
+@router.post("/entries/import/preview", response_model=BulkJournalImportPreviewResponse)
+async def preview_activity_entries(
+    payload: BulkJournalImportRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> BulkJournalImportPreviewResponse:
+    """Показывает, как текст будет распознан, без сохранения в базу."""
+    await require_authenticated_user(request, db)
+    preview_items, warnings = preview_activity_entries_from_text(payload)
+    return BulkJournalImportPreviewResponse(
+        total=len(preview_items),
+        items=preview_items,
+        warnings=warnings,
+    )
+
+
+@router.post(
+    "/entries/import/excel",
+    response_model=BulkJournalImportResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def import_activity_entries_from_excel(
+    request: Request,
+    file: Annotated[UploadFile, File(description="Excel-файл с выгрузкой обращений")],
+    db: AsyncSession = Depends(get_db),
+) -> BulkJournalImportResponse:
+    """Импортирует записи журнала из Excel-файла."""
+    current_user = await require_authenticated_user(request, db)
+    workbook_bytes = await file.read()
+
+    try:
+        created_entries, warnings = await import_activity_entries_from_excel_workbook(
+            session=db,
+            user=current_user,
+            workbook_bytes=workbook_bytes,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        ) from exc
+
+    return BulkJournalImportResponse(
+        created=len(created_entries),
+        items=[to_activity_entry_response(entry) for entry in created_entries],
+        warnings=warnings,
+    )
+
+
+@router.post(
+    "/entries/import/excel/preview",
+    response_model=BulkJournalImportPreviewResponse,
+)
+async def preview_activity_entries_from_excel(
+    request: Request,
+    file: Annotated[UploadFile, File(description="Excel-файл с выгрузкой обращений")],
+    db: AsyncSession = Depends(get_db),
+) -> BulkJournalImportPreviewResponse:
+    """Показывает предпросмотр Excel-импорта без сохранения в базу."""
+    await require_authenticated_user(request, db)
+    workbook_bytes = await file.read()
+
+    try:
+        preview_items, warnings = preview_activity_entries_from_excel_workbook(
+            workbook_bytes=workbook_bytes,
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)
+        ) from exc
+
+    return BulkJournalImportPreviewResponse(
+        total=len(preview_items),
+        items=preview_items,
+        warnings=warnings,
+    )

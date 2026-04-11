@@ -1,12 +1,9 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
+import { extractErrorMessage } from "@/lib/api-error";
 import { SERVER_API_BASE_URL } from "@/lib/api-url";
 import { CSRF_COOKIE_NAME, SESSION_COOKIE_NAME } from "@/lib/constants";
-
-type ErrorResponse = {
-  detail?: string;
-};
 
 export async function POST(
   request: Request,
@@ -43,10 +40,8 @@ export async function POST(
   );
 
   if (!backendResponse.ok) {
-    const errorResponse = (await backendResponse.json()) as ErrorResponse;
-    const detail = typeof errorResponse.detail === "string" && errorResponse.detail
-      ? errorResponse.detail
-      : "Не удалось удалить пользователя";
+    const errorResponse = await backendResponse.json();
+    const detail = extractErrorMessage(errorResponse, "Не удалось удалить пользователя");
     return redirectTo(`/developer/users?delete_user_error=${encodeURIComponent(detail)}`);
   }
 

@@ -648,6 +648,15 @@ def test_parse_args_without_arguments_shows_available_checks(
     assert args.full is False
 
 
+def test_parse_command_tokens_bootstraps_dependencies_by_default() -> None:
+    doctor = import_doctor_module()
+
+    command = doctor.parse_command_tokens(["mypy"])
+
+    assert command.checks == ["mypy"]
+    assert command.bootstrap_missing is True
+
+
 def test_build_error_details_returns_full_output_when_requested() -> None:
     doctor = import_doctor_module()
 

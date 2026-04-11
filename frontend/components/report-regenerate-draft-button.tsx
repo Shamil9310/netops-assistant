@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { extractErrorMessage } from "@/lib/api-error";
+
 type Props = {
   reportId: string;
 };
@@ -21,9 +23,11 @@ export function ReportRegenerateDraftButton({ reportId }: Props) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ report_id: reportId }),
       });
-      const responsePayload = (await response.json()) as { report_id?: string; detail?: string };
+      const responsePayload = (await response.json()) as { report_id?: string } & Record<string, unknown>;
       if (!response.ok || !responsePayload.report_id) {
-        setError(responsePayload.detail ?? "Не удалось создать новую черновую версию");
+        setError(
+          extractErrorMessage(responsePayload, "Не удалось создать новую черновую версию"),
+        );
         return;
       }
       router.push(`/reports?report_id=${responsePayload.report_id}`);

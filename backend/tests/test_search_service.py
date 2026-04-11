@@ -67,13 +67,14 @@ def test_build_activity_search_filters_contains_expected_predicates() -> None:
         activity_type=ActivityType.TICKET,
         status=ActivityStatus.CLOSED,
         external_ref="SR11683266",
+        service="TrueConf",
         ticket_number="SR11683266",
         date_from=datetime(2026, 4, 1, tzinfo=UTC),
         date_to=datetime(2026, 4, 7, tzinfo=UTC),
     )
 
-    # Один фильтр на пользователя и ещё семь фильтров по параметрам поиска.
-    assert len(filters) == 8
+    # Один фильтр на пользователя и ещё восемь фильтров по параметрам поиска.
+    assert len(filters) == 9
 
 
 def test_build_activity_search_filters_skips_blank_query() -> None:

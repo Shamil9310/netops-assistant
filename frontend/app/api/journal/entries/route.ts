@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { extractErrorMessage } from "@/lib/api-error";
 import {
   createJournalEntryWithBackend,
   getJournalEntries,
@@ -43,13 +44,12 @@ export async function POST(request: Request) {
   }
 
   const backendResponse = await createJournalEntryWithBackend(requestPayload);
-  const responsePayload = (await backendResponse.json()) as JournalEntry | { detail?: string };
+  const responsePayload = (await backendResponse.json()) as JournalEntry | unknown;
   if (!backendResponse.ok) {
-    const detail =
-      "detail" in responsePayload && responsePayload.detail
-        ? responsePayload.detail
-        : "Не удалось создать запись";
-    return NextResponse.json({ detail }, { status: backendResponse.status });
+    return NextResponse.json(
+      { detail: extractErrorMessage(responsePayload, "Не удалось создать запись") },
+      { status: backendResponse.status },
+    );
   }
   return NextResponse.json(responsePayload, { status: 201 });
 }

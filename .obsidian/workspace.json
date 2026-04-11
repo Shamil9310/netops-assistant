@@ -1,0 +1,200 @@
+{
+  "main": {
+    "id": "2f2fd580c2d5d591",
+    "type": "split",
+    "children": [
+      {
+        "id": "5b6608deaf9d5446",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "e07fdf8a212e062b",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "docs/standards/BACKEND_RULES.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "BACKEND_RULES"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "a359e32dc75ea70d",
+    "type": "split",
+    "children": [
+      {
+        "id": "38879a0424ae89cd",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "3325a291b066ad30",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false
+              },
+              "icon": "lucide-folder-closed",
+              "title": "Файловый менеджер"
+            }
+          },
+          {
+            "id": "ab73ab6906ccbc64",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "Поиск"
+            }
+          },
+          {
+            "id": "4b837a0532f9f502",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "Закладки"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "4e310ec5ddbf243f",
+    "type": "split",
+    "children": [
+      {
+        "id": "2942353657109a16",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "26d07496095005f4",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "docs/standards/BACKEND_RULES.md",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "Обратные ссылки для BACKEND_RULES"
+            }
+          },
+          {
+            "id": "5a7828b7f5e57998",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "file": "docs/standards/BACKEND_RULES.md",
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "Исходящие ссылки из BACKEND_RULES"
+            }
+          },
+          {
+            "id": "b862a3dbc1033708",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "Теги"
+            }
+          },
+          {
+            "id": "0182cb7b0a035fae",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "Все свойства"
+            }
+          },
+          {
+            "id": "37de4b4b14df5fa9",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "file": "docs/standards/BACKEND_RULES.md",
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "Структура BACKEND_RULES"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:Меню быстрого перехода": false,
+      "graph:Граф": false,
+      "canvas:Создать новый холст": false,
+      "daily-notes:Сегодняшняя заметка": false,
+      "templates:Вставить шаблон": false,
+      "command-palette:Открыть палитру команд": false,
+      "bases:Создать новую базу": false
+    }
+  },
+  "active": "e07fdf8a212e062b",
+  "lastOpenFiles": [
+    "frontend/components/journal-entry-selection-list.tsx",
+    "frontend/app/api/journal/entries/delete-selected/route.ts",
+    "frontend/app/api/journal/entries/delete-selected",
+    "frontend/components/journal-bulk-delete-controls.tsx",
+    "frontend/app/api/journal/entries/delete-all/route.ts",
+    "frontend/app/api/journal/entries/delete-all",
+    "frontend/app/api/journal/entries/delete-for-date/route.ts",
+    "frontend/app/api/journal/entries/delete-for-date",
+    "frontend/app/api/journal/import/excel/preview/route.ts",
+    "frontend/app/api/journal/import/excel/route.ts",
+    "frontend/app/api/journal/import/excel/preview"
+  ]
+}

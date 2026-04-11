@@ -55,6 +55,30 @@ export default async function TeamPage() {
           </div>
         </div>
 
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 16 }}>
+          <div className="report-block" style={{ padding: 18 }}>
+            <div className="badge task">Участники</div>
+            <div className="page-title" style={{ fontSize: "2.2rem", marginTop: 10, WebkitTextFillColor: "initial", background: "none", color: "var(--text)" }}>
+              {(members ?? []).length}
+            </div>
+            <div className="page-sub">В моём контуре</div>
+          </div>
+          <div className="report-block" style={{ padding: 18 }}>
+            <div className="badge bgp">Неделя</div>
+            <div className="page-title" style={{ fontSize: "2.2rem", marginTop: 10, WebkitTextFillColor: "initial", background: "none", color: "var(--text)" }}>
+              {weekStart}
+            </div>
+            <div className="page-sub">Старт отчётного периода</div>
+          </div>
+          <div className="report-block" style={{ padding: 18 }}>
+            <div className="badge acl">Отчёты</div>
+            <div className="page-title" style={{ fontSize: "2.2rem", marginTop: 10, WebkitTextFillColor: "initial", background: "none", color: "var(--text)" }}>
+              {weeklySummary?.reduce((sum, item) => sum + item.total_entries, 0) ?? 0}
+            </div>
+            <div className="page-sub">Записей за неделю</div>
+          </div>
+        </div>
+
         <div className="section-label">Участники</div>
         <div className="plan-list">
           {(members ?? []).length === 0 && (

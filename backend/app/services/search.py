@@ -55,6 +55,7 @@ def _build_activity_search_filters(
     activity_type: ActivityType | None = None,
     status: ActivityStatus | None = None,
     external_ref: str | None = None,
+    service: str | None = None,
     ticket_number: str | None = None,
     date_from: datetime | None = None,
     date_to: datetime | None = None,
@@ -74,6 +75,7 @@ def _build_activity_search_filters(
                 ActivityEntry.title.ilike(pattern),
                 ActivityEntry.description.ilike(pattern),
                 ActivityEntry.external_ref.ilike(pattern),
+                ActivityEntry.service.ilike(pattern),
                 ActivityEntry.ticket_number.ilike(pattern),
             )
         )
@@ -84,6 +86,10 @@ def _build_activity_search_filters(
         filters.append(ActivityEntry.status == status.value)
     if external_ref is not None:
         filters.append(ActivityEntry.external_ref == external_ref)
+    if service is not None:
+        normalized_service = service.strip()
+        if normalized_service:
+            filters.append(ActivityEntry.service == normalized_service)
     if ticket_number is not None:
         filters.append(ActivityEntry.ticket_number == ticket_number)
     if date_from is not None:
@@ -139,6 +145,7 @@ async def search_entries(
     activity_type: ActivityType | None = None,
     status: ActivityStatus | None = None,
     external_ref: str | None = None,
+    service: str | None = None,
     ticket_number: str | None = None,
     date_from: datetime | None = None,
     date_to: datetime | None = None,
@@ -163,6 +170,7 @@ async def search_entries(
         activity_type=activity_type,
         status=status,
         external_ref=external_ref,
+        service=service,
         ticket_number=ticket_number,
         date_from=date_from,
         date_to=date_to,
@@ -189,6 +197,7 @@ async def get_archive_entries(
     date_to: datetime | None = None,
     activity_type: ActivityType | None = None,
     external_ref: str | None = None,
+    service: str | None = None,
     ticket_number: str | None = None,
     limit: int = 200,
     offset: int = 0,
@@ -206,6 +215,7 @@ async def get_archive_entries(
         query=query,
         activity_type=activity_type,
         external_ref=external_ref,
+        service=service,
         ticket_number=ticket_number,
         date_from=date_from,
         date_to=date_to,

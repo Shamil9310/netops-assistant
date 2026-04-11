@@ -2,8 +2,8 @@
 set -euo pipefail
 
 API_BASE_URL="${API_BASE_URL:-http://localhost:8000}"
-USERNAME="${USERNAME:-engineer}"
-PASSWORD="${PASSWORD:-engineer123}"
+USERNAME="${USERNAME:-shamil.isaev}"
+PASSWORD="${PASSWORD:-12345678}"
 
 echo "[smoke] health"
 curl -fsS "${API_BASE_URL}/api/v1/health" >/dev/null
