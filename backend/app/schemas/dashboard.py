@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 
 from pydantic import BaseModel
 
@@ -48,3 +48,40 @@ class TodayDashboardResponse(BaseModel):
 
     # Плановые события на сегодня, которые подтягиваются из отдельного сервиса событий.
     planned_today: list[PlannedEventResponse]
+
+
+class DashboardDatePoint(BaseModel):
+    """Сводка по одному дню для исторического графика."""
+
+    date: date
+    total: int
+
+
+class DashboardWeekPoint(BaseModel):
+    """Сводка по одной неделе для исторического графика."""
+
+    week_start: date
+    week_end: date
+    total: int
+
+
+class DashboardServicePoint(BaseModel):
+    """Сводка по одной услуге для диаграммы распределения."""
+
+    service: str
+    total: int
+    share: float
+
+
+class DashboardAnalyticsResponse(BaseModel):
+    """Сводка для отдельного аналитического дашборда."""
+
+    generated_at: datetime
+    period_start: date
+    period_end: date
+    today_total: int
+    week_total: int
+    total_entries: int
+    daily_series: list[DashboardDatePoint]
+    weekly_series: list[DashboardWeekPoint]
+    service_breakdown: list[DashboardServicePoint]
