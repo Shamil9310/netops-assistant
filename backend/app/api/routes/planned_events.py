@@ -42,6 +42,7 @@ def _to_response(event: PlannedEvent) -> PlannedEventResponse:
 
 
 def _to_activity_entry_response(activity_entry: ActivityEntry) -> ActivityEntryResponse:
+    """Преобразует запись журнала в ответ API после конвертации события."""
     return ActivityEntryResponse(
         id=str(activity_entry.id),
         user_id=str(activity_entry.user_id),
@@ -52,6 +53,7 @@ def _to_activity_entry_response(activity_entry: ActivityEntry) -> ActivityEntryR
         description=activity_entry.description,
         resolution=activity_entry.resolution,
         contact=activity_entry.contact,
+        service=activity_entry.service,
         ticket_number=activity_entry.ticket_number,
         task_url=activity_entry.task_url,
         started_at=(

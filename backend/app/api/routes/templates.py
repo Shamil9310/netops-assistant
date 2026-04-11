@@ -19,6 +19,7 @@ router = APIRouter()
 
 
 def _to_response(template: PlanTemplate) -> PlanTemplateResponse:
+    """Преобразует ORM-шаблон в схему ответа API."""
     return PlanTemplateResponse(
         id=str(template.id),
         user_id=str(template.user_id),
@@ -40,6 +41,7 @@ async def list_templates(
     category: str | None = Query(default=None),
     is_active: bool | None = Query(default=None),
 ) -> list[PlanTemplateResponse]:
+    """Возвращает шаблоны текущего пользователя с фильтрацией."""
     templates = await template_service.list_templates(
         db, current_user.id, category, is_active
     )
@@ -74,6 +76,7 @@ async def create_template(
     current_user: CurrentUser,
     db: AsyncSession = Depends(get_db),
 ) -> PlanTemplateResponse:
+    """Создаёт новый шаблон в библиотеке текущего пользователя."""
     normalized_key = template_service.normalize_template_key(payload.key)
     existing = await template_service.get_template_by_key(
         db, normalized_key, current_user.id
@@ -108,6 +111,7 @@ async def get_template(
     current_user: CurrentUser,
     db: AsyncSession = Depends(get_db),
 ) -> PlanTemplateResponse:
+    """Возвращает шаблон по ID. Доступен только владельцу."""
     template = await template_service.get_template_by_id(
         db, template_id, current_user.id
     )
@@ -125,6 +129,7 @@ async def update_template(
     current_user: CurrentUser,
     db: AsyncSession = Depends(get_db),
 ) -> PlanTemplateResponse:
+    """Обновляет шаблон текущего пользователя."""
     template = await template_service.get_template_by_id(
         db, template_id, current_user.id
     )
@@ -168,6 +173,7 @@ async def delete_template(
     current_user: CurrentUser,
     db: AsyncSession = Depends(get_db),
 ) -> None:
+    """Удаляет шаблон текущего пользователя."""
     template = await template_service.get_template_by_id(
         db, template_id, current_user.id
     )

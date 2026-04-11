@@ -217,6 +217,7 @@ async def list_templates(
     category: str | None = None,
     is_active: bool | None = None,
 ) -> list[PlanTemplate]:
+    """Возвращает шаблоны пользователя с необязательной фильтрацией."""
     query = (
         select(PlanTemplate)
         .where(PlanTemplate.user_id == user_id)
@@ -234,6 +235,7 @@ async def list_templates(
 async def get_template_by_id(
     session: AsyncSession, template_id: UUID, user_id: UUID
 ) -> PlanTemplate | None:
+    """Возвращает шаблон по ID в пределах библиотеки пользователя."""
     result = await session.execute(
         select(PlanTemplate)
         .where(PlanTemplate.id == template_id)
@@ -245,6 +247,7 @@ async def get_template_by_id(
 async def get_template_by_key(
     session: AsyncSession, key: str, user_id: UUID
 ) -> PlanTemplate | None:
+    """Возвращает шаблон по ключу в пределах библиотеки пользователя."""
     result = await session.execute(
         select(PlanTemplate)
         .where(PlanTemplate.key == key)
@@ -263,6 +266,7 @@ async def create_template(
     template_payload: dict[str, object],
     is_active: bool,
 ) -> PlanTemplate:
+    """Создаёт новый шаблон пользователя после валидации входных данных."""
     normalized_key = validate_template_key(key)
     validate_template_payload(template_payload)
 
@@ -291,6 +295,7 @@ async def update_template(
     template_payload: dict[str, object] | None = None,
     is_active: bool | None = None,
 ) -> PlanTemplate:
+    """Обновляет шаблон пользователя только переданными полями."""
     if key is not None:
         template.key = validate_template_key(key)
     if name is not None:
@@ -311,6 +316,7 @@ async def update_template(
 
 
 async def delete_template(session: AsyncSession, template: PlanTemplate) -> None:
+    """Удаляет шаблон пользователя из БД."""
     await session.delete(template)
     await session.commit()
 

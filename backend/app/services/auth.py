@@ -38,6 +38,8 @@ class LocalUserCreateError(ValueError):
 
 @dataclass(slots=True)
 class LocalUserCreateResult:
+    """Результат создания локального пользователя."""
+
     user: User
     generated_password: str | None
 

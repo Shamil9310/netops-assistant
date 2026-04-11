@@ -114,6 +114,7 @@ def calculate_export_expiration(
 
 
 def _docx_paragraph(text: str) -> str:
+    """Создаёт XML-абзац для DOCX из одной строки текста."""
     escaped = _escape_xml(text)
     if not escaped:
         return "<w:p/>"
@@ -121,6 +122,7 @@ def _docx_paragraph(text: str) -> str:
 
 
 def _escape_xml(text: str) -> str:
+    """Экранирует спецсимволы для вставки в XML."""
     return (
         text.replace("&", "&amp;")
         .replace("<", "&lt;")
@@ -131,4 +133,5 @@ def _escape_xml(text: str) -> str:
 
 
 def _escape_pdf_text(text: str) -> str:
+    """Экранирует спецсимволы для PDF content stream."""
     return text.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
