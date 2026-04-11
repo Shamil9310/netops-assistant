@@ -12,7 +12,7 @@ export default async function TemplatesPage() {
       <Sidebar user={user} />
 
       <aside className="filter-col">
-        <div className="filter-col-title">Template Engine</div>
+        <div className="filter-col-title">Шаблоны</div>
         <TemplateControls templates={templates ?? []} />
       </aside>
 
@@ -20,7 +20,24 @@ export default async function TemplatesPage() {
         <div className="page-header">
           <div>
             <div className="page-title">Шаблоны</div>
-            <div className="page-sub">CRUD шаблонов и применение к планам ночных работ</div>
+            <div className="page-sub">Управление шаблонами и применение к планам ночных работ</div>
+          </div>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 16 }}>
+          <div className="report-block" style={{ padding: 18 }}>
+            <div className="badge task">Шаблонов</div>
+            <div className="page-title" style={{ fontSize: "2.2rem", marginTop: 10, WebkitTextFillColor: "initial", background: "none", color: "var(--text)" }}>
+              {(templates ?? []).length}
+            </div>
+            <div className="page-sub">В библиотеке</div>
+          </div>
+          <div className="report-block" style={{ padding: 18 }}>
+            <div className="badge bgp">Состояние</div>
+            <div className="page-title" style={{ fontSize: "2.2rem", marginTop: 10, WebkitTextFillColor: "initial", background: "none", color: "var(--text)" }}>
+              {templates?.some((template) => template.is_active) ? "active" : "—"}
+            </div>
+            <div className="page-sub">Есть активные шаблоны</div>
           </div>
         </div>
 
@@ -40,7 +57,7 @@ export default async function TemplatesPage() {
               <div className="plan-icon bgp">◎</div>
               <div className="plan-info">
                 <div className="plan-title">{template.name}</div>
-                <div className="plan-sub">{template.category} · key: {template.key} · active: {String(template.is_active)}</div>
+                <div className="plan-sub">{template.category} · ключ: {template.key} · активен: {template.is_active ? "да" : "нет"}</div>
                 {template.description && <div className="plan-sub" style={{ marginTop: 4 }}>{template.description}</div>}
               </div>
             </div>

@@ -53,12 +53,22 @@ class ReportRecord(Base):
         index=True,
     )
 
-    # Период отчёта в ISO-формате для отображения в истории.
+    # Период отчёта в ISO-формате для показа в истории.
     period_from: Mapped[str] = mapped_column(String(10), nullable=False)
     period_to: Mapped[str] = mapped_column(String(10), nullable=False)
 
-    # Готовый Markdown-контент отчёта.
+    # Готовое содержимое отчёта в формате Markdown.
     content_md: Mapped[str] = mapped_column(Text, nullable=False)
+
+    # Сохраняем правила фильтрации услуг вместе с отчётом, чтобы refresh
+    # и пересборка final -> draft воспроизводили тот же набор записей.
+    service_filter_mode: Mapped[str] = mapped_column(
+        String(16),
+        nullable=False,
+        default="all",
+        server_default="all",
+    )
+    service_filters: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

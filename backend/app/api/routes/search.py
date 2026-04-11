@@ -22,13 +22,24 @@ def _to_response(entry: ActivityEntry) -> ActivityEntryResponse:
         id=str(entry.id),
         user_id=str(entry.user_id),
         work_date=entry.work_date,
-        activity_type=entry.activity_type,
-        status=entry.status,
+        activity_type=entry.activity_type,  # type: ignore[arg-type]
+        status=entry.status,  # type: ignore[arg-type]
         title=entry.title,
         description=entry.description,
+        resolution=entry.resolution,
+        contact=entry.contact,
+        service=entry.service,
         ticket_number=entry.ticket_number or entry.external_ref,
-        started_at=entry.started_at.timetz().replace(tzinfo=None) if entry.started_at else None,
-        ended_at=entry.finished_at.timetz().replace(tzinfo=None) if entry.finished_at else None,
+        task_url=entry.task_url,
+        started_at=(
+            entry.started_at.timetz().replace(tzinfo=None) if entry.started_at else None
+        ),
+        ended_at=(
+            entry.finished_at.timetz().replace(tzinfo=None)
+            if entry.finished_at
+            else None
+        ),
+        ended_date=(entry.finished_at.date() if entry.finished_at else None),
         is_backdated=entry.created_at.date() > entry.work_date,
         created_at=entry.created_at,
         updated_at=entry.updated_at,
@@ -39,10 +50,14 @@ def _to_response(entry: ActivityEntry) -> ActivityEntryResponse:
 async def search(
     current_user: CurrentUser,
     db: AsyncSession = Depends(get_db),
-    q: str | None = Query(default=None, description="Полнотекстовый поиск по title/description/external_ref"),
+    q: str | None = Query(
+        default=None,
+        description="Полнотекстовый поиск по title/description/external_ref",
+    ),
     activity_type: ActivityType | None = Query(default=None),
     activity_status: ActivityStatus | None = Query(default=None, alias="status"),
     external_ref: str | None = Query(default=None),
+    service: str | None = Query(default=None),
     ticket_number: str | None = Query(default=None),
     date_from: datetime | None = Query(default=None),
     date_to: datetime | None = Query(default=None),
@@ -62,6 +77,7 @@ async def search(
             activity_type=activity_type,
             status=activity_status,
             external_ref=external_ref,
+            service=service,
             ticket_number=ticket_number,
             date_from=date_from,
             date_to=date_to,
@@ -69,7 +85,9 @@ async def search(
             offset=offset,
         )
     except ValueError as error:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error)) from error
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(error)
+        ) from error
     return SearchResponse(
         total=total,
         limit=limit,
@@ -87,6 +105,7 @@ async def archive(
     date_to: datetime | None = Query(default=None),
     activity_type: ActivityType | None = Query(default=None),
     external_ref: str | None = Query(default=None),
+    service: str | None = Query(default=None),
     ticket_number: str | None = Query(default=None),
     limit: int = Query(default=100, ge=1, le=200),
     offset: int = Query(default=0, ge=0),
@@ -105,12 +124,15 @@ async def archive(
             date_to=date_to,
             activity_type=activity_type,
             external_ref=external_ref,
+            service=service,
             ticket_number=ticket_number,
             limit=limit,
             offset=offset,
         )
     except ValueError as error:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(error)) from error
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(error)
+        ) from error
     return ArchiveResponse(
         total=total,
         limit=limit,

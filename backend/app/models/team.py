@@ -8,8 +8,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
 
-# Таблица связи many-to-many: один пользователь может состоять в нескольких командах,
-# одна команда включает нескольких пользователей.
+# Таблица связи "многие ко многим": один пользователь может состоять
+# в нескольких командах, и одна команда может включать нескольких пользователей.
 user_team_association = Table(
     "user_team_members",
     Base.metadata,
@@ -21,7 +21,7 @@ user_team_association = Table(
 class Team(Base):
     """Команда (подразделение) — группа сотрудников под одним руководителем.
 
-    Manager видит данные всех участников своей команды в режиме чтения.
+    Руководитель видит данные всех участников своей команды в режиме чтения.
     Один пользователь может быть в нескольких командах.
     """
 
@@ -31,8 +31,8 @@ class Team(Base):
     name: Mapped[str] = mapped_column(String(128), unique=True, nullable=False)
     description: Mapped[str | None] = mapped_column(String(512), nullable=True)
 
-    # manager_id — пользователь с ролью MANAGER, отвечающий за эту команду.
-    # Может быть None (команда без руководителя — техническое состояние).
+    # Поле manager_id хранит идентификатор руководителя команды.
+    # Значение может быть пустым, если команда создана, но руководитель ещё не назначен.
     manager_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"),
         nullable=True,
@@ -51,7 +51,7 @@ class Team(Base):
         nullable=False,
     )
 
-    # Участники команды — связь через user_team_association.
+    # Участники команды хранятся через отдельную таблицу связи.
     members: Mapped[list] = relationship(
         "User",
         secondary=user_team_association,

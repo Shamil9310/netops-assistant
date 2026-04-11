@@ -1,5 +1,6 @@
 import { Sidebar } from "@/components/sidebar";
 import { getArchiveEntries } from "@/lib/api";
+import { formatDateLabel, formatDateTimeLabel } from "@/lib/date-format";
 import { requireUser } from "@/lib/auth";
 
 type SearchParams = Record<string, string | string[] | undefined>;
@@ -11,21 +12,7 @@ function toSingleValue(value: string | string[] | undefined): string {
   return value ?? "";
 }
 
-function formatDate(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-  return new Intl.DateTimeFormat("ru-RU", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
-}
-
-function mapActivityTypeLabel(activityType: string): string {
+function getActivityTypeLabel(activityType: string): string {
   const labels: Record<string, string> = {
     call: "Звонок",
     ticket: "Заявка",
@@ -44,6 +31,7 @@ export default async function ArchivePage({ searchParams }: { searchParams?: Sea
   const q = toSingleValue(params.q);
   const activityType = toSingleValue(params.activity_type);
   const externalRef = toSingleValue(params.external_ref);
+  const service = toSingleValue(params.service);
   const ticketNumber = toSingleValue(params.ticket_number);
   const dateFrom = toSingleValue(params.date_from);
   const dateTo = toSingleValue(params.date_to);
@@ -52,6 +40,7 @@ export default async function ArchivePage({ searchParams }: { searchParams?: Sea
     q: q || undefined,
     activity_type: activityType || undefined,
     external_ref: externalRef || undefined,
+    service: service || undefined,
     ticket_number: ticketNumber || undefined,
     date_from: dateFrom ? `${dateFrom}T00:00:00Z` : undefined,
     date_to: dateTo ? `${dateTo}T23:59:59Z` : undefined,
@@ -87,12 +76,16 @@ export default async function ArchivePage({ searchParams }: { searchParams?: Sea
           </div>
 
           <div style={{ marginBottom: 16 }}>
-            <div className="filter-date-label">External Ref / SR</div>
+            <div className="filter-date-label">Внешняя ссылка / SR</div>
             <input name="external_ref" className="search-input" placeholder="SR11683266" defaultValue={externalRef} />
           </div>
           <div style={{ marginBottom: 16 }}>
-            <div className="filter-date-label">Ticket number</div>
+            <div className="filter-date-label">Номер заявки</div>
             <input name="ticket_number" className="search-input" placeholder="SR11683266" defaultValue={ticketNumber} />
+          </div>
+          <div style={{ marginBottom: 16 }}>
+            <div className="filter-date-label">Услуга</div>
+            <input name="service" className="search-input" placeholder="TrueConf" defaultValue={service} />
           </div>
 
           <button className="btn btn-primary" type="submit" style={{ width: "100%" }}>
@@ -113,10 +106,35 @@ export default async function ArchivePage({ searchParams }: { searchParams?: Sea
               <input type="hidden" name="date_to" value={dateTo} />
               <input type="hidden" name="activity_type" value={activityType} />
               <input type="hidden" name="external_ref" value={externalRef} />
+              <input type="hidden" name="service" value={service} />
               <input type="hidden" name="ticket_number" value={ticketNumber} />
               <input name="q" defaultValue={q} className="search-input" placeholder="🔍  Поиск по SR, заявке, устройству..." />
               <button className="btn btn-primary" type="submit">Найти</button>
             </form>
+          </div>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 16 }}>
+          <div className="report-block" style={{ padding: 18 }}>
+            <div className="badge task">Найдено</div>
+            <div className="page-title" style={{ fontSize: "2.2rem", marginTop: 10, WebkitTextFillColor: "initial", background: "none", color: "var(--text)" }}>
+              {archive?.total ?? 0}
+            </div>
+            <div className="page-sub">Архивных записей</div>
+          </div>
+          <div className="report-block" style={{ padding: 18 }}>
+            <div className="badge bgp">Период</div>
+            <div className="page-title" style={{ fontSize: "2.2rem", marginTop: 10, WebkitTextFillColor: "initial", background: "none", color: "var(--text)" }}>
+              {dateFrom ? formatDateLabel(dateFrom) : "—"}
+            </div>
+            <div className="page-sub">Начало фильтра</div>
+          </div>
+          <div className="report-block" style={{ padding: 18 }}>
+            <div className="badge acl">Тип</div>
+            <div className="page-title" style={{ fontSize: "2.2rem", marginTop: 10, WebkitTextFillColor: "initial", background: "none", color: "var(--text)" }}>
+              {activityType || "все"}
+            </div>
+            <div className="page-sub">Фильтр по активности</div>
           </div>
         </div>
 
@@ -137,8 +155,9 @@ export default async function ArchivePage({ searchParams }: { searchParams?: Sea
               <div className="plan-info">
                 <div className="plan-title">{entry.title}</div>
                 <div className="plan-sub">
-                  {formatDate(entry.created_at)} · {entry.work_date} · {mapActivityTypeLabel(entry.activity_type)} · {entry.ticket_number ?? "без SR"}
+                  {formatDateTimeLabel(entry.created_at)} · {formatDateLabel(entry.work_date)} · {getActivityTypeLabel(entry.activity_type)} · {entry.ticket_number ?? "без SR"}
                 </div>
+                {entry.service && <div className="plan-sub">Услуга: {entry.service}</div>}
                 {entry.description && <div className="plan-sub" style={{ marginTop: 4 }}>{entry.description}</div>}
               </div>
               <div className="plan-actions">

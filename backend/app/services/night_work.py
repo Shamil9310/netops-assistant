@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from enum import StrEnum
 from datetime import UTC, datetime
 from uuid import UUID
 
@@ -21,9 +22,18 @@ from app.models.template import PlanTemplate
 logger = logging.getLogger(__name__)
 
 _PLAN_ALLOWED_TRANSITIONS: dict[NightWorkPlanStatus, set[NightWorkPlanStatus]] = {
-    NightWorkPlanStatus.DRAFT: {NightWorkPlanStatus.APPROVED, NightWorkPlanStatus.CANCELLED},
-    NightWorkPlanStatus.APPROVED: {NightWorkPlanStatus.IN_PROGRESS, NightWorkPlanStatus.CANCELLED},
-    NightWorkPlanStatus.IN_PROGRESS: {NightWorkPlanStatus.COMPLETED, NightWorkPlanStatus.CANCELLED},
+    NightWorkPlanStatus.DRAFT: {
+        NightWorkPlanStatus.APPROVED,
+        NightWorkPlanStatus.CANCELLED,
+    },
+    NightWorkPlanStatus.APPROVED: {
+        NightWorkPlanStatus.IN_PROGRESS,
+        NightWorkPlanStatus.CANCELLED,
+    },
+    NightWorkPlanStatus.IN_PROGRESS: {
+        NightWorkPlanStatus.COMPLETED,
+        NightWorkPlanStatus.CANCELLED,
+    },
     NightWorkPlanStatus.COMPLETED: set(),
     NightWorkPlanStatus.CANCELLED: set(),
 }
@@ -75,7 +85,9 @@ _STEP_ALLOWED_TRANSITIONS: dict[NightWorkStepStatus, set[NightWorkStepStatus]] =
 }
 
 
-def _validate_transition[T](current_status: T, next_status: T, allowed: dict[T, set[T]], object_name: str) -> None:
+def _validate_transition[T: StrEnum](
+    current_status: T, next_status: T, allowed: dict[T, set[T]], object_name: str
+) -> None:
     """Проверяет, допустим ли переход статуса для сущности.
 
     Бизнес-логика:
@@ -116,7 +128,7 @@ def _resolve_finished_at(
     finished_at_from_request: datetime | None,
     new_status_value: str,
 ) -> datetime | None:
-    """Определяет finished_at для terminal-статусов исполнения."""
+    """Определяет finished_at для конечных статусов исполнения."""
     terminal_statuses = {"completed", "failed", "skipped", "blocked", "cancelled"}
     if finished_at_from_request is not None:
         return finished_at_from_request
@@ -149,7 +161,9 @@ async def list_plans(
     return list(result.scalars().all())
 
 
-async def get_plan_by_id(session: AsyncSession, plan_id: UUID, user_id: UUID) -> NightWorkPlan | None:
+async def get_plan_by_id(
+    session: AsyncSession, plan_id: UUID, user_id: UUID
+) -> NightWorkPlan | None:
     """Возвращает план по ID, только если он принадлежит пользователю (IDOR-защита)."""
     result = await session.execute(
         select(NightWorkPlan)
@@ -201,7 +215,9 @@ async def update_plan_status(
 
     plan.status = new_status.value
     plan.started_at = _resolve_started_at(plan.started_at, started_at, new_status.value)
-    plan.finished_at = _resolve_finished_at(plan.finished_at, finished_at, new_status.value)
+    plan.finished_at = _resolve_finished_at(
+        plan.finished_at, finished_at, new_status.value
+    )
     await session.commit()
     await session.refresh(plan)
     logger.info("Статус плана %s изменён на %s", plan.id, new_status)
@@ -265,7 +281,9 @@ async def add_block(
     return block
 
 
-async def get_block_by_id(session: AsyncSession, block_id: UUID, plan_id: UUID) -> NightWorkBlock | None:
+async def get_block_by_id(
+    session: AsyncSession, block_id: UUID, plan_id: UUID
+) -> NightWorkBlock | None:
     """Возвращает блок по ID, только если он принадлежит указанному плану."""
     result = await session.execute(
         select(NightWorkBlock)
@@ -286,13 +304,41 @@ async def update_block_status(
 ) -> NightWorkBlock:
     """Обновляет статус блока."""
     current_status = NightWorkBlockStatus(block.status)
-    _validate_transition(current_status, new_status, _BLOCK_ALLOWED_TRANSITIONS, "блока")
+    _validate_transition(
+        current_status, new_status, _BLOCK_ALLOWED_TRANSITIONS, "блока"
+    )
 
     block.status = new_status.value
     if result_comment is not None:
         block.result_comment = result_comment
-    block.started_at = _resolve_started_at(block.started_at, started_at, new_status.value)
-    block.finished_at = _resolve_finished_at(block.finished_at, finished_at, new_status.value)
+    block.started_at = _resolve_started_at(
+        block.started_at, started_at, new_status.value
+    )
+    block.finished_at = _resolve_finished_at(
+        block.finished_at, finished_at, new_status.value
+    )
+    await session.commit()
+    await session.refresh(block)
+    return block
+
+
+async def update_block(
+    session: AsyncSession,
+    block: NightWorkBlock,
+    title: str | None,
+    description: str | None,
+    sr_number: str | None,
+    order_index: int | None,
+) -> NightWorkBlock:
+    """Обновляет поля блока."""
+    if title is not None:
+        block.title = title
+    if description is not None:
+        block.description = description
+    if sr_number is not None:
+        block.sr_number = sr_number.strip() or None
+    if order_index is not None:
+        block.order_index = order_index
     await session.commit()
     await session.refresh(block)
     return block
@@ -328,7 +374,9 @@ async def add_step(
     return step
 
 
-async def get_step_by_id(session: AsyncSession, step_id: UUID, block_id: UUID) -> NightWorkStep | None:
+async def get_step_by_id(
+    session: AsyncSession, step_id: UUID, block_id: UUID
+) -> NightWorkStep | None:
     """Возвращает шаг по ID, только если он принадлежит указанному блоку."""
     result = await session.execute(
         select(NightWorkStep)
@@ -363,7 +411,34 @@ async def update_step_status(
     if handoff_to is not None:
         step.handoff_to = handoff_to.strip() or None
     step.started_at = _resolve_started_at(step.started_at, started_at, new_status.value)
-    step.finished_at = _resolve_finished_at(step.finished_at, finished_at, new_status.value)
+    step.finished_at = _resolve_finished_at(
+        step.finished_at, finished_at, new_status.value
+    )
+    await session.commit()
+    await session.refresh(step)
+    return step
+
+
+async def update_step(
+    session: AsyncSession,
+    step: NightWorkStep,
+    title: str | None,
+    description: str | None,
+    order_index: int | None,
+    is_rollback: bool | None,
+    is_post_action: bool | None,
+) -> NightWorkStep:
+    """Обновляет поля шага."""
+    if title is not None:
+        step.title = title
+    if description is not None:
+        step.description = description
+    if order_index is not None:
+        step.order_index = order_index
+    if is_rollback is not None:
+        step.is_rollback = is_rollback
+    if is_post_action is not None:
+        step.is_post_action = is_post_action
     await session.commit()
     await session.refresh(step)
     return step
@@ -388,12 +463,14 @@ async def create_plan_from_template(
     title: str | None = None,
     scheduled_at: datetime | None = None,
 ) -> NightWorkPlan:
-    """Создаёт план ночных работ на основе template_payload."""
+    """Создаёт план ночных работ на основе данных шаблона."""
     blocks_payload = template.template_payload.get("blocks")
     if blocks_payload is not None and not isinstance(blocks_payload, list):
-        raise ValueError("template_payload.blocks должен быть списком")
+        raise ValueError("Поле template_payload.blocks должно быть списком")
 
-    plan_title = render_template_text(title or template.name, variables) or template.name
+    plan_title = (
+        render_template_text(title or template.name, variables) or template.name
+    )
     plan_description = render_template_text(template.description, variables)
 
     plan = NightWorkPlan(
@@ -409,15 +486,30 @@ async def create_plan_from_template(
 
     for block_index, raw_block in enumerate(blocks_payload or []):
         if not isinstance(raw_block, dict):
-            raise ValueError("Каждый block в template_payload.blocks должен быть объектом")
+            raise ValueError(
+                "Каждый элемент в template_payload.blocks должен быть объектом"
+            )
 
-        block_title = render_template_text(str(raw_block.get("title", f"Block {block_index + 1}")), variables) or f"Block {block_index + 1}"
+        block_title = (
+            render_template_text(
+                str(raw_block.get("title", f"Block {block_index + 1}")), variables
+            )
+            or f"Block {block_index + 1}"
+        )
         block_description = render_template_text(
-            raw_block.get("description") if isinstance(raw_block.get("description"), str) else None,
+            (
+                raw_block.get("description")
+                if isinstance(raw_block.get("description"), str)
+                else None
+            ),
             variables,
         )
         block_sr_number = render_template_text(
-            raw_block.get("sr_number") if isinstance(raw_block.get("sr_number"), str) else None,
+            (
+                raw_block.get("sr_number")
+                if isinstance(raw_block.get("sr_number"), str)
+                else None
+            ),
             variables,
         )
 
@@ -440,12 +532,19 @@ async def create_plan_from_template(
             if not isinstance(raw_step, dict):
                 raise ValueError("Каждый step в block.steps должен быть объектом")
 
-            step_title = render_template_text(
-                str(raw_step.get("title", f"Step {step_index + 1}")),
-                variables,
-            ) or f"Step {step_index + 1}"
+            step_title = (
+                render_template_text(
+                    str(raw_step.get("title", f"Step {step_index + 1}")),
+                    variables,
+                )
+                or f"Step {step_index + 1}"
+            )
             step_description = render_template_text(
-                raw_step.get("description") if isinstance(raw_step.get("description"), str) else None,
+                (
+                    raw_step.get("description")
+                    if isinstance(raw_step.get("description"), str)
+                    else None
+                ),
                 variables,
             )
             is_rollback = bool(raw_step.get("is_rollback", False))
@@ -464,7 +563,9 @@ async def create_plan_from_template(
 
     await session.commit()
     await session.refresh(plan)
-    logger.info("Создан план из шаблона: plan_id=%s, template_key=%s", plan.id, template.key)
+    logger.info(
+        "Создан план из шаблона: plan_id=%s, template_key=%s", plan.id, template.key
+    )
     return plan
 
 

@@ -28,7 +28,9 @@ class TeamMemberWeeklySummary:
 
 def _week_boundaries(week_start: date) -> tuple[datetime, datetime]:
     """Возвращает UTC-границы недельного периода от понедельника до воскресенья."""
-    period_start = datetime(week_start.year, week_start.month, week_start.day, 0, 0, 0, tzinfo=UTC)
+    period_start = datetime(
+        week_start.year, week_start.month, week_start.day, 0, 0, 0, tzinfo=UTC
+    )
     period_end = period_start + timedelta(days=7) - timedelta(microseconds=1)
     return period_start, period_end
 
@@ -44,7 +46,9 @@ def build_weekly_team_summary(
     2) не смешивать SQL и правила отображения итоговой статистики.
     """
     member_by_id = {member.id: member for member in members}
-    grouped_entries: dict[UUID, list[ActivityEntry]] = {member.id: [] for member in members}
+    grouped_entries: dict[UUID, list[ActivityEntry]] = {
+        member.id: [] for member in members
+    }
 
     for entry in entries:
         if entry.user_id in grouped_entries:
@@ -72,7 +76,9 @@ def build_weekly_team_summary(
 async def get_manager_members(session: AsyncSession, manager_id: UUID) -> list[User]:
     """Возвращает уникальных сотрудников всех команд, где пользователь — руководитель."""
     result = await session.execute(
-        select(Team).where(Team.manager_id == manager_id).options(selectinload(Team.members))
+        select(Team)
+        .where(Team.manager_id == manager_id)
+        .options(selectinload(Team.members))
     )
     teams = list(result.scalars().all())
 
@@ -83,7 +89,9 @@ async def get_manager_members(session: AsyncSession, manager_id: UUID) -> list[U
     return list(unique_members.values())
 
 
-async def is_user_in_manager_scope(session: AsyncSession, manager_id: UUID, user_id: UUID) -> bool:
+async def is_user_in_manager_scope(
+    session: AsyncSession, manager_id: UUID, user_id: UUID
+) -> bool:
     """Проверяет, что сотрудник действительно относится к контуру руководителя."""
     members = await get_manager_members(session, manager_id)
     return any(member.id == user_id for member in members)

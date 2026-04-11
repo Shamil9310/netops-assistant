@@ -7,6 +7,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import CurrentUser
 from app.db.session import get_db
+from app.models.journal import ActivityEntry
+from app.models.planned_event import PlannedEvent
 from app.schemas.planned_event import (
     PlannedEventCreateRequest,
     PlannedEventResponse,
@@ -18,7 +20,7 @@ from app.services import planned_event as event_service
 router = APIRouter()
 
 
-def _to_response(event: object) -> PlannedEventResponse:
+def _to_response(event: PlannedEvent) -> PlannedEventResponse:
     """Преобразует ORM-модель PlannedEvent в схему ответа API."""
     return PlannedEventResponse(
         id=str(event.id),
@@ -29,24 +31,44 @@ def _to_response(event: object) -> PlannedEventResponse:
         external_ref=event.external_ref,
         scheduled_at=event.scheduled_at,
         is_completed=event.is_completed,
-        linked_journal_entry_id=str(event.linked_journal_entry_id) if event.linked_journal_entry_id else None,
+        linked_journal_entry_id=(
+            str(event.linked_journal_entry_id)
+            if event.linked_journal_entry_id
+            else None
+        ),
         created_at=event.created_at,
         updated_at=event.updated_at,
     )
 
 
-def _to_activity_entry_response(activity_entry: object) -> ActivityEntryResponse:
+def _to_activity_entry_response(activity_entry: ActivityEntry) -> ActivityEntryResponse:
+    """Преобразует запись журнала в ответ API после конвертации события."""
     return ActivityEntryResponse(
         id=str(activity_entry.id),
         user_id=str(activity_entry.user_id),
         work_date=activity_entry.work_date,
-        activity_type=activity_entry.activity_type,
-        status=activity_entry.status,
+        activity_type=activity_entry.activity_type,  # type: ignore[arg-type]
+        status=activity_entry.status,  # type: ignore[arg-type]
         title=activity_entry.title,
         description=activity_entry.description,
+        resolution=activity_entry.resolution,
+        contact=activity_entry.contact,
+        service=activity_entry.service,
         ticket_number=activity_entry.ticket_number,
-        started_at=activity_entry.started_at.timetz().replace(tzinfo=None) if activity_entry.started_at else None,
-        ended_at=activity_entry.finished_at.timetz().replace(tzinfo=None) if activity_entry.finished_at else None,
+        task_url=activity_entry.task_url,
+        started_at=(
+            activity_entry.started_at.timetz().replace(tzinfo=None)
+            if activity_entry.started_at
+            else None
+        ),
+        ended_at=(
+            activity_entry.finished_at.timetz().replace(tzinfo=None)
+            if activity_entry.finished_at
+            else None
+        ),
+        ended_date=(
+            activity_entry.finished_at.date() if activity_entry.finished_at else None
+        ),
         is_backdated=activity_entry.created_at.date() > activity_entry.work_date,
         created_at=activity_entry.created_at,
         updated_at=activity_entry.updated_at,
@@ -73,12 +95,14 @@ async def events_today(
     current_user: CurrentUser,
     db: AsyncSession = Depends(get_db),
 ) -> list[PlannedEventResponse]:
-    """Плановые события на сегодня (auto-include в дашборд дня)."""
+    """Плановые события на сегодня, которые автоматически входят в дневную панель."""
     events = await event_service.list_events_for_today(db, current_user.id)
     return [_to_response(e) for e in events]
 
 
-@router.post("", response_model=PlannedEventResponse, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "", response_model=PlannedEventResponse, status_code=status.HTTP_201_CREATED
+)
 async def create_event(
     payload: PlannedEventCreateRequest,
     current_user: CurrentUser,
@@ -106,7 +130,9 @@ async def get_event(
     """Возвращает плановое событие по ID. Только владелец."""
     event = await event_service.get_event_by_id(db, event_id, current_user.id)
     if event is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Событие не найдено")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Событие не найдено"
+        )
     return _to_response(event)
 
 
@@ -120,7 +146,9 @@ async def update_event(
     """Обновляет плановое событие. Только владелец."""
     event = await event_service.get_event_by_id(db, event_id, current_user.id)
     if event is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Событие не найдено")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Событие не найдено"
+        )
 
     updated = await event_service.update_event(
         db,
@@ -145,7 +173,9 @@ async def delete_event(
     """Удаляет плановое событие. Только владелец."""
     event = await event_service.get_event_by_id(db, event_id, current_user.id)
     if event is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Событие не найдено")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Событие не найдено"
+        )
     await event_service.delete_event(db, event)
 
 
@@ -158,6 +188,8 @@ async def convert_event(
     """Конвертирует плановое событие в запись журнала."""
     event = await event_service.get_event_by_id(db, event_id, current_user.id)
     if event is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Событие не найдено")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Событие не найдено"
+        )
     entry = await event_service.convert_event_to_activity_entry(db, event)
     return _to_activity_entry_response(entry)

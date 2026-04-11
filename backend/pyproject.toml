@@ -16,12 +16,22 @@ dependencies = [
   "pwdlib[argon2]==0.3.0",
   "ldap3==2.9.1",
   "alembic==1.16.1",
+  "openpyxl==3.1.5",
+  "python-multipart==0.0.26",
 ]
 
 [project.optional-dependencies]
 dev = [
   "pytest==8.4.2",
   "pytest-asyncio==1.2.0",
+  "pytest-cov==6.2.1",
+  "ruff==0.13.1",
+  "black==25.9.0",
+  "pycodestyle==2.14.0",
+  "mypy==1.18.2",
+  "eradicate==2.3.0",
+  "interrogate==1.7.0",
+  "pydocstyle==6.3.0",
 ]
 
 [tool.setuptools]
@@ -30,3 +40,23 @@ packages = ["app"]
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
+
+[tool.coverage.run]
+source = ["app"]
+omit = ["app/migrations/*", "app/alembic/*"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+fail_under = 50
+
+[tool.interrogate]
+fail-under = 80
+ignore-init-method = true
+ignore-init-module = true
+ignore-magic = true
+ignore-module = true
+ignore-nested-functions = true
+ignore-private = true
+ignore-property-decorators = true
+exclude = ["tests", "alembic", "../doctor.py", "doctor.py"]

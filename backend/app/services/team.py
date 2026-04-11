@@ -69,7 +69,9 @@ async def add_member_to_team(session: AsyncSession, team: Team, user: User) -> N
         logger.info("Пользователь %s добавлен в команду %s", user.username, team.name)
 
 
-async def remove_member_from_team(session: AsyncSession, team: Team, user: User) -> None:
+async def remove_member_from_team(
+    session: AsyncSession, team: Team, user: User
+) -> None:
     """Удаляет пользователя из команды."""
     if user in team.members:
         team.members.remove(user)
@@ -91,13 +93,17 @@ async def get_user_by_id(session: AsyncSession, user_id: UUID) -> User | None:
     return result.scalar_one_or_none()
 
 
-async def get_team_members_for_manager(session: AsyncSession, manager_id: UUID) -> list[User]:
+async def get_team_members_for_manager(
+    session: AsyncSession, manager_id: UUID
+) -> list[User]:
     """Возвращает всех участников команд, где текущий пользователь — менеджер.
 
     Менеджер видит только своих подчинённых — это ключевое ограничение видимости данных.
     """
     result = await session.execute(
-        select(Team).where(Team.manager_id == manager_id).options(selectinload(Team.members))
+        select(Team)
+        .where(Team.manager_id == manager_id)
+        .options(selectinload(Team.members))
     )
     teams = list(result.scalars().all())
 
