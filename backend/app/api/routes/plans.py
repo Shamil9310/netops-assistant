@@ -18,6 +18,7 @@ from app.schemas.night_work import (
     NightWorkBlockCreateRequest,
     NightWorkBlockResponse,
     NightWorkBlockStatusRequest,
+    NightWorkBlockUpdateRequest,
     NightWorkPlanCreateRequest,
     NightWorkPlanResponse,
     NightWorkPlanStatusRequest,
@@ -25,6 +26,7 @@ from app.schemas.night_work import (
     NightWorkStepCreateRequest,
     NightWorkStepResponse,
     NightWorkStepStatusRequest,
+    NightWorkStepUpdateRequest,
 )
 from app.services import template as template_service
 from app.services import night_work as nw_service
@@ -33,6 +35,7 @@ router = APIRouter()
 
 
 def _step_to_response(step: NightWorkStep) -> NightWorkStepResponse:
+    """Преобразует ORM-шаг плана в схему ответа API."""
     return NightWorkStepResponse(
         id=str(step.id),
         block_id=str(step.block_id),
@@ -53,6 +56,7 @@ def _step_to_response(step: NightWorkStep) -> NightWorkStepResponse:
 
 
 def _block_to_response(block: NightWorkBlock) -> NightWorkBlockResponse:
+    """Преобразует ORM-блок плана в схему ответа API."""
     return NightWorkBlockResponse(
         id=str(block.id),
         plan_id=str(block.plan_id),
@@ -70,6 +74,7 @@ def _block_to_response(block: NightWorkBlock) -> NightWorkBlockResponse:
 
 
 def _plan_to_response(plan: NightWorkPlan) -> NightWorkPlanResponse:
+    """Преобразует ORM-план в схему ответа API."""
     return NightWorkPlanResponse(
         id=str(plan.id),
         user_id=str(plan.user_id),
@@ -97,7 +102,7 @@ async def list_plans(
     db: AsyncSession = Depends(get_db),
     status: NightWorkPlanStatus | None = Query(default=None),
 ) -> list[NightWorkPlanResponse]:
-    """Список планов ночных работ текущего пользователя."""
+    """Возвращает планы ночных работ текущего пользователя."""
     plans = await nw_service.list_plans(db, current_user.id, status)
     return [_plan_to_response(p) for p in plans]
 
@@ -326,6 +331,36 @@ async def update_block_status(
     return _block_to_response(updated)
 
 
+@router.patch("/{plan_id}/blocks/{block_id}", response_model=NightWorkBlockResponse)
+async def update_block(
+    plan_id: UUID,
+    block_id: UUID,
+    payload: NightWorkBlockUpdateRequest,
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> NightWorkBlockResponse:
+    """Обновляет поля блока."""
+    plan = await nw_service.get_plan_by_id(db, plan_id, current_user.id)
+    if plan is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="План не найден"
+        )
+    block = await nw_service.get_block_by_id(db, block_id, plan_id)
+    if block is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Блок не найден"
+        )
+    updated = await nw_service.update_block(
+        db,
+        block,
+        payload.title,
+        payload.description,
+        payload.sr_number,
+        payload.order_index,
+    )
+    return _block_to_response(updated)
+
+
 # ---------------------------------------------------------------------------
 # Шаги
 # ---------------------------------------------------------------------------
@@ -410,4 +445,44 @@ async def update_step_status(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail=str(error)
         ) from error
+    return _step_to_response(updated)
+
+
+@router.patch(
+    "/{plan_id}/blocks/{block_id}/steps/{step_id}",
+    response_model=NightWorkStepResponse,
+)
+async def update_step(
+    plan_id: UUID,
+    block_id: UUID,
+    step_id: UUID,
+    payload: NightWorkStepUpdateRequest,
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> NightWorkStepResponse:
+    """Обновляет поля шага."""
+    plan = await nw_service.get_plan_by_id(db, plan_id, current_user.id)
+    if plan is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="План не найден"
+        )
+    block = await nw_service.get_block_by_id(db, block_id, plan_id)
+    if block is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Блок не найден"
+        )
+    step = await nw_service.get_step_by_id(db, step_id, block_id)
+    if step is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Шаг не найден"
+        )
+    updated = await nw_service.update_step(
+        db,
+        step,
+        payload.title,
+        payload.description,
+        payload.order_index,
+        payload.is_rollback,
+        payload.is_post_action,
+    )
     return _step_to_response(updated)

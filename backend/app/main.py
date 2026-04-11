@@ -13,6 +13,10 @@ from app.api.router import api_router
 from app.core.config import settings
 from app.db.session import SessionLocal
 from app.services.auth import ensure_bootstrap_user
+from app.services.schema_guard import (
+    SchemaVersionMismatchError,
+    ensure_schema_is_current,
+)
 
 # Логгер приложения: вместо print() используем единый механизм журналирования.
 logger = logging.getLogger(__name__)
@@ -28,9 +32,18 @@ async def lifespan(_: FastAPI):
     """
     logger.info("Старт приложения, окружение: %s", settings.environment)
 
-    # Начальный пользователь нужен для первого входа в систему.
-    # Миграции Alembic должны быть применены до старта приложения.
     async with SessionLocal() as session:
+        # Сначала валидируем схему БД.
+        # Если код и миграции рассинхронизированы, приложение должно упасть
+        # до приёма первого пользовательского запроса.
+        try:
+            await ensure_schema_is_current(session)
+        except SchemaVersionMismatchError:
+            logger.exception("Схема базы данных не готова к запуску backend")
+            raise
+
+        # Начальный пользователь нужен для первого входа в систему.
+        # До этой точки мы уже убедились, что схема БД актуальна.
         await ensure_bootstrap_user(session)
 
     logger.info("Bootstrap-пользователь проверен, приложение готово")

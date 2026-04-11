@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 from datetime import UTC, date, datetime, timedelta
 from uuid import UUID
@@ -13,6 +14,7 @@ from app.models.night_work import NightWorkBlock, NightWorkPlan
 from app.services.journal import list_entries_for_date
 
 logger = logging.getLogger(__name__)
+ServiceFilterMode = str
 
 # Заголовки типов активности на русском — используются в отчётах.
 _ACTIVITY_TYPE_LABELS: dict[str, str] = {
@@ -45,6 +47,20 @@ _NIGHT_WORK_STATUS_LABELS: dict[str, str] = {
 }
 
 _REPORT_FORMAT_PROFILES: set[str] = {"engineer", "manager"}
+_WEEKDAY_LABELS: dict[int, str] = {
+    0: "Понедельник",
+    1: "Вторник",
+    2: "Среда",
+    3: "Четверг",
+    4: "Пятница",
+    5: "Суббота",
+    6: "Воскресенье",
+}
+
+
+def _format_weekday_day(day: date) -> str:
+    """Форматирует дату вместе с названием дня недели."""
+    return f"{day.strftime('%d.%m.%Y')} ({_WEEKDAY_LABELS[day.weekday()]})"
 
 
 def _format_entry(entry: ActivityEntry, index: int) -> str:
@@ -94,6 +110,83 @@ def _build_summary_section(entries: list[ActivityEntry]) -> str:
     return "\n".join(lines)
 
 
+def serialize_service_filters(service_filters: list[str]) -> str | None:
+    """Сериализует список услуг для сохранения в записи отчёта."""
+    if not service_filters:
+        return None
+    return json.dumps(service_filters, ensure_ascii=False)
+
+
+def deserialize_service_filters(service_filters_raw: str | None) -> list[str]:
+    """Восстанавливает список услуг из записи отчёта."""
+    if not service_filters_raw:
+        return []
+    try:
+        parsed_value = json.loads(service_filters_raw)
+    except json.JSONDecodeError:
+        return []
+    if not isinstance(parsed_value, list):
+        return []
+    return [str(item).strip() for item in parsed_value if str(item).strip()]
+
+
+def _filter_entries_by_services(
+    entries: list[ActivityEntry],
+    service_filter_mode: ServiceFilterMode,
+    service_filters: list[str],
+) -> list[ActivityEntry]:
+    """Фильтрует записи отчёта по услугам.
+
+    Поддерживаем четыре режима:
+    - all: фильтр выключен;
+    - include: оставить только выбранные услуги;
+    - exclude: исключить выбранные услуги;
+    - empty: оставить только записи без услуги.
+    """
+    if service_filter_mode == "all":
+        return entries
+
+    if service_filter_mode == "empty":
+        return [entry for entry in entries if not (entry.service or "").strip()]
+
+    normalized_filters = {
+        service.strip() for service in service_filters if service.strip()
+    }
+    if not normalized_filters:
+        return entries
+
+    if service_filter_mode == "include":
+        return [
+            entry
+            for entry in entries
+            if (entry.service or "").strip() in normalized_filters
+        ]
+
+    return [
+        entry
+        for entry in entries
+        if (entry.service or "").strip() not in normalized_filters
+    ]
+
+
+def _build_service_filter_note(
+    service_filter_mode: ServiceFilterMode,
+    service_filters: list[str],
+) -> str | None:
+    """Формирует читаемую подпись применённого фильтра услуг."""
+    if service_filter_mode == "all":
+        return None
+    if service_filter_mode == "empty":
+        return "только записи без услуги"
+    if not service_filters:
+        return None
+
+    joined_services = ", ".join(service_filters)
+    if service_filter_mode == "include":
+        return f"только услуги: {joined_services}"
+    return f"все услуги, кроме: {joined_services}"
+
+
 def _format_total_duration(entries: list[ActivityEntry]) -> str:
     """Считает суммарное время по записям, где указаны начало и завершение."""
     total_minutes = 0
@@ -115,6 +208,8 @@ async def generate_daily_report(
     user_id: UUID,
     report_date: date,
     author_name: str,
+    service_filter_mode: ServiceFilterMode = "all",
+    service_filters: list[str] | None = None,
 ) -> str:
     """Генерирует дневной отчёт в формате Markdown.
 
@@ -126,7 +221,12 @@ async def generate_daily_report(
     )
     day_end = day_start + timedelta(days=1) - timedelta(microseconds=1)
 
+    service_filters = service_filters or []
     entries = await list_entries_for_date(session, user_id, day_start, day_end)
+    entries = _filter_entries_by_services(entries, service_filter_mode, service_filters)
+    service_filter_note = _build_service_filter_note(
+        service_filter_mode, service_filters
+    )
 
     date_str = report_date.strftime("%d.%m.%Y")
     lines = [
@@ -135,6 +235,8 @@ async def generate_daily_report(
         f"**Дата:** {date_str}",
         f"**Сформирован:** {datetime.now(UTC).strftime('%d.%m.%Y %H:%M')} UTC\n",
     ]
+    if service_filter_note:
+        lines.append(f"**Фильтр услуг:** {service_filter_note}\n")
 
     if not entries:
         lines.append("_Записей за день не найдено._")
@@ -155,6 +257,8 @@ async def generate_weekly_report(
     user_id: UUID,
     week_start: date,
     author_name: str,
+    service_filter_mode: ServiceFilterMode = "all",
+    service_filters: list[str] | None = None,
 ) -> str:
     """Генерирует недельный отчёт в формате Markdown.
 
@@ -169,7 +273,12 @@ async def generate_weekly_report(
         week_end.year, week_end.month, week_end.day, 23, 59, 59, tzinfo=UTC
     )
 
+    service_filters = service_filters or []
     entries = await list_entries_for_date(session, user_id, range_start, range_end)
+    entries = _filter_entries_by_services(entries, service_filter_mode, service_filters)
+    service_filter_note = _build_service_filter_note(
+        service_filter_mode, service_filters
+    )
 
     start_str = week_start.strftime("%d.%m.%Y")
     end_str = week_end.strftime("%d.%m.%Y")
@@ -180,6 +289,8 @@ async def generate_weekly_report(
         f"**Период:** {start_str} – {end_str}",
         f"**Сформирован:** {datetime.now(UTC).strftime('%d.%m.%Y %H:%M')} UTC\n",
     ]
+    if service_filter_note:
+        lines.append(f"**Фильтр услуг:** {service_filter_note}\n")
 
     if not entries:
         lines.append("_Записей за период не найдено._")
@@ -192,7 +303,7 @@ async def generate_weekly_report(
 
         for day in sorted(days.keys()):
             day_entries = days[day]
-            lines.append(f"## {day.strftime('%d.%m.%Y (%A)')}\n")
+            lines.append(f"## {_format_weekday_day(day)}\n")
             for i, entry in enumerate(day_entries, 1):
                 lines.append(_format_entry(entry, i))
                 lines.append("")
@@ -212,6 +323,8 @@ async def generate_range_report(
     date_from: date,
     date_to: date,
     author_name: str,
+    service_filter_mode: ServiceFilterMode = "all",
+    service_filters: list[str] | None = None,
 ) -> str:
     """Генерирует отчёт за произвольный период в формате Markdown.
 
@@ -225,7 +338,12 @@ async def generate_range_report(
         date_to.year, date_to.month, date_to.day, 23, 59, 59, tzinfo=UTC
     )
 
+    service_filters = service_filters or []
     entries = await list_entries_for_date(session, user_id, range_start, range_end)
+    entries = _filter_entries_by_services(entries, service_filter_mode, service_filters)
+    service_filter_note = _build_service_filter_note(
+        service_filter_mode, service_filters
+    )
 
     from_str = date_from.strftime("%d.%m.%Y")
     to_str = date_to.strftime("%d.%m.%Y")
@@ -236,6 +354,8 @@ async def generate_range_report(
         f"**Период:** {from_str} – {to_str}",
         f"**Сформирован:** {datetime.now(UTC).strftime('%d.%m.%Y %H:%M')} UTC\n",
     ]
+    if service_filter_note:
+        lines.append(f"**Фильтр услуг:** {service_filter_note}\n")
 
     if not entries:
         lines.append("_Записей за период не найдено._")

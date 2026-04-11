@@ -24,6 +24,23 @@ export default async function TemplatesPage() {
           </div>
         </div>
 
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 16 }}>
+          <div className="report-block" style={{ padding: 18 }}>
+            <div className="badge task">Шаблонов</div>
+            <div className="page-title" style={{ fontSize: "2.2rem", marginTop: 10, WebkitTextFillColor: "initial", background: "none", color: "var(--text)" }}>
+              {(templates ?? []).length}
+            </div>
+            <div className="page-sub">В библиотеке</div>
+          </div>
+          <div className="report-block" style={{ padding: 18 }}>
+            <div className="badge bgp">Состояние</div>
+            <div className="page-title" style={{ fontSize: "2.2rem", marginTop: 10, WebkitTextFillColor: "initial", background: "none", color: "var(--text)" }}>
+              {templates?.some((template) => template.is_active) ? "active" : "—"}
+            </div>
+            <div className="page-sub">Есть активные шаблоны</div>
+          </div>
+        </div>
+
         <div className="section-label">Библиотека шаблонов</div>
         <div className="plan-list">
           {(templates ?? []).length === 0 && (

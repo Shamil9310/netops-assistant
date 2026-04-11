@@ -1,8 +1,11 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
+import { extractErrorMessage } from "@/lib/api-error";
 import { SERVER_API_BASE_URL } from "@/lib/api-url";
 import { CSRF_COOKIE_NAME, SESSION_COOKIE_NAME } from "@/lib/constants";
+
+const FLASH_COOKIE_NAME = "developer_user_creation_flash";
 
 type CreateLocalUserPayload = {
   username: string;
@@ -10,10 +13,6 @@ type CreateLocalUserPayload = {
   password?: string;
   role: string;
   is_active: boolean;
-};
-
-type ErrorResponse = {
-  detail?: string;
 };
 
 type CreateLocalUserResponse = {
@@ -24,9 +23,9 @@ type CreateLocalUserResponse = {
 };
 
 function isCreateLocalUserResponse(
-  value: CreateLocalUserResponse | ErrorResponse,
+  value: CreateLocalUserResponse | unknown,
 ): value is CreateLocalUserResponse {
-  return "user" in value || "generated_password" in value;
+  return typeof value === "object" && value !== null && ("user" in value || "generated_password" in value);
 }
 
 export async function POST(request: Request) {
@@ -64,11 +63,9 @@ export async function POST(request: Request) {
     cache: "no-store",
   });
 
-  const responseBody = (await backendResponse.json()) as CreateLocalUserResponse | ErrorResponse;
+  const responseBody = (await backendResponse.json()) as CreateLocalUserResponse | unknown;
   if (!backendResponse.ok) {
-    const detail = "detail" in responseBody && typeof responseBody.detail === "string"
-      ? responseBody.detail
-      : "Не удалось создать пользователя";
+    const detail = extractErrorMessage(responseBody, "Не удалось создать пользователя");
 
     if (isHtmlForm) {
       return redirectTo(`/developer/users?create_user_error=${encodeURIComponent(detail)}`);
@@ -80,16 +77,27 @@ export async function POST(request: Request) {
     const generatedPassword = isCreateLocalUserResponse(responseBody) && typeof responseBody.generated_password === "string"
       ? responseBody.generated_password
       : "";
-    const createdUsername = isCreateLocalUserResponse(responseBody) ? responseBody.user?.username ?? "" : "";
-    const successUrl = new URL("/developer/users", request.url);
-    successUrl.searchParams.set("create_user_success", "1");
-    if (generatedPassword) {
-      successUrl.searchParams.set("generated_password", generatedPassword);
-    }
-    if (createdUsername) {
-      successUrl.searchParams.set("created_username", createdUsername);
-    }
-    return redirectTo(successUrl.pathname + successUrl.search);
+    const createdUsername = isCreateLocalUserResponse(responseBody)
+      ? responseBody.user?.username ?? ""
+      : "";
+    const response = redirectTo("/developer/users");
+    response.cookies.set(
+      FLASH_COOKIE_NAME,
+      encodeURIComponent(
+        JSON.stringify({
+          generated_password: generatedPassword,
+          created_username: createdUsername,
+        }),
+      ),
+      {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+        path: "/developer/users",
+        maxAge: 60,
+      },
+    );
+    return response;
   }
   return NextResponse.json(responseBody, { status: backendResponse.status });
 }

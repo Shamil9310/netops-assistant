@@ -322,6 +322,28 @@ async def update_block_status(
     return block
 
 
+async def update_block(
+    session: AsyncSession,
+    block: NightWorkBlock,
+    title: str | None,
+    description: str | None,
+    sr_number: str | None,
+    order_index: int | None,
+) -> NightWorkBlock:
+    """Обновляет поля блока."""
+    if title is not None:
+        block.title = title
+    if description is not None:
+        block.description = description
+    if sr_number is not None:
+        block.sr_number = sr_number.strip() or None
+    if order_index is not None:
+        block.order_index = order_index
+    await session.commit()
+    await session.refresh(block)
+    return block
+
+
 # ---------------------------------------------------------------------------
 # Шаги
 # ---------------------------------------------------------------------------
@@ -392,6 +414,31 @@ async def update_step_status(
     step.finished_at = _resolve_finished_at(
         step.finished_at, finished_at, new_status.value
     )
+    await session.commit()
+    await session.refresh(step)
+    return step
+
+
+async def update_step(
+    session: AsyncSession,
+    step: NightWorkStep,
+    title: str | None,
+    description: str | None,
+    order_index: int | None,
+    is_rollback: bool | None,
+    is_post_action: bool | None,
+) -> NightWorkStep:
+    """Обновляет поля шага."""
+    if title is not None:
+        step.title = title
+    if description is not None:
+        step.description = description
+    if order_index is not None:
+        step.order_index = order_index
+    if is_rollback is not None:
+        step.is_rollback = is_rollback
+    if is_post_action is not None:
+        step.is_post_action = is_post_action
     await session.commit()
     await session.refresh(step)
     return step

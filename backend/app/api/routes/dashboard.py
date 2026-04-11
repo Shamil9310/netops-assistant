@@ -7,8 +7,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import CurrentUser
 from app.db.session import get_db
-from app.schemas.dashboard import TodayDashboardResponse
-from app.services.dashboard import build_day_dashboard, build_today_dashboard
+from app.schemas.dashboard import DashboardAnalyticsResponse, TodayDashboardResponse
+from app.services.dashboard import (
+    build_analytics_dashboard,
+    build_day_dashboard,
+    build_today_dashboard,
+)
 
 router = APIRouter()
 
@@ -34,3 +38,12 @@ async def day_dashboard(
 ) -> TodayDashboardResponse:
     """Дашборд выбранного дня по work_date."""
     return await build_day_dashboard(db, current_user.id, work_date)
+
+
+@router.get("/analytics", response_model=DashboardAnalyticsResponse)
+async def analytics_dashboard(
+    current_user: CurrentUser,
+    db: AsyncSession = Depends(get_db),
+) -> DashboardAnalyticsResponse:
+    """Историческая аналитика по журналу и услугам."""
+    return await build_analytics_dashboard(db, current_user.id)

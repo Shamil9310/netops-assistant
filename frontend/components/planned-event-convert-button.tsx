@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { extractErrorMessage } from "@/lib/api-error";
+
 type Props = {
   eventId: string;
 };
@@ -19,9 +21,9 @@ export function PlannedEventConvertButton({ eventId }: Props) {
       const response = await fetch(`/api/planned-events/${eventId}/convert`, {
         method: "POST",
       });
-      const responsePayload = (await response.json()) as { detail?: string };
+      const responsePayload = (await response.json()) as unknown;
       if (!response.ok) {
-        setError(responsePayload.detail ?? "Не удалось конвертировать");
+        setError(extractErrorMessage(responsePayload, "Не удалось конвертировать"));
         return;
       }
       router.refresh();
@@ -41,8 +43,8 @@ export function PlannedEventConvertButton({ eventId }: Props) {
         method: "DELETE",
       });
       if (!response.ok) {
-        const responsePayload = (await response.json()) as { detail?: string };
-        setError(responsePayload.detail ?? "Ошибка удаления");
+        const responsePayload = (await response.json()) as unknown;
+        setError(extractErrorMessage(responsePayload, "Ошибка удаления"));
         return;
       }
       router.refresh();

@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 
+import { extractErrorMessage } from "@/lib/api-error";
+
 type TemplateOption = {
   id: string;
   name: string;
@@ -75,9 +77,9 @@ export function TemplateControls({ templates }: { templates: TemplateOption[] })
       const responsePayload =
         response.status === 204
           ? null
-          : ((await response.json()) as { detail?: string });
+          : ((await response.json()) as unknown);
       if (!response.ok) {
-        setError(responsePayload?.detail ?? "Не удалось создать шаблон");
+        setError(extractErrorMessage(responsePayload, "Не удалось создать шаблон"));
         return;
       }
       router.refresh();
@@ -105,15 +107,12 @@ export function TemplateControls({ templates }: { templates: TemplateOption[] })
           variables,
         }),
       });
-      const responsePayload = (await response.json()) as {
-        detail?: string;
-        id?: string;
-      };
+      const responsePayload = (await response.json()) as { id?: string } & Record<string, unknown>;
       if (!response.ok || !responsePayload.id) {
-        setError(responsePayload.detail ?? "Не удалось создать план из шаблона");
+        setError(extractErrorMessage(responsePayload, "Не удалось создать план из шаблона"));
         return;
       }
-      router.push(`/plans?plan_id=${responsePayload.id}`);
+      router.push(`/kanban?plan_id=${responsePayload.id}`);
       router.refresh();
     } catch {
       setError("Некорректные JSON-переменные");
@@ -134,9 +133,9 @@ export function TemplateControls({ templates }: { templates: TemplateOption[] })
       const responsePayload =
         response.status === 204
           ? null
-          : ((await response.json()) as { detail?: string });
+          : ((await response.json()) as unknown);
       if (!response.ok) {
-        setError(responsePayload?.detail ?? "Не удалось удалить шаблон");
+        setError(extractErrorMessage(responsePayload, "Не удалось удалить шаблон"));
         return;
       }
       router.refresh();
@@ -157,9 +156,9 @@ export function TemplateControls({ templates }: { templates: TemplateOption[] })
       const responsePayload =
         response.status === 204
           ? null
-          : ((await response.json()) as { detail?: string });
+          : ((await response.json()) as unknown);
       if (!response.ok) {
-        setError(responsePayload?.detail ?? "Не удалось импортировать шаблоны");
+        setError(extractErrorMessage(responsePayload, "Не удалось импортировать шаблоны"));
         return;
       }
       router.refresh();

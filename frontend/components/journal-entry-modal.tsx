@@ -3,11 +3,13 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { extractErrorMessage } from "@/lib/api-error";
 import type { JournalActivityStatus } from "@/lib/api";
 
 type Props = {
   entryId: string;
   ticketNumber: string | null;
+  title: string;
   activityType: string;
   status: JournalActivityStatus;
   workDate: string;
@@ -42,9 +44,32 @@ const ALLOWED_TRANSITIONS: Record<JournalActivityStatus, JournalActivityStatus[]
   cancelled: [],
 };
 
+function toClockInputValue(timeValue: string | null): string {
+  if (!timeValue) {
+    return "";
+  }
+
+  if (/^\d{2}:\d{2}/.test(timeValue)) {
+    return timeValue.slice(0, 5);
+  }
+
+  const parsedDate = new Date(timeValue);
+  if (Number.isNaN(parsedDate.getTime())) {
+    return "";
+  }
+
+  return new Intl.DateTimeFormat("ru-RU", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "Europe/Moscow",
+  }).format(parsedDate);
+}
+
 export function JournalEntryModal({
   entryId,
   ticketNumber,
+  title,
   activityType,
   status,
   workDate,
@@ -59,13 +84,14 @@ export function JournalEntryModal({
 }: Props) {
   const router = useRouter();
   const [isEditing, setIsEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState(title);
   const [editDescription, setEditDescription] = useState(description ?? "");
   const [editResolution, setEditResolution] = useState(resolution ?? "");
   const [editContact, setEditContact] = useState(contact ?? "");
   const [editTaskUrl, setEditTaskUrl] = useState(taskUrl ?? "");
   const [editStatus, setEditStatus] = useState<JournalActivityStatus>(status);
-  const [editStartedAt, setEditStartedAt] = useState(startedAt ? startedAt.slice(11, 16) : "");
-  const [editEndedAt, setEditEndedAt] = useState(endedAt ? endedAt.slice(11, 16) : "");
+  const [editStartedAt, setEditStartedAt] = useState(toClockInputValue(startedAt));
+  const [editEndedAt, setEditEndedAt] = useState(toClockInputValue(endedAt));
   const [editEndedDate, setEditEndedDate] = useState(endedDate ?? workDate);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -105,6 +131,7 @@ export function JournalEntryModal({
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          title: editTitle,
           status: editStatus,
           description: editDescription || null,
           resolution: editResolution || null,
@@ -116,8 +143,8 @@ export function JournalEntryModal({
         }),
       });
       if (!response.ok) {
-        const responsePayload = (await response.json()) as { detail?: string };
-        setError(responsePayload.detail ?? "Ошибка обновления");
+        const responsePayload = (await response.json()) as unknown;
+        setError(extractErrorMessage(responsePayload, "Ошибка обновления"));
         return;
       }
       setIsEditing(false);
@@ -142,8 +169,8 @@ export function JournalEntryModal({
         body: JSON.stringify({ status: newStatus }),
       });
       if (!response.ok) {
-        const responsePayload = (await response.json()) as { detail?: string };
-        setError(responsePayload.detail ?? "Ошибка обновления статуса");
+        const responsePayload = (await response.json()) as unknown;
+        setError(extractErrorMessage(responsePayload, "Ошибка обновления статуса"));
         return;
       }
       router.refresh();
@@ -164,7 +191,7 @@ export function JournalEntryModal({
       <div className="modal">
         <div className="modal-header">
           <div>
-            <div className="modal-sr">{ticketNumber ?? activityType}</div>
+            <div className="modal-sr">{title}</div>
             <div className="modal-meta" style={{ display: "flex", alignItems: "center", gap: 6 }}>
               <span>{activityType}</span>
               <span>·</span>
@@ -173,7 +200,7 @@ export function JournalEntryModal({
               <span>{formatClockTime(startedAt)}–{formatClockTime(endedAt)}</span>
             </div>
           </div>
-          <button className="modal-close" onClick={onClose}>✕</button>
+          <button type="button" className="modal-close" onClick={onClose}>✕</button>
         </div>
 
         <div className="modal-body">
@@ -184,6 +211,7 @@ export function JournalEntryModal({
                 {transitions.map((s) => (
                   <button
                     key={s}
+                    type="button"
                     className="btn btn-sm"
                     style={{ borderColor: STATUS_COLORS[s], color: STATUS_COLORS[s] }}
                     onClick={() => onQuickStatusChange(s)}
@@ -193,6 +221,19 @@ export function JournalEntryModal({
                   </button>
                 ))}
               </div>
+            </div>
+          )}
+
+          {isEditing && (
+            <div>
+              <div className="modal-field-label">{activityType === "call" ? "Тема звонка" : "Тема"}</div>
+              <input
+                className="filter-date-input"
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                placeholder={activityType === "call" ? "Тема звонка" : "Тема"}
+                style={{ marginBottom: 0 }}
+              />
             </div>
           )}
 
@@ -248,55 +289,81 @@ export function JournalEntryModal({
             )}
           </div>
 
-          <div>
-            <div className="modal-field-label">Ссылка на задачу</div>
-            {!isEditing && (
-              <div className="modal-field-hint">Ссылка на BPM, SR, карточку заявки или внешний источник задачи.</div>
-            )}
-            {isEditing ? (
-              <input
-                className="filter-date-input"
-                value={editTaskUrl}
-                onChange={(e) => setEditTaskUrl(e.target.value)}
-                placeholder="https://..."
-                style={{ marginBottom: 0 }}
-              />
-            ) : (
-              taskUrl ? (
-                <a
-                  className="modal-field-text"
-                  href={taskUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  style={{ wordBreak: "break-all" }}
-                >
-                  {taskUrl}
-                </a>
+          {activityType === "call" ? (
+            <div>
+              <div className="modal-field-label">Программа звонка</div>
+              {!isEditing && (
+                <div className="modal-field-hint">
+                  Программа, через которую проходил звонок, например TrueConf.
+                </div>
+              )}
+              {isEditing ? (
+                <input
+                  className="filter-date-input"
+                  value={editContact}
+                  onChange={(e) => setEditContact(e.target.value)}
+                  placeholder="TrueConf"
+                  style={{ marginBottom: 0 }}
+                />
+              ) : contact ? (
+                <div className="modal-field-text">{contact}</div>
               ) : (
                 <div className="modal-field-empty">Не заполнено</div>
-              )
-            )}
-          </div>
+              )}
+            </div>
+          ) : (
+            <>
+              <div>
+                <div className="modal-field-label">Ссылка на задачу</div>
+                {!isEditing && (
+                  <div className="modal-field-hint">Ссылка на SR, карточку заявки или внешний источник задачи.</div>
+                )}
+                {isEditing ? (
+                  <input
+                    className="filter-date-input"
+                    value={editTaskUrl}
+                    onChange={(e) => setEditTaskUrl(e.target.value)}
+                    placeholder="https://..."
+                    style={{ marginBottom: 0 }}
+                  />
+                ) : (
+                  taskUrl ? (
+                    <a
+                      className="modal-field-text"
+                      href={taskUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{ wordBreak: "break-all" }}
+                    >
+                      {taskUrl}
+                    </a>
+                  ) : (
+                    <div className="modal-field-empty">Не заполнено</div>
+                  )
+                )}
+              </div>
 
-          <div>
-            <div className="modal-field-label">Контакт</div>
-            {!isEditing && (
-              <div className="modal-field-hint">От кого пришла задача — имя, отдел, email или телефон.</div>
-            )}
-            {isEditing ? (
-              <input
-                className="filter-date-input"
-                value={editContact}
-                onChange={(e) => setEditContact(e.target.value)}
-                placeholder="Имя, отдел, email или телефон"
-                style={{ marginBottom: 0 }}
-              />
-            ) : (
-              contact
-                ? <div className="modal-field-text">{contact}</div>
-                : <div className="modal-field-empty">Не заполнено</div>
-            )}
-          </div>
+              <div>
+                <div className="modal-field-label">Контакт</div>
+                {!isEditing && (
+                  <div className="modal-field-hint">От кого пришла задача — имя, отдел, email или телефон.</div>
+                )}
+                {isEditing ? (
+                  <input
+                    className="filter-date-input"
+                    value={editContact}
+                    onChange={(e) => setEditContact(e.target.value)}
+                    placeholder="Имя, отдел, email или телефон"
+                    style={{ marginBottom: 0 }}
+                  />
+                ) : (
+                  contact
+                    ? <div className="modal-field-text">{contact}</div>
+                    : <div className="modal-field-empty">Не заполнено</div>
+                )}
+              </div>
+            </>
+          )}
 
           <div>
             <div className="modal-field-label">Описание</div>
@@ -363,33 +430,35 @@ export function JournalEntryModal({
         <div className="modal-footer">
           {isEditing ? (
             <>
-              <button
-                className="btn btn-sm"
-                onClick={() => {
-                  setIsEditing(false);
-                  setEditStatus(status);
-                  setEditDescription(description ?? "");
-                  setEditResolution(resolution ?? "");
+                  <button
+                  type="button"
+                  className="btn btn-sm"
+                  onClick={() => {
+                    setIsEditing(false);
+                    setEditTitle(title);
+                    setEditStatus(status);
+                    setEditDescription(description ?? "");
+                    setEditResolution(resolution ?? "");
                   setEditContact(contact ?? "");
                   setEditTaskUrl(taskUrl ?? "");
-                  setEditStartedAt(startedAt ? startedAt.slice(11, 16) : "");
-                  setEditEndedAt(endedAt ? endedAt.slice(11, 16) : "");
+                  setEditStartedAt(toClockInputValue(startedAt));
+                  setEditEndedAt(toClockInputValue(endedAt));
                   setEditEndedDate(endedDate ?? workDate);
                 }}
                 disabled={isLoading}
               >
                 Отмена
               </button>
-              <button className="btn btn-sm btn-primary" onClick={onSave} disabled={isLoading}>
+              <button type="button" className="btn btn-sm btn-primary" onClick={onSave} disabled={isLoading}>
                 {isLoading ? "Сохранение..." : "Сохранить"}
               </button>
             </>
           ) : (
             <>
-              <button className="btn btn-sm" onClick={onClose}>
+              <button type="button" className="btn btn-sm" onClick={onClose}>
                 Закрыть
               </button>
-              <button className="btn btn-sm btn-primary" onClick={() => setIsEditing(true)}>
+              <button type="button" className="btn btn-sm btn-primary" onClick={() => setIsEditing(true)}>
                 Редактировать
               </button>
             </>

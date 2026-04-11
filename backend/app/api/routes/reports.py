@@ -27,11 +27,13 @@ from app.services.export import (
     strip_markdown,
 )
 from app.services.reports import (
+    deserialize_service_filters,
     format_report_content,
     generate_daily_report,
     generate_night_work_result_report,
     generate_range_report,
     generate_weekly_report,
+    serialize_service_filters,
 )
 
 router = APIRouter()
@@ -44,6 +46,8 @@ async def _save_report(
     period_from: str,
     period_to: str,
     content_md: str,
+    service_filter_mode: str = "all",
+    service_filters: list[str] | None = None,
 ) -> ReportRecord:
     """Сохраняет сгенерированный отчёт в историю."""
     record = ReportRecord(
@@ -53,6 +57,8 @@ async def _save_report(
         period_from=period_from,
         period_to=period_to,
         content_md=content_md,
+        service_filter_mode=service_filter_mode,
+        service_filters=serialize_service_filters(service_filters or []),
     )
     session.add(record)
     await session.commit()
@@ -63,6 +69,7 @@ async def _save_report(
 def _to_preview(
     record: ReportRecord, updates_after_finalization: int = 0
 ) -> ReportPreviewResponse:
+    """Преобразует запись отчёта в ответ предпросмотра."""
     return ReportPreviewResponse(
         report_id=str(record.id),
         report_type=record.report_type,
@@ -76,6 +83,7 @@ def _to_preview(
 
 
 def _to_record_response(record: ReportRecord) -> ReportRecordResponse:
+    """Преобразует запись отчёта в краткий ответ для списка."""
     return ReportRecordResponse(
         id=str(record.id),
         report_type=record.report_type,
@@ -105,6 +113,8 @@ async def generate_daily(
         user_id=current_user.id,
         report_date=payload.report_date,
         author_name=current_user.full_name,
+        service_filter_mode=payload.service_filter_mode,
+        service_filters=payload.service_filters,
     )
     try:
         content = format_report_content(content, payload.format_profile)
@@ -114,7 +124,14 @@ async def generate_daily(
         ) from error
     date_str = payload.report_date.isoformat()
     record = await _save_report(
-        db, current_user.id, ReportType.DAILY, date_str, date_str, content
+        db,
+        current_user.id,
+        ReportType.DAILY,
+        date_str,
+        date_str,
+        content,
+        service_filter_mode=payload.service_filter_mode,
+        service_filters=payload.service_filters,
     )
     return _to_preview(record)
 
@@ -136,6 +153,8 @@ async def generate_weekly(
         user_id=current_user.id,
         week_start=payload.week_start,
         author_name=current_user.full_name,
+        service_filter_mode=payload.service_filter_mode,
+        service_filters=payload.service_filters,
     )
     try:
         content = format_report_content(content, payload.format_profile)
@@ -150,6 +169,8 @@ async def generate_weekly(
         payload.week_start.isoformat(),
         week_end.isoformat(),
         content,
+        service_filter_mode=payload.service_filter_mode,
+        service_filters=payload.service_filters,
     )
     return _to_preview(record)
 
@@ -174,6 +195,8 @@ async def generate_range(
         date_from=payload.date_from,
         date_to=payload.date_to,
         author_name=current_user.full_name,
+        service_filter_mode=payload.service_filter_mode,
+        service_filters=payload.service_filters,
     )
     try:
         content = format_report_content(content, payload.format_profile)
@@ -188,6 +211,8 @@ async def generate_range(
         payload.date_from.isoformat(),
         payload.date_to.isoformat(),
         content,
+        service_filter_mode=payload.service_filter_mode,
+        service_filters=payload.service_filters,
     )
     return _to_preview(record)
 
@@ -307,6 +332,7 @@ async def refresh_report(
 
     period_from = datetime.fromisoformat(record.period_from).date()
     period_to = datetime.fromisoformat(record.period_to).date()
+    service_filters = deserialize_service_filters(record.service_filters)
 
     if record.report_type == ReportType.DAILY.value:
         refreshed = await generate_daily_report(
@@ -314,6 +340,8 @@ async def refresh_report(
             user_id=current_user.id,
             report_date=period_from,
             author_name=current_user.full_name,
+            service_filter_mode=record.service_filter_mode,
+            service_filters=service_filters,
         )
     elif record.report_type == ReportType.WEEKLY.value:
         refreshed = await generate_weekly_report(
@@ -321,6 +349,8 @@ async def refresh_report(
             user_id=current_user.id,
             week_start=period_from,
             author_name=current_user.full_name,
+            service_filter_mode=record.service_filter_mode,
+            service_filters=service_filters,
         )
     elif record.report_type == ReportType.RANGE.value:
         refreshed = await generate_range_report(
@@ -329,6 +359,8 @@ async def refresh_report(
             date_from=period_from,
             date_to=period_to,
             author_name=current_user.full_name,
+            service_filter_mode=record.service_filter_mode,
+            service_filters=service_filters,
         )
     else:
         raise HTTPException(
@@ -400,6 +432,7 @@ async def regenerate_draft_from_final(
 
     period_from = datetime.fromisoformat(source_record.period_from).date()
     period_to = datetime.fromisoformat(source_record.period_to).date()
+    service_filters = deserialize_service_filters(source_record.service_filters)
 
     if source_record.report_type == ReportType.DAILY.value:
         content_md = await generate_daily_report(
@@ -407,6 +440,8 @@ async def regenerate_draft_from_final(
             user_id=current_user.id,
             report_date=period_from,
             author_name=current_user.full_name,
+            service_filter_mode=source_record.service_filter_mode,
+            service_filters=service_filters,
         )
     elif source_record.report_type == ReportType.WEEKLY.value:
         content_md = await generate_weekly_report(
@@ -414,6 +449,8 @@ async def regenerate_draft_from_final(
             user_id=current_user.id,
             week_start=period_from,
             author_name=current_user.full_name,
+            service_filter_mode=source_record.service_filter_mode,
+            service_filters=service_filters,
         )
     elif source_record.report_type == ReportType.RANGE.value:
         content_md = await generate_range_report(
@@ -422,6 +459,8 @@ async def regenerate_draft_from_final(
             date_from=period_from,
             date_to=period_to,
             author_name=current_user.full_name,
+            service_filter_mode=source_record.service_filter_mode,
+            service_filters=service_filters,
         )
     else:
         raise HTTPException(
@@ -436,6 +475,8 @@ async def regenerate_draft_from_final(
         period_from=source_record.period_from,
         period_to=source_record.period_to,
         content_md=content_md,
+        service_filter_mode=source_record.service_filter_mode,
+        service_filters=service_filters,
     )
     return _to_preview(draft_record, updates_after_finalization=0)
 

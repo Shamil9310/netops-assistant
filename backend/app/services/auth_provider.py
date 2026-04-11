@@ -49,6 +49,7 @@ class LocalAuthProvider:
         username: str,
         password: str,
     ) -> AuthenticatedIdentity | None:
+        """Проверяет логин и пароль по локальной таблице пользователей."""
         result = await session.execute(select(User).where(User.username == username))
         user = result.scalar_one_or_none()
         if user is None:
@@ -76,6 +77,7 @@ class LDAPAuthProvider:
         username: str,
         password: str,
     ) -> AuthenticatedIdentity | None:
+        """Проверяет учётные данные через LDAP и извлекает роль из групп."""
         del session
         if not settings.ldap_server_url or not settings.ldap_base_dn:
             logger.warning(

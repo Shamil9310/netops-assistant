@@ -1,11 +1,42 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+
+import { extractErrorMessage } from "@/lib/api-error";
 
 type Props = {
   initialWorkDate: string;
 };
+
+function getLocalIsoDate(): string {
+  return new Date().toLocaleDateString("en-CA");
+}
+
+function getLocalTimeInputValue(date: Date): string {
+  return date.toLocaleTimeString("en-GB", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+}
+
+function createDefaultScheduledAt(initialWorkDate: string): string {
+  const now = new Date();
+  if (initialWorkDate === getLocalIsoDate()) {
+    return `${initialWorkDate}T${getLocalTimeInputValue(now)}`;
+  }
+  return `${initialWorkDate}T10:00`;
+}
+
+function getEventTypeLabel(value: string): string {
+  const labels: Record<string, string> = {
+    meeting: "Встреча",
+    task: "Задача",
+    night_work_prep: "Подготовка к ночным работам",
+  };
+  return labels[value] ?? value;
+}
 
 export function PlannedEventCreateForm({ initialWorkDate }: Props) {
   const router = useRouter();
@@ -13,9 +44,15 @@ export function PlannedEventCreateForm({ initialWorkDate }: Props) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [externalRef, setExternalRef] = useState("");
-  const [scheduledAt, setScheduledAt] = useState(`${initialWorkDate}T10:00`);
+  const [scheduledAt, setScheduledAt] = useState(() =>
+    createDefaultScheduledAt(initialWorkDate),
+  );
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    setScheduledAt(createDefaultScheduledAt(initialWorkDate));
+  }, [initialWorkDate]);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -33,9 +70,9 @@ export function PlannedEventCreateForm({ initialWorkDate }: Props) {
           scheduled_at: new Date(scheduledAt).toISOString(),
         }),
       });
-      const responsePayload = (await response.json()) as { detail?: string };
+      const responsePayload = (await response.json()) as unknown;
       if (!response.ok) {
-        setError(responsePayload.detail ?? "Не удалось создать событие");
+        setError(extractErrorMessage(responsePayload, "Не удалось создать событие"));
         return;
       }
       setTitle("");
@@ -53,13 +90,14 @@ export function PlannedEventCreateForm({ initialWorkDate }: Props) {
     <form onSubmit={onSubmit} className="filter-group" style={{ marginBottom: 0 }}>
       <div className="filter-group-title">Плановое событие</div>
       <select className="filter-date-input" value={eventType} onChange={(event) => setEventType(event.target.value)}>
-        <option value="call">Звонок</option>
         <option value="meeting">Встреча</option>
         <option value="task">Задача</option>
-        <option value="maintenance">Обслуживание</option>
-        <option value="change">Изменение</option>
-        <option value="other">Прочее</option>
+        <option value="night_work_prep">Подготовка к ночным работам</option>
       </select>
+      <div className="focus-note" style={{ marginBottom: 8 }}>
+        <div className="focus-note-label">Тип события</div>
+        <p>{getEventTypeLabel(eventType)}</p>
+      </div>
       <input className="filter-date-input" placeholder="Заголовок" value={title} onChange={(event) => setTitle(event.target.value)} required />
       <input className="filter-date-input" placeholder="SR / External ref" value={externalRef} onChange={(event) => setExternalRef(event.target.value)} />
       <input type="datetime-local" className="filter-date-input" value={scheduledAt} onChange={(event) => setScheduledAt(event.target.value)} required />

@@ -17,16 +17,12 @@ class PlannedEventType(StrEnum):
     в дневной отчёт, если наступили сегодня.
     """
 
-    # Запланированный звонок с клиентом, вендором, коллегами.
-    CALL = "call"
     # Встреча, совещание, синк.
     MEETING = "meeting"
-    # Плановое техническое обслуживание или работы.
-    MAINTENANCE = "maintenance"
-    # Дедлайн задачи или заявки.
-    DEADLINE = "deadline"
-    # Произвольное событие.
-    OTHER = "other"
+    # Задача или рабочая подготовка.
+    TASK = "task"
+    # Подготовка к ночным работам и планирование старта.
+    NIGHT_WORK_PREP = "night_work_prep"
 
 
 class PlannedEvent(Base):

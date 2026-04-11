@@ -29,6 +29,7 @@ async def developer_summary(
     _: CurrentDeveloper,
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, object]:
+    """Возвращает сводку по окружению и базе данных для разработчика."""
     database_ok = True
     try:
         await db.execute(text("SELECT 1"))

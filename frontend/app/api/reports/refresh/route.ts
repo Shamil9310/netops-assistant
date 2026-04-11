@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 
+import { extractErrorMessage } from "@/lib/api-error";
 import { refreshReportWithBackend, type ReportPreview } from "@/lib/api";
 
 export async function POST(request: Request) {
@@ -9,13 +10,12 @@ export async function POST(request: Request) {
   }
 
   const backendResponse = await refreshReportWithBackend(requestPayload.report_id);
-  const responsePayload = (await backendResponse.json()) as ReportPreview | { detail?: string };
+  const responsePayload = (await backendResponse.json()) as ReportPreview | unknown;
   if (!backendResponse.ok) {
-    const detail =
-      "detail" in responsePayload && responsePayload.detail
-        ? responsePayload.detail
-        : "Не удалось обновить отчёт";
-    return NextResponse.json({ detail }, { status: backendResponse.status });
+    return NextResponse.json(
+      { detail: extractErrorMessage(responsePayload, "Не удалось обновить отчёт") },
+      { status: backendResponse.status },
+    );
   }
   return NextResponse.json(responsePayload);
 }

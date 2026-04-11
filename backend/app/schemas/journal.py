@@ -34,6 +34,7 @@ class ActivityEntryCreateRequest(BaseModel):
     description: str | None = Field(default=None, max_length=5000)
     resolution: str | None = Field(default=None, max_length=5000)
     contact: str | None = Field(default=None, max_length=256)
+    service: str | None = Field(default=None, max_length=256)
     ticket_number: str | None = Field(default=None, max_length=64)
     task_url: str | None = Field(default=None, max_length=2048)
     started_at: time | None = None
@@ -73,6 +74,7 @@ class ActivityEntryUpdateRequest(BaseModel):
     description: str | None = Field(default=None, max_length=5000)
     resolution: str | None = Field(default=None, max_length=5000)
     contact: str | None = Field(default=None, max_length=256)
+    service: str | None = Field(default=None, max_length=256)
     ticket_number: str | None = Field(default=None, max_length=64)
     task_url: str | None = Field(default=None, max_length=2048)
     started_at: time | None = None
@@ -108,6 +110,7 @@ class ActivityEntryResponse(BaseModel):
     description: str | None
     resolution: str | None
     contact: str | None
+    service: str | None
     ticket_number: str | None
     task_url: str | None
     started_at: time | None
@@ -124,3 +127,65 @@ class ActivityEntryListResponse(BaseModel):
     work_date: date
     total: int
     items: list[ActivityEntryResponse]
+
+
+class BulkJournalImportRequest(BaseModel):
+    """Текст для массового импорта записей журнала."""
+
+    text: str = Field(min_length=1, max_length=50000)
+    default_work_date: date | None = None
+
+
+class BulkJournalImportResponse(BaseModel):
+    """Результат массового импорта записей журнала."""
+
+    created: int
+    items: list[ActivityEntryResponse]
+    warnings: list[str] = Field(default_factory=list)
+
+
+class BulkJournalImportPreviewItem(BaseModel):
+    """Нормализованная строка предпросмотра импорта."""
+
+    work_date: date
+    activity_type: ActivityType
+    status: ActivityStatus
+    title: str
+    service: str | None = None
+    ticket_number: str | None = None
+    task_url: str | None = None
+
+
+class BulkJournalImportPreviewResponse(BaseModel):
+    """Результат предпросмотра массового импорта."""
+
+    total: int
+    items: list[BulkJournalImportPreviewItem]
+    warnings: list[str] = Field(default_factory=list)
+
+
+class JournalDeduplicationResponse(BaseModel):
+    """Результат удаления дублей журнала за рабочую дату."""
+
+    work_date: date
+    removed: int
+    duplicate_ticket_numbers: list[str] = Field(default_factory=list)
+
+
+class JournalBulkDeleteResponse(BaseModel):
+    """Результат массового удаления записей журнала.
+
+    Поле scope нужно интерфейсу, чтобы различать:
+    - очистку конкретной рабочей даты;
+    - полную очистку всех записей пользователя.
+    """
+
+    scope: Literal["work_date", "all", "selected"]
+    removed: int
+    work_date: date | None = None
+
+
+class JournalSelectedDeleteRequest(BaseModel):
+    """Запрос на удаление конкретного набора записей журнала."""
+
+    entry_ids: list[str] = Field(min_length=1, max_length=500)

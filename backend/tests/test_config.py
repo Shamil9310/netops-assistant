@@ -75,7 +75,7 @@ def test_test_environment_rejects_unsafe_bootstrap_username() -> None:
             environment="test",
             secret_key="safe-test-key",
             bootstrap_password="safe-password",
-            # bootstrap_username не задан, поэтому будет использовано небезопасное значение "engineer"
+            # bootstrap_username не задан, поэтому будет использовано небезопасное значение по умолчанию
         )
 
 

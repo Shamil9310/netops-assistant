@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
+import { extractErrorMessage } from "@/lib/api-error";
 import { SERVER_API_BASE_URL } from "@/lib/api-url";
 import { CSRF_COOKIE_NAME, SESSION_COOKIE_NAME } from "@/lib/constants";
 
@@ -16,12 +17,32 @@ type MutatePayload =
     participants?: string[];
   }
   | { action: "add_block"; plan_id: string; title: string; sr_number?: string; description?: string; order_index?: number }
+  | {
+    action: "update_block";
+    plan_id: string;
+    block_id: string;
+    title?: string;
+    sr_number?: string;
+    description?: string;
+    order_index?: number;
+  }
   | { action: "change_block_status"; plan_id: string; block_id: string; status: string; result_comment?: string }
   | {
     action: "add_step";
     plan_id: string;
     block_id: string;
     title: string;
+    description?: string;
+    order_index?: number;
+    is_rollback?: boolean;
+    is_post_action?: boolean;
+  }
+  | {
+    action: "update_step";
+    plan_id: string;
+    block_id: string;
+    step_id: string;
+    title?: string;
     description?: string;
     order_index?: number;
     is_rollback?: boolean;
@@ -92,6 +113,18 @@ function buildBackendRequest(actionPayload: MutatePayload): { path: string; meth
       },
     };
   }
+  if (actionPayload.action === "update_block") {
+    return {
+      path: `/api/v1/plans/${actionPayload.plan_id}/blocks/${actionPayload.block_id}`,
+      method: "PATCH",
+      body: {
+        title: actionPayload.title ?? null,
+        description: actionPayload.description ?? null,
+        sr_number: actionPayload.sr_number ?? null,
+        order_index: actionPayload.order_index ?? null,
+      },
+    };
+  }
   if (actionPayload.action === "change_block_status") {
     return {
       path: `/api/v1/plans/${actionPayload.plan_id}/blocks/${actionPayload.block_id}/status`,
@@ -109,6 +142,19 @@ function buildBackendRequest(actionPayload: MutatePayload): { path: string; meth
         order_index: actionPayload.order_index ?? 0,
         is_rollback: actionPayload.is_rollback ?? false,
         is_post_action: actionPayload.is_post_action ?? false,
+      },
+    };
+  }
+  if (actionPayload.action === "update_step") {
+    return {
+      path: `/api/v1/plans/${actionPayload.plan_id}/blocks/${actionPayload.block_id}/steps/${actionPayload.step_id}`,
+      method: "PATCH",
+      body: {
+        title: actionPayload.title ?? null,
+        description: actionPayload.description ?? null,
+        order_index: actionPayload.order_index ?? null,
+        is_rollback: actionPayload.is_rollback ?? null,
+        is_post_action: actionPayload.is_post_action ?? null,
       },
     };
   }
@@ -180,7 +226,10 @@ export async function POST(request: Request) {
   // чтобы сообщения об ошибках и успешные данные не расходились.
   const responsePayload = await response.json();
   if (!response.ok) {
-    return NextResponse.json(responsePayload, { status: response.status });
+    return NextResponse.json(
+      { detail: extractErrorMessage(responsePayload, "Не удалось изменить план") },
+      { status: response.status },
+    );
   }
   return NextResponse.json(responsePayload, { status: response.status });
 }
