@@ -13,12 +13,14 @@ from app.services.auth import get_current_user
 
 async def _get_authenticated_user(
     db: Annotated[AsyncSession, Depends(get_db)],
-    session_token: Annotated[str | None, Cookie(alias=settings.session_cookie_name)] = None,
+    session_token: Annotated[
+        str | None, Cookie(alias=settings.session_cookie_name)
+    ] = None,
 ) -> User:
-    """Возвращает текущего аутентифицированного пользователя из session cookie.
+    """Возвращает текущего аутентифицированного пользователя из cookie сессии.
 
     Если пользователь не авторизован или сессия истекла — HTTP 401.
-    Используется как базовая dependency для всех защищённых endpoint'ов.
+    Используется как базовая зависимость для всех защищённых endpoint'ов.
     """
     user = await get_current_user(db, session_token)
     if user is None:
@@ -30,9 +32,10 @@ async def _get_authenticated_user(
 
 
 def _require_role(*allowed_roles: UserRole):
-    """Фабрика dependency для проверки роли пользователя.
+    """Создаёт проверку роли пользователя.
 
-    Создаёт dependency, который пропускает только пользователей с указанными ролями.
+    Возвращает зависимость, которая пропускает только пользователей
+    с указанными ролями.
     Пользователи с недостаточной ролью получают HTTP 403.
 
     Пример использования:
@@ -44,7 +47,10 @@ def _require_role(*allowed_roles: UserRole):
     """
     allowed_set = {role.value for role in allowed_roles}
 
-    async def _check_role(user: Annotated[User, Depends(_get_authenticated_user)]) -> User:
+    async def _check_role(
+        user: Annotated[User, Depends(_get_authenticated_user)],
+    ) -> User:
+        """Проверяет, что у текущего пользователя есть одна из разрешённых ролей."""
         if user.role not in allowed_set:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -55,11 +61,12 @@ def _require_role(*allowed_roles: UserRole):
     return _check_role
 
 
-# Аннотированный тип для аутентифицированного пользователя (любая роль).
+# Аннотированный тип для аутентифицированного пользователя любой роли.
 CurrentUser = Annotated[User, Depends(_get_authenticated_user)]
 
-# Dependency-функции для проверки конкретных ролей.
-# Используются через Depends() в роутах.
-require_employee = _require_role(UserRole.EMPLOYEE, UserRole.MANAGER, UserRole.DEVELOPER)
+# Готовые проверки ролей для использования в зависимостях роутов.
+require_employee = _require_role(
+    UserRole.EMPLOYEE, UserRole.MANAGER, UserRole.DEVELOPER
+)
 require_manager = _require_role(UserRole.MANAGER, UserRole.DEVELOPER)
 require_developer = _require_role(UserRole.DEVELOPER)

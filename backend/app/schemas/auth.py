@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+from app.models.user import UserRole
 
 
 class CurrentUserResponse(BaseModel):
@@ -15,14 +17,47 @@ class CurrentUserResponse(BaseModel):
 
 
 class ErrorResponse(BaseModel):
+    """Стандартный ответ API с текстом ошибки."""
+
     detail: str
 
 
 class LoginRequest(BaseModel):
+    """Тело запроса для входа по логину и паролю."""
+
     username: str = Field(min_length=3, max_length=64)
     password: str = Field(min_length=3, max_length=128)
 
 
 class LoginResponse(BaseModel):
+    """Успешный ответ авторизации с данными пользователя."""
+
     message: str
     user: CurrentUserResponse
+
+
+class LocalUserCreateRequest(BaseModel):
+    """Тело запроса на создание локальной учётной записи."""
+
+    username: str = Field(min_length=3, max_length=64)
+    full_name: str = Field(min_length=3, max_length=128)
+    password: str | None = Field(default=None, min_length=8, max_length=128)
+    role: str = Field(default=UserRole.EMPLOYEE.value)
+    is_active: bool = True
+
+    @field_validator("role")
+    @classmethod
+    def validate_role(cls, value: str) -> str:
+        """Приводит роль к нижнему регистру и проверяет допустимые значения."""
+        normalized_value = value.strip().lower()
+        valid_roles = {role.value for role in UserRole}
+        if normalized_value not in valid_roles:
+            raise ValueError(f"Некорректная роль: {value}")
+        return normalized_value
+
+
+class LocalUserCreateResponse(BaseModel):
+    """Ответ на создание локального пользователя."""
+
+    user: CurrentUserResponse
+    generated_password: str | None = None

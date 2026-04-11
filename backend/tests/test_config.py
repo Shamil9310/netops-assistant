@@ -3,11 +3,10 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from app.core.config import Settings, _UNSAFE_BOOTSTRAP_PASSWORD, _UNSAFE_BOOTSTRAP_USERNAME, _UNSAFE_SECRET_KEY
-
+from app.core.config import Settings, _UNSAFE_BOOTSTRAP_PASSWORD, _UNSAFE_SECRET_KEY
 
 # ---------------------------------------------------------------------------
-# Development окружение
+# Локальная среда
 # ---------------------------------------------------------------------------
 
 
@@ -42,7 +41,7 @@ def test_development_explicit_secure_cookie_is_respected() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Test окружение
+# Тестовая среда
 # ---------------------------------------------------------------------------
 
 
@@ -52,7 +51,7 @@ def test_test_environment_rejects_unsafe_secret_key() -> None:
         Settings(
             _env_file=None,
             environment="test",
-            # secret_key не задан — будет использован небезопасный дефолт
+            # secret_key не задан, поэтому будет использовано небезопасное значение по умолчанию
         )
 
 
@@ -64,7 +63,7 @@ def test_test_environment_rejects_unsafe_bootstrap_password() -> None:
             environment="test",
             secret_key="safe-test-key",
             bootstrap_username="test-engineer",
-            # bootstrap_password не задан — будет использован небезопасный дефолт
+            # bootstrap_password не задан, поэтому будет использовано небезопасное значение по умолчанию
         )
 
 
@@ -76,7 +75,7 @@ def test_test_environment_rejects_unsafe_bootstrap_username() -> None:
             environment="test",
             secret_key="safe-test-key",
             bootstrap_password="safe-password",
-            # bootstrap_username не задан — будет использован небезопасный дефолт "engineer"
+            # bootstrap_username не задан, поэтому будет использовано небезопасное значение по умолчанию
         )
 
 
@@ -88,7 +87,7 @@ def test_test_environment_rejects_all_unsafe_defaults_at_once() -> None:
             environment="test",
         )
     error_message = str(exc_info.value)
-    # Убеждаемся что сообщение содержит информацию о всех трёх проблемах
+    # Проверяем, что сообщение содержит информацию о всех трёх проблемах.
     assert "SECRET_KEY" in error_message
     assert "BOOTSTRAP_PASSWORD" in error_message
     assert "BOOTSTRAP_USERNAME" in error_message
@@ -108,7 +107,7 @@ def test_test_environment_accepts_safe_credentials() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Production окружение
+# Боевая среда
 # ---------------------------------------------------------------------------
 
 
@@ -157,7 +156,7 @@ def test_production_rejects_unsafe_bootstrap_credentials() -> None:
             environment="production",
             secret_key="prod-safe-key",
             session_cookie_secure=True,
-            # bootstrap_username и bootstrap_password — небезопасные дефолты
+            # bootstrap_username и bootstrap_password останутся небезопасными значениями по умолчанию
         )
 
 

@@ -5,7 +5,6 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
-
 ActivityType = Literal[
     "call",
     "ticket",
@@ -35,26 +34,38 @@ class ActivityEntryCreateRequest(BaseModel):
     description: str | None = Field(default=None, max_length=5000)
     resolution: str | None = Field(default=None, max_length=5000)
     contact: str | None = Field(default=None, max_length=256)
+    service: str | None = Field(default=None, max_length=256)
     ticket_number: str | None = Field(default=None, max_length=64)
     task_url: str | None = Field(default=None, max_length=2048)
     started_at: time | None = None
     ended_at: time | None = None
+    # Если задача закрыта не в тот же день, сюда передаётся реальная дата закрытия.
+    # Если поле пустое, считаем, что задача закрыта в ту же рабочую дату.
+    ended_date: date | None = None
 
     @model_validator(mode="after")
     def validate_time_range(self) -> "ActivityEntryCreateRequest":
-        """Проверяет корректность временного диапазона.
-
-        Бизнес-правило простое:
-        если указано и начало, и окончание, окончание не может быть раньше начала.
-        """
-        if self.started_at and self.ended_at and self.ended_at < self.started_at:
-            raise ValueError("Время окончания не может быть раньше начала")
-
+        """Проверяет, что дата и время закрытия не противоречат рабочей дате записи."""
+        effective_ended_date = self.ended_date or self.work_date
+        if effective_ended_date < self.work_date:
+            raise ValueError("Дата окончания не может быть раньше рабочей даты")
+        if (
+            self.started_at
+            and self.ended_at
+            and effective_ended_date == self.work_date
+            and self.ended_at < self.started_at
+        ):
+            raise ValueError("Время окончания не может быть раньше времени начала")
         return self
 
 
 class ActivityEntryUpdateRequest(BaseModel):
-    """Схема частичного обновления записи журнала."""
+    """Схема частичного обновления записи журнала.
+
+    Поля можно передавать выборочно.
+    ended_date используется так же, как и при создании:
+    она нужна, если задачу закрыли позже рабочей даты записи.
+    """
 
     work_date: date | None = None
     activity_type: ActivityType | None = None
@@ -63,21 +74,32 @@ class ActivityEntryUpdateRequest(BaseModel):
     description: str | None = Field(default=None, max_length=5000)
     resolution: str | None = Field(default=None, max_length=5000)
     contact: str | None = Field(default=None, max_length=256)
+    service: str | None = Field(default=None, max_length=256)
     ticket_number: str | None = Field(default=None, max_length=64)
     task_url: str | None = Field(default=None, max_length=2048)
     started_at: time | None = None
     ended_at: time | None = None
+    ended_date: date | None = None
 
     @model_validator(mode="after")
     def validate_time_range(self) -> "ActivityEntryUpdateRequest":
-        """Проверяет корректность времени, если переданы оба поля."""
-        if self.started_at and self.ended_at and self.ended_at < self.started_at:
+        """Проверяет время в простом случае, когда меняют только часы внутри одной даты."""
+        if (
+            self.started_at
+            and self.ended_at
+            and self.ended_date is None
+            and self.ended_at < self.started_at
+        ):
             raise ValueError("Время окончания не может быть раньше времени начала")
         return self
 
 
 class ActivityEntryResponse(BaseModel):
-    """Схема ответа с записью журнала."""
+    """Схема ответа с записью журнала.
+
+    В ответе отдельно возвращаем ended_date, чтобы интерфейс мог показать,
+    что задача закрыта в другой день, а не просто позже по времени.
+    """
 
     id: str
     user_id: str
@@ -88,10 +110,12 @@ class ActivityEntryResponse(BaseModel):
     description: str | None
     resolution: str | None
     contact: str | None
+    service: str | None
     ticket_number: str | None
     task_url: str | None
     started_at: time | None
     ended_at: time | None
+    ended_date: date | None
     is_backdated: bool
     created_at: datetime
     updated_at: datetime
@@ -103,3 +127,65 @@ class ActivityEntryListResponse(BaseModel):
     work_date: date
     total: int
     items: list[ActivityEntryResponse]
+
+
+class BulkJournalImportRequest(BaseModel):
+    """Текст для массового импорта записей журнала."""
+
+    text: str = Field(min_length=1, max_length=50000)
+    default_work_date: date | None = None
+
+
+class BulkJournalImportResponse(BaseModel):
+    """Результат массового импорта записей журнала."""
+
+    created: int
+    items: list[ActivityEntryResponse]
+    warnings: list[str] = Field(default_factory=list)
+
+
+class BulkJournalImportPreviewItem(BaseModel):
+    """Нормализованная строка предпросмотра импорта."""
+
+    work_date: date
+    activity_type: ActivityType
+    status: ActivityStatus
+    title: str
+    service: str | None = None
+    ticket_number: str | None = None
+    task_url: str | None = None
+
+
+class BulkJournalImportPreviewResponse(BaseModel):
+    """Результат предпросмотра массового импорта."""
+
+    total: int
+    items: list[BulkJournalImportPreviewItem]
+    warnings: list[str] = Field(default_factory=list)
+
+
+class JournalDeduplicationResponse(BaseModel):
+    """Результат удаления дублей журнала за рабочую дату."""
+
+    work_date: date
+    removed: int
+    duplicate_ticket_numbers: list[str] = Field(default_factory=list)
+
+
+class JournalBulkDeleteResponse(BaseModel):
+    """Результат массового удаления записей журнала.
+
+    Поле scope нужно интерфейсу, чтобы различать:
+    - очистку конкретной рабочей даты;
+    - полную очистку всех записей пользователя.
+    """
+
+    scope: Literal["work_date", "all", "selected"]
+    removed: int
+    work_date: date | None = None
+
+
+class JournalSelectedDeleteRequest(BaseModel):
+    """Запрос на удаление конкретного набора записей журнала."""
+
+    entry_ids: list[str] = Field(min_length=1, max_length=500)

@@ -13,8 +13,12 @@ from app.api.router import api_router
 from app.core.config import settings
 from app.db.session import SessionLocal
 from app.services.auth import ensure_bootstrap_user
+from app.services.schema_guard import (
+    SchemaVersionMismatchError,
+    ensure_schema_is_current,
+)
 
-# Логгер приложения — вместо print() используем logging во всём backend-коде.
+# Логгер приложения: вместо print() используем единый механизм журналирования.
 logger = logging.getLogger(__name__)
 
 
@@ -28,9 +32,18 @@ async def lifespan(_: FastAPI):
     """
     logger.info("Старт приложения, окружение: %s", settings.environment)
 
-    # Bootstrap-пользователь нужен для первого входа в систему.
-    # Alembic должен был применить миграции до старта приложения.
     async with SessionLocal() as session:
+        # Сначала валидируем схему БД.
+        # Если код и миграции рассинхронизированы, приложение должно упасть
+        # до приёма первого пользовательского запроса.
+        try:
+            await ensure_schema_is_current(session)
+        except SchemaVersionMismatchError:
+            logger.exception("Схема базы данных не готова к запуску backend")
+            raise
+
+        # Начальный пользователь нужен для первого входа в систему.
+        # До этой точки мы уже убедились, что схема БД актуальна.
         await ensure_bootstrap_user(session)
 
     logger.info("Bootstrap-пользователь проверен, приложение готово")
@@ -116,7 +129,11 @@ async def csrf_middleware(request: Request, call_next):
     csrf_header = request.headers.get("X-CSRF-Token")
     if not csrf_cookie or not csrf_header or csrf_cookie != csrf_header:
         request_id = getattr(request.state, "request_id", None)
-        logger.warning("CSRF validation failed: path=%s request_id=%s", request.url.path, request_id)
+        logger.warning(
+            "CSRF validation failed: path=%s request_id=%s",
+            request.url.path,
+            request_id,
+        )
         return JSONResponse(
             status_code=403,
             content={"detail": "CSRF validation failed", "request_id": request_id},
@@ -127,4 +144,5 @@ async def csrf_middleware(request: Request, call_next):
 
 @app.get("/", tags=["root"])
 def root() -> dict[str, str]:
+    """Возвращает простой ответ для корневого URL приложения."""
     return {"message": "NetOps Assistant API is running"}

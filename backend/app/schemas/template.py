@@ -6,6 +6,8 @@ from pydantic import BaseModel, Field
 
 
 class PlanTemplateResponse(BaseModel):
+    """Представление сохранённого шаблона плана."""
+
     id: str
     user_id: str
     key: str
@@ -19,6 +21,8 @@ class PlanTemplateResponse(BaseModel):
 
 
 class PlanTemplateCreateRequest(BaseModel):
+    """Тело запроса на создание шаблона плана."""
+
     key: str = Field(min_length=3, max_length=64)
     name: str = Field(min_length=2, max_length=128)
     category: str = Field(min_length=2, max_length=64)
@@ -28,6 +32,8 @@ class PlanTemplateCreateRequest(BaseModel):
 
 
 class PlanTemplateUpdateRequest(BaseModel):
+    """Тело запроса на обновление шаблона плана."""
+
     key: str | None = Field(default=None, min_length=3, max_length=64)
     name: str | None = Field(default=None, min_length=2, max_length=128)
     category: str | None = Field(default=None, min_length=2, max_length=64)

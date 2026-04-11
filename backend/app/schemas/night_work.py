@@ -12,6 +12,8 @@ from app.models.night_work import (
 
 
 class NightWorkStepResponse(BaseModel):
+    """Представление шага плана ночных работ."""
+
     id: str
     block_id: str
     title: str
@@ -30,6 +32,8 @@ class NightWorkStepResponse(BaseModel):
 
 
 class NightWorkBlockResponse(BaseModel):
+    """Представление блока плана ночных работ."""
+
     id: str
     plan_id: str
     sr_number: str | None
@@ -45,6 +49,8 @@ class NightWorkBlockResponse(BaseModel):
 
 
 class NightWorkPlanResponse(BaseModel):
+    """Представление плана ночных работ с блоками и шагами."""
+
     id: str
     user_id: str
     title: str
@@ -65,6 +71,8 @@ class NightWorkPlanResponse(BaseModel):
 
 
 class NightWorkPlanCreateRequest(BaseModel):
+    """Тело запроса на создание плана ночных работ."""
+
     title: str = Field(min_length=2, max_length=256)
     description: str | None = None
     scheduled_at: datetime | None = None
@@ -72,6 +80,8 @@ class NightWorkPlanCreateRequest(BaseModel):
 
 
 class NightWorkPlanUpdateRequest(BaseModel):
+    """Тело запроса на обновление плана ночных работ."""
+
     title: str | None = Field(default=None, min_length=2, max_length=256)
     description: str | None = None
     scheduled_at: datetime | None = None
@@ -87,6 +97,8 @@ class NightWorkPlanStatusRequest(BaseModel):
 
 
 class NightWorkBlockCreateRequest(BaseModel):
+    """Тело запроса на создание блока плана."""
+
     sr_number: str | None = Field(default=None, max_length=128)
     title: str = Field(min_length=2, max_length=256)
     description: str | None = None
@@ -102,7 +114,18 @@ class NightWorkBlockStatusRequest(BaseModel):
     finished_at: datetime | None = None
 
 
+class NightWorkBlockUpdateRequest(BaseModel):
+    """Запрос на обновление полей блока."""
+
+    title: str | None = Field(default=None, min_length=2, max_length=256)
+    description: str | None = None
+    sr_number: str | None = Field(default=None, max_length=128)
+    order_index: int | None = Field(default=None, ge=0)
+
+
 class NightWorkStepCreateRequest(BaseModel):
+    """Тело запроса на создание шага плана."""
+
     title: str = Field(min_length=2, max_length=256)
     description: str | None = None
     order_index: int = Field(default=0, ge=0)
@@ -122,7 +145,19 @@ class NightWorkStepStatusRequest(BaseModel):
     finished_at: datetime | None = None
 
 
+class NightWorkStepUpdateRequest(BaseModel):
+    """Запрос на обновление полей шага."""
+
+    title: str | None = Field(default=None, min_length=2, max_length=256)
+    description: str | None = None
+    order_index: int | None = Field(default=None, ge=0)
+    is_rollback: bool | None = None
+    is_post_action: bool | None = None
+
+
 class CreatePlanFromTemplateRequest(BaseModel):
+    """Тело запроса на создание плана на основе шаблона."""
+
     template_id: str
     title: str | None = Field(default=None, min_length=2, max_length=256)
     variables: dict[str, str] = Field(default_factory=dict)

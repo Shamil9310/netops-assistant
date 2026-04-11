@@ -18,7 +18,7 @@ export async function POST() {
   response.cookies.set(SESSION_COOKIE_NAME, "", {
     httpOnly: true,
     sameSite: "lax",
-    secure: false,
+    secure: process.env.NODE_ENV === "production",
     path: "/",
     maxAge: 0,
   });
@@ -26,7 +26,7 @@ export async function POST() {
   response.cookies.set(CSRF_COOKIE_NAME, "", {
     httpOnly: false,
     sameSite: "lax",
-    secure: false,
+    secure: process.env.NODE_ENV === "production",
     path: "/",
     maxAge: 0,
   });

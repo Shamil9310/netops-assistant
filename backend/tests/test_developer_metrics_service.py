@@ -1,19 +1,23 @@
-"""Тесты сервиса developer metrics."""
+"""Тесты сервиса метрик для панели разработчика."""
 
 from __future__ import annotations
 
 import time
 
-from app.services.developer_metrics import build_summary_payload, get_disk_usage_percent, get_uptime_seconds
+from app.services.developer_metrics import (
+    build_summary_payload,
+    get_disk_usage_percent,
+    get_uptime_seconds,
+)
 
 
 def test_get_uptime_seconds_non_negative() -> None:
-    """Проверяет, что uptime не уходит в отрицательное значение."""
+    """Проверяет, что время работы не уходит в отрицательное значение."""
     assert get_uptime_seconds() >= 0
 
 
 def test_get_uptime_seconds_grows_over_time() -> None:
-    """Проверяет, что uptime растёт при последовательных вызовах."""
+    """Проверяет, что время работы растёт при последовательных вызовах."""
     first = get_uptime_seconds()
     time.sleep(0.01)
     second = get_uptime_seconds()
@@ -27,7 +31,7 @@ def test_get_disk_usage_percent_range() -> None:
 
 
 def test_build_summary_payload_contains_widgets() -> None:
-    """Проверяет структуру payload для developer dashboard."""
+    """Проверяет структуру данных для панели разработчика."""
     payload = build_summary_payload(database_ok=True)
     widgets = payload.get("widgets")
     assert isinstance(widgets, dict)

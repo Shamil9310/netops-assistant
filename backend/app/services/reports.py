@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 from datetime import UTC, date, datetime, timedelta
 from uuid import UUID
@@ -13,6 +14,7 @@ from app.models.night_work import NightWorkBlock, NightWorkPlan
 from app.services.journal import list_entries_for_date
 
 logger = logging.getLogger(__name__)
+ServiceFilterMode = str
 
 # Заголовки типов активности на русском — используются в отчётах.
 _ACTIVITY_TYPE_LABELS: dict[str, str] = {
@@ -33,17 +35,32 @@ _STATUS_LABELS: dict[str, str] = {
 }
 
 _NIGHT_WORK_STATUS_LABELS: dict[str, str] = {
-    "draft": "draft",
-    "approved": "approved",
-    "in_progress": "in_progress",
-    "completed": "completed",
-    "cancelled": "cancelled",
-    "pending": "pending",
-    "failed": "failed",
-    "skipped": "skipped",
+    "draft": "Черновик",
+    "approved": "Согласован",
+    "in_progress": "В работе",
+    "completed": "Завершён",
+    "cancelled": "Отменён",
+    "pending": "Ожидает выполнения",
+    "failed": "Ошибка",
+    "skipped": "Пропущен",
+    "blocked": "Заблокирован",
 }
 
 _REPORT_FORMAT_PROFILES: set[str] = {"engineer", "manager"}
+_WEEKDAY_LABELS: dict[int, str] = {
+    0: "Понедельник",
+    1: "Вторник",
+    2: "Среда",
+    3: "Четверг",
+    4: "Пятница",
+    5: "Суббота",
+    6: "Воскресенье",
+}
+
+
+def _format_weekday_day(day: date) -> str:
+    """Форматирует дату вместе с названием дня недели."""
+    return f"{day.strftime('%d.%m.%Y')} ({_WEEKDAY_LABELS[day.weekday()]})"
 
 
 def _format_entry(entry: ActivityEntry, index: int) -> str:
@@ -70,6 +87,7 @@ def _format_entry(entry: ActivityEntry, index: int) -> str:
 def _build_summary_section(entries: list[ActivityEntry]) -> str:
     """Формирует раздел итоговой статистики для отчёта."""
     from collections import Counter
+
     type_counts = Counter(e.activity_type for e in entries)
     status_counts = Counter(e.status for e in entries)
 
@@ -92,8 +110,85 @@ def _build_summary_section(entries: list[ActivityEntry]) -> str:
     return "\n".join(lines)
 
 
+def serialize_service_filters(service_filters: list[str]) -> str | None:
+    """Сериализует список услуг для сохранения в записи отчёта."""
+    if not service_filters:
+        return None
+    return json.dumps(service_filters, ensure_ascii=False)
+
+
+def deserialize_service_filters(service_filters_raw: str | None) -> list[str]:
+    """Восстанавливает список услуг из записи отчёта."""
+    if not service_filters_raw:
+        return []
+    try:
+        parsed_value = json.loads(service_filters_raw)
+    except json.JSONDecodeError:
+        return []
+    if not isinstance(parsed_value, list):
+        return []
+    return [str(item).strip() for item in parsed_value if str(item).strip()]
+
+
+def _filter_entries_by_services(
+    entries: list[ActivityEntry],
+    service_filter_mode: ServiceFilterMode,
+    service_filters: list[str],
+) -> list[ActivityEntry]:
+    """Фильтрует записи отчёта по услугам.
+
+    Поддерживаем четыре режима:
+    - all: фильтр выключен;
+    - include: оставить только выбранные услуги;
+    - exclude: исключить выбранные услуги;
+    - empty: оставить только записи без услуги.
+    """
+    if service_filter_mode == "all":
+        return entries
+
+    if service_filter_mode == "empty":
+        return [entry for entry in entries if not (entry.service or "").strip()]
+
+    normalized_filters = {
+        service.strip() for service in service_filters if service.strip()
+    }
+    if not normalized_filters:
+        return entries
+
+    if service_filter_mode == "include":
+        return [
+            entry
+            for entry in entries
+            if (entry.service or "").strip() in normalized_filters
+        ]
+
+    return [
+        entry
+        for entry in entries
+        if (entry.service or "").strip() not in normalized_filters
+    ]
+
+
+def _build_service_filter_note(
+    service_filter_mode: ServiceFilterMode,
+    service_filters: list[str],
+) -> str | None:
+    """Формирует читаемую подпись применённого фильтра услуг."""
+    if service_filter_mode == "all":
+        return None
+    if service_filter_mode == "empty":
+        return "только записи без услуги"
+    if not service_filters:
+        return None
+
+    joined_services = ", ".join(service_filters)
+    if service_filter_mode == "include":
+        return f"только услуги: {joined_services}"
+    return f"все услуги, кроме: {joined_services}"
+
+
 def _format_total_duration(entries: list[ActivityEntry]) -> str:
-    """Считает суммарное время по записям, где указаны start/finish."""
+    """Считает суммарное время по записям, где указаны начало и завершение."""
     total_minutes = 0
     for entry in entries:
         if entry.started_at is None or entry.finished_at is None:
@@ -113,16 +208,25 @@ async def generate_daily_report(
     user_id: UUID,
     report_date: date,
     author_name: str,
+    service_filter_mode: ServiceFilterMode = "all",
+    service_filters: list[str] | None = None,
 ) -> str:
     """Генерирует дневной отчёт в формате Markdown.
 
     Включает все записи журнала за указанный день, сгруппированные
     в хронологическом порядке, плюс итоговую статистику.
     """
-    day_start = datetime(report_date.year, report_date.month, report_date.day, 0, 0, 0, tzinfo=UTC)
+    day_start = datetime(
+        report_date.year, report_date.month, report_date.day, 0, 0, 0, tzinfo=UTC
+    )
     day_end = day_start + timedelta(days=1) - timedelta(microseconds=1)
 
+    service_filters = service_filters or []
     entries = await list_entries_for_date(session, user_id, day_start, day_end)
+    entries = _filter_entries_by_services(entries, service_filter_mode, service_filters)
+    service_filter_note = _build_service_filter_note(
+        service_filter_mode, service_filters
+    )
 
     date_str = report_date.strftime("%d.%m.%Y")
     lines = [
@@ -131,6 +235,8 @@ async def generate_daily_report(
         f"**Дата:** {date_str}",
         f"**Сформирован:** {datetime.now(UTC).strftime('%d.%m.%Y %H:%M')} UTC\n",
     ]
+    if service_filter_note:
+        lines.append(f"**Фильтр услуг:** {service_filter_note}\n")
 
     if not entries:
         lines.append("_Записей за день не найдено._")
@@ -151,6 +257,8 @@ async def generate_weekly_report(
     user_id: UUID,
     week_start: date,
     author_name: str,
+    service_filter_mode: ServiceFilterMode = "all",
+    service_filters: list[str] | None = None,
 ) -> str:
     """Генерирует недельный отчёт в формате Markdown.
 
@@ -158,10 +266,19 @@ async def generate_weekly_report(
     Внутри группирует записи по дням для удобного чтения.
     """
     week_end = week_start + timedelta(days=6)
-    range_start = datetime(week_start.year, week_start.month, week_start.day, 0, 0, 0, tzinfo=UTC)
-    range_end = datetime(week_end.year, week_end.month, week_end.day, 23, 59, 59, tzinfo=UTC)
+    range_start = datetime(
+        week_start.year, week_start.month, week_start.day, 0, 0, 0, tzinfo=UTC
+    )
+    range_end = datetime(
+        week_end.year, week_end.month, week_end.day, 23, 59, 59, tzinfo=UTC
+    )
 
+    service_filters = service_filters or []
     entries = await list_entries_for_date(session, user_id, range_start, range_end)
+    entries = _filter_entries_by_services(entries, service_filter_mode, service_filters)
+    service_filter_note = _build_service_filter_note(
+        service_filter_mode, service_filters
+    )
 
     start_str = week_start.strftime("%d.%m.%Y")
     end_str = week_end.strftime("%d.%m.%Y")
@@ -172,6 +289,8 @@ async def generate_weekly_report(
         f"**Период:** {start_str} – {end_str}",
         f"**Сформирован:** {datetime.now(UTC).strftime('%d.%m.%Y %H:%M')} UTC\n",
     ]
+    if service_filter_note:
+        lines.append(f"**Фильтр услуг:** {service_filter_note}\n")
 
     if not entries:
         lines.append("_Записей за период не найдено._")
@@ -184,7 +303,7 @@ async def generate_weekly_report(
 
         for day in sorted(days.keys()):
             day_entries = days[day]
-            lines.append(f"## {day.strftime('%d.%m.%Y (%A)')}\n")
+            lines.append(f"## {_format_weekday_day(day)}\n")
             for i, entry in enumerate(day_entries, 1):
                 lines.append(_format_entry(entry, i))
                 lines.append("")
@@ -192,7 +311,9 @@ async def generate_weekly_report(
         lines.append(_build_summary_section(entries))
 
     report = "\n".join(lines)
-    logger.info("Сформирован недельный отчёт: user_id=%s, week_start=%s", user_id, week_start)
+    logger.info(
+        "Сформирован недельный отчёт: user_id=%s, week_start=%s", user_id, week_start
+    )
     return report
 
 
@@ -202,16 +323,27 @@ async def generate_range_report(
     date_from: date,
     date_to: date,
     author_name: str,
+    service_filter_mode: ServiceFilterMode = "all",
+    service_filters: list[str] | None = None,
 ) -> str:
     """Генерирует отчёт за произвольный период в формате Markdown.
 
-    Аналог weekly report, но с произвольными датами начала и конца.
-    Группирует записи по дням внутри периода.
+    Логика та же, что и у недельного отчёта, но даты начала и конца
+    задаются явно.
     """
-    range_start = datetime(date_from.year, date_from.month, date_from.day, 0, 0, 0, tzinfo=UTC)
-    range_end = datetime(date_to.year, date_to.month, date_to.day, 23, 59, 59, tzinfo=UTC)
+    range_start = datetime(
+        date_from.year, date_from.month, date_from.day, 0, 0, 0, tzinfo=UTC
+    )
+    range_end = datetime(
+        date_to.year, date_to.month, date_to.day, 23, 59, 59, tzinfo=UTC
+    )
 
+    service_filters = service_filters or []
     entries = await list_entries_for_date(session, user_id, range_start, range_end)
+    entries = _filter_entries_by_services(entries, service_filter_mode, service_filters)
+    service_filter_note = _build_service_filter_note(
+        service_filter_mode, service_filters
+    )
 
     from_str = date_from.strftime("%d.%m.%Y")
     to_str = date_to.strftime("%d.%m.%Y")
@@ -222,6 +354,8 @@ async def generate_range_report(
         f"**Период:** {from_str} – {to_str}",
         f"**Сформирован:** {datetime.now(UTC).strftime('%d.%m.%Y %H:%M')} UTC\n",
     ]
+    if service_filter_note:
+        lines.append(f"**Фильтр услуг:** {service_filter_note}\n")
 
     if not entries:
         lines.append("_Записей за период не найдено._")
@@ -241,18 +375,31 @@ async def generate_range_report(
         lines.append(_build_summary_section(entries))
 
     report = "\n".join(lines)
-    logger.info("Сформирован отчёт за период: user_id=%s, %s – %s", user_id, date_from, date_to)
+    logger.info(
+        "Сформирован отчёт за период: user_id=%s, %s – %s", user_id, date_from, date_to
+    )
     return report
 
 
 def _build_night_work_follow_up_summary(plan: NightWorkPlan) -> str:
-    """Формирует краткий утренний summary по результатам ночного окна."""
+    """Формирует краткую сводку по итогам ночных работ."""
     total_blocks = len(plan.blocks)
     total_steps = sum(len(block.steps) for block in plan.blocks)
-    failed_blocks = sum(1 for block in plan.blocks if block.status in {"failed", "blocked"})
-    failed_steps = sum(1 for block in plan.blocks for step in block.steps if step.status in {"failed", "blocked"})
-    completed_steps = sum(1 for block in plan.blocks for step in block.steps if step.status == "completed")
-    deferred_steps = sum(1 for block in plan.blocks for step in block.steps if step.status == "skipped")
+    failed_blocks = sum(
+        1 for block in plan.blocks if block.status in {"failed", "blocked"}
+    )
+    failed_steps = sum(
+        1
+        for block in plan.blocks
+        for step in block.steps
+        if step.status in {"failed", "blocked"}
+    )
+    completed_steps = sum(
+        1 for block in plan.blocks for step in block.steps if step.status == "completed"
+    )
+    deferred_steps = sum(
+        1 for block in plan.blocks for step in block.steps if step.status == "skipped"
+    )
     handed_off_steps = sum(
         1
         for block in plan.blocks
@@ -270,7 +417,7 @@ def _build_night_work_follow_up_summary(plan: NightWorkPlan) -> str:
 
 
 def _build_night_work_report(plan: NightWorkPlan, author_name: str) -> str:
-    """Формирует markdown-отчёт по ночным работам на основе фактического исполнения."""
+    """Формирует Markdown-отчёт по ночным работам по фактическим данным."""
     lines = [
         f"# Итог ночных работ — {plan.title}",
         f"\n**Сотрудник:** {author_name}",
@@ -292,7 +439,7 @@ def _build_night_work_report(plan: NightWorkPlan, author_name: str) -> str:
         for block_index, block in enumerate(plan.blocks, 1):
             lines.append(
                 f"### {block_index}. {block.title} "
-                f"(SR: {block.sr_number or '—'}, status: {_NIGHT_WORK_STATUS_LABELS.get(block.status, block.status)})"
+                f"(SR: {block.sr_number or '—'}, статус: {_NIGHT_WORK_STATUS_LABELS.get(block.status, block.status)})"
             )
             if block.description:
                 lines.append(block.description)
@@ -307,9 +454,9 @@ def _build_night_work_report(plan: NightWorkPlan, author_name: str) -> str:
             for step_index, step in enumerate(block.steps, 1):
                 flags: list[str] = []
                 if step.is_rollback:
-                    flags.append("rollback")
+                    flags.append("откат")
                 if step.is_post_action:
-                    flags.append("post-action")
+                    flags.append("пост-действие")
                 flags_text = f" ({', '.join(flags)})" if flags else ""
                 lines.append(
                     f"- {step_index}. {step.title}{flags_text} "
@@ -327,20 +474,24 @@ def _build_night_work_report(plan: NightWorkPlan, author_name: str) -> str:
                     lines.append(f"  - Передано в: {step.handoff_to}")
             lines.append("")
 
-    lines.append("## Morning follow-up summary\n")
+    lines.append("## Краткая сводка по итогам\n")
     lines.append(_build_night_work_follow_up_summary(plan))
     return "\n".join(lines)
 
 
-async def _save_follow_up_entry(session: AsyncSession, plan: NightWorkPlan, summary: str) -> None:
-    """Сохраняет follow-up результат ночных работ в дневной журнал."""
-    first_sr_number = next((block.sr_number for block in plan.blocks if block.sr_number), None)
+async def _save_follow_up_entry(
+    session: AsyncSession, plan: NightWorkPlan, summary: str
+) -> None:
+    """Сохраняет итог ночных работ в дневной журнал отдельной записью."""
+    first_sr_number = next(
+        (block.sr_number for block in plan.blocks if block.sr_number), None
+    )
     journal_entry = ActivityEntry(
         user_id=plan.user_id,
         work_date=(plan.started_at or datetime.now(UTC)).date(),
         activity_type=ActivityType.TASK.value,
         status=ActivityStatus.CLOSED.value,
-        title=f"Follow-up после ночных работ: {plan.title}",
+        title=f"Итог после ночных работ: {plan.title}",
         description=summary,
         external_ref=first_sr_number,
         ticket_number=first_sr_number,
@@ -357,7 +508,7 @@ async def generate_night_work_result_report(
     plan_id: UUID,
     author_name: str,
 ) -> str:
-    """Генерирует итоговый отчёт по ночным работам и создаёт follow-up запись в журнале."""
+    """Генерирует итоговый отчёт по ночным работам и создаёт запись в журнале."""
     result = await session.execute(
         select(NightWorkPlan)
         .where(NightWorkPlan.id == plan_id)
@@ -371,12 +522,16 @@ async def generate_night_work_result_report(
     report = _build_night_work_report(plan, author_name)
     summary = _build_night_work_follow_up_summary(plan)
     await _save_follow_up_entry(session, plan, summary)
-    logger.info("Сформирован итоговый отчёт ночных работ: user_id=%s, plan_id=%s", user_id, plan_id)
+    logger.info(
+        "Сформирован итоговый отчёт ночных работ: user_id=%s, plan_id=%s",
+        user_id,
+        plan_id,
+    )
     return report
 
 
 def format_report_content(content_md: str, profile: str) -> str:
-    """Применяет формат-профиль отчёта (engineer/manager)."""
+    """Применяет вариант оформления отчёта под нужную аудиторию."""
     if profile not in _REPORT_FORMAT_PROFILES:
         raise ValueError(f"Недопустимый format_profile: {profile}")
     if profile == "engineer":
@@ -394,17 +549,23 @@ def _to_manager_format(content_md: str) -> str:
         if line.startswith("# "):
             result.append(line)
             continue
-        if "## Итоги" in line or "## Morning follow-up summary" in line:
+        if "## Итоги" in line or "## Краткая сводка по итогам" in line:
             summary_started = True
             result.append(line)
             continue
         if summary_started:
-            if line.startswith("## ") and "Итоги" not in line and "Morning follow-up summary" not in line:
+            if (
+                line.startswith("## ")
+                and "Итоги" not in line
+                and "Краткая сводка по итогам" not in line
+            ):
                 summary_started = False
                 continue
             result.append(line)
 
     if len(result) <= 1:
         header = lines[0] if lines else "# Отчёт"
-        return "\n".join([header, "", "_Executive summary недоступен для выбранного документа._"])
+        return "\n".join(
+            [header, "", "_Краткая версия недоступна для выбранного документа._"]
+        )
     return "\n".join(result)

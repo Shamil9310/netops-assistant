@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 
+import { extractErrorMessage } from "@/lib/api-error";
+
 type TemplateOption = {
   id: string;
   name: string;
@@ -14,13 +16,13 @@ type TemplateOption = {
 const DEFAULT_TEMPLATE_PAYLOAD = {
   blocks: [
     {
-      title: "BGP peer {{neighbor_ip}}",
+      title: "BGP-сосед {{neighbor_ip}}",
       description: "Основной блок для {{device}}",
       sr_number: "{{sr_number}}",
       steps: [
-        { title: "Pre-check {{device}}", description: "show ip bgp summary" },
-        { title: "Config apply", description: "neighbor {{neighbor_ip}} remote-as {{remote_as}}" },
-        { title: "Post-check", description: "ping / show route", is_post_action: true },
+        { title: "Проверка до изменений {{device}}", description: "show ip bgp summary" },
+        { title: "Применение конфигурации", description: "neighbor {{neighbor_ip}} remote-as {{remote_as}}" },
+        { title: "Проверка после изменений", description: "ping / show route", is_post_action: true },
       ],
     },
   ],
@@ -32,7 +34,7 @@ export function TemplateControls({ templates }: { templates: TemplateOption[] })
   const [isLoading, setIsLoading] = useState(false);
 
   const [key, setKey] = useState("bgp_peer_template");
-  const [name, setName] = useState("BGP Peer Template");
+  const [name, setName] = useState("Шаблон BGP-соседства");
   const [category, setCategory] = useState("bgp");
   const [description, setDescription] = useState("Типовой шаблон подключения BGP-соседства");
   const [payloadText, setPayloadText] = useState(JSON.stringify(DEFAULT_TEMPLATE_PAYLOAD, null, 2));
@@ -56,7 +58,9 @@ export function TemplateControls({ templates }: { templates: TemplateOption[] })
     setIsLoading(true);
     setError(null);
     try {
-      const parsedPayload = JSON.parse(payloadText) as Record<string, unknown>;
+      // Шаблон редактируется как JSON, потому что структура блоков и шагов
+      // может отличаться от сценария к сценарию и не помещается в простую форму.
+      const templatePayload = JSON.parse(payloadText) as Record<string, unknown>;
       const response = await fetch("/api/templates/mutate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -66,18 +70,21 @@ export function TemplateControls({ templates }: { templates: TemplateOption[] })
           name,
           category,
           description,
-          template_payload: parsedPayload,
+          template_payload: templatePayload,
           is_active: true,
         }),
       });
-      const body = response.status === 204 ? null : ((await response.json()) as { detail?: string });
+      const responsePayload =
+        response.status === 204
+          ? null
+          : ((await response.json()) as unknown);
       if (!response.ok) {
-        setError(body?.detail ?? "Не удалось создать шаблон");
+        setError(extractErrorMessage(responsePayload, "Не удалось создать шаблон"));
         return;
       }
       router.refresh();
     } catch {
-      setError("Некорректный JSON payload");
+      setError("Некорректный JSON-пакет");
     } finally {
       setIsLoading(false);
     }
@@ -89,6 +96,7 @@ export function TemplateControls({ templates }: { templates: TemplateOption[] })
     setIsLoading(true);
     setError(null);
     try {
+      // Переменные подставляются в текст шаблона перед созданием плана.
       const variables = JSON.parse(variablesText) as Record<string, string>;
       const response = await fetch("/api/plans/mutate", {
         method: "POST",
@@ -99,15 +107,15 @@ export function TemplateControls({ templates }: { templates: TemplateOption[] })
           variables,
         }),
       });
-      const body = (await response.json()) as { detail?: string; id?: string };
-      if (!response.ok || !body.id) {
-        setError(body.detail ?? "Не удалось создать план из шаблона");
+      const responsePayload = (await response.json()) as { id?: string } & Record<string, unknown>;
+      if (!response.ok || !responsePayload.id) {
+        setError(extractErrorMessage(responsePayload, "Не удалось создать план из шаблона"));
         return;
       }
-      router.push(`/plans?plan_id=${body.id}`);
+      router.push(`/kanban?plan_id=${responsePayload.id}`);
       router.refresh();
     } catch {
-      setError("Некорректный JSON variables");
+      setError("Некорректные JSON-переменные");
     } finally {
       setIsLoading(false);
     }
@@ -122,9 +130,12 @@ export function TemplateControls({ templates }: { templates: TemplateOption[] })
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "delete_template", template_id: templateId }),
       });
-      const body = response.status === 204 ? null : ((await response.json()) as { detail?: string });
+      const responsePayload =
+        response.status === 204
+          ? null
+          : ((await response.json()) as unknown);
       if (!response.ok) {
-        setError(body?.detail ?? "Не удалось удалить шаблон");
+        setError(extractErrorMessage(responsePayload, "Не удалось удалить шаблон"));
         return;
       }
       router.refresh();
@@ -142,9 +153,12 @@ export function TemplateControls({ templates }: { templates: TemplateOption[] })
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "import_defaults" }),
       });
-      const body = response.status === 204 ? null : ((await response.json()) as { detail?: string });
+      const responsePayload =
+        response.status === 204
+          ? null
+          : ((await response.json()) as unknown);
       if (!response.ok) {
-        setError(body?.detail ?? "Не удалось импортировать шаблоны");
+        setError(extractErrorMessage(responsePayload, "Не удалось импортировать шаблоны"));
         return;
       }
       router.refresh();

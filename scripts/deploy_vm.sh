@@ -13,7 +13,9 @@ git pull --ff-only origin main
 echo "[deploy] backend"
 cd "${BACKEND_DIR}"
 source .venv/bin/activate
-pip install -e .
+# Ставим dev-зависимости тоже, чтобы окружение на VM умело выполнять
+# те же проверки качества и служебные сценарии, что и локальный bootstrap.
+pip install -e ".[dev]"
 alembic upgrade head
 
 echo "[deploy] frontend"

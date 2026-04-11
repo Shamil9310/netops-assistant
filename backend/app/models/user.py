@@ -25,6 +25,8 @@ class UserRole(StrEnum):
 
 
 class User(Base):
+    """Пользователь системы с учётными данными и ролью доступа."""
+
     __tablename__ = "users"
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
@@ -33,8 +35,8 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String(255))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
-    # Роль определяет, к каким контурам системы имеет доступ пользователь.
-    # Дефолт — employee: наименьшие привилегии по принципу least privilege.
+    # Роль определяет, какие разделы системы доступны пользователю.
+    # По умолчанию выдаём роль обычного сотрудника: это минимальный набор прав.
     role: Mapped[str] = mapped_column(
         String(32),
         nullable=False,
@@ -42,7 +44,9 @@ class User(Base):
         server_default=UserRole.EMPLOYEE.value,
     )
 
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
@@ -50,9 +54,11 @@ class User(Base):
         nullable=False,
     )
 
-    sessions = relationship("UserSession", back_populates="user", cascade="all, delete-orphan")
+    sessions = relationship(
+        "UserSession", back_populates="user", cascade="all, delete-orphan"
+    )
 
-    # Команды, в которых состоит пользователь (many-to-many через user_team_members).
+    # Команды, в которых состоит пользователь.
     teams: Mapped[list] = relationship(
         "Team",
         secondary="user_team_members",

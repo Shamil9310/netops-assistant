@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
+import { extractErrorMessage } from "@/lib/api-error";
 import { SERVER_API_BASE_URL } from "@/lib/api-url";
 import { CSRF_COOKIE_NAME, SESSION_COOKIE_NAME } from "@/lib/constants";
 
@@ -33,8 +34,11 @@ export async function DELETE(
   });
 
   if (!response.ok) {
-    const body = await response.json();
-    return NextResponse.json(body, { status: response.status });
+    const responsePayload = await response.json();
+    return NextResponse.json(
+      { detail: extractErrorMessage(responsePayload, "Не удалось удалить событие") },
+      { status: response.status },
+    );
   }
   return new NextResponse(null, { status: 204 });
 }

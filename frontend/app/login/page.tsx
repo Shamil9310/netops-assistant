@@ -12,7 +12,7 @@ type LoginPageProps = {
 export default async function LoginPage({ searchParams }: LoginPageProps) {
   const user = await getCurrentUser();
   if (user) {
-    redirect("/");
+    redirect("/today");
   }
 
   const resolved_search_params = searchParams ? await searchParams : undefined;
@@ -24,14 +24,14 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
         <div className="auth-brand">
           <div className="auth-brand-mark">NA</div>
           <div>
-            <div className="auth-brand-name">NetOps Assistant</div>
-            <div className="auth-brand-sub">Engineer Workspace</div>
+            <div className="auth-brand-name">Ассистент NetOps</div>
+            <div className="auth-brand-sub">Рабочее пространство Аврора</div>
           </div>
         </div>
 
-        <div className="auth-title">Вход в рабочий контур</div>
+        <div className="auth-title">Вход в систему</div>
         <div className="auth-sub">
-          Используй локальную учётную запись для доступа к журналу, отчётам и планам изменений.
+          Используй рабочую учётную запись для доступа к журналу, отчётам и планам изменений.
         </div>
 
         <LoginForm has_error={has_error} />

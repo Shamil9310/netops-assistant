@@ -9,26 +9,29 @@ import { LogoutButton } from "@/components/logout-button";
 function getSections(role: string) {
   const baseSections = [
     {
-      title: "Работа",
+      title: "Разделы",
       items: [
-        { href: "/", icon: "◈", label: "Сегодня" },
+        { href: "/dashboard", icon: "◈", label: "Дашборд" },
         { href: "/journal", icon: "☰", label: "Журнал" },
         { href: "/reports", icon: "⬡", label: "Отчёты" },
-        { href: "/plans", icon: "◻", label: "Ночные работы" },
+        { href: "/kanban", icon: "◫", label: "Канбан" },
         { href: "/templates", icon: "◎", label: "Шаблоны" },
         { href: "/archive", icon: "▣", label: "Архив" },
       ],
     },
     {
       title: "Команда",
-      items: [{ href: "/team", icon: "◉", label: "Команда" }],
+      items: [{ href: "/team", icon: "◉", label: "Состав" }],
     },
   ];
 
   if (role === "developer") {
     baseSections.push({
       title: "Сервис",
-      items: [{ href: "/developer", icon: "◌", label: "Developer" }],
+      items: [
+        { href: "/developer", icon: "◌", label: "Разработчик" },
+        { href: "/developer/users", icon: "◎", label: "Учётки" },
+      ],
     });
   }
   return baseSections;
@@ -42,15 +45,23 @@ export function Sidebar({ user }: { user: CurrentUser }) {
     .slice(0, 2)
     .map((w) => w[0])
     .join("");
+  const isActivePath = (href: string) =>
+    pathname === href || pathname.startsWith(`${href}/`);
 
   return (
     <aside className="nav-col">
       <div className="brand">
         <div className="brand-mark">NA</div>
         <div>
-          <div className="brand-title">NetOps Assistant</div>
-          <div className="brand-subtitle">Engineer Workspace</div>
+          <div className="brand-title">Ассистент NetOps</div>
+          <div className="brand-subtitle">Рабочее пространство для сетевых операций</div>
         </div>
+      </div>
+
+      <div className="sidebar-status">
+        <div className="sidebar-status-label">Рабочая зона</div>
+        <div className="sidebar-status-value">{user.role}</div>
+        <div className="sidebar-status-note">Безопасная сессия активна</div>
       </div>
 
       <nav className="nav">
@@ -58,7 +69,7 @@ export function Sidebar({ user }: { user: CurrentUser }) {
           <div key={section.title}>
             <div className="nav-section">{section.title}</div>
             {section.items.map(({ href, icon, label }) => (
-              <Link key={href} href={href} className={pathname === href ? "active" : ""}>
+              <Link key={href} href={href} className={isActivePath(href) ? "active" : ""}>
                 <span className="nav-icon">{icon}</span>
                 {label}
               </Link>
@@ -68,11 +79,6 @@ export function Sidebar({ user }: { user: CurrentUser }) {
       </nav>
 
       <div className="nav-spacer" />
-
-      <div className="lang-switcher">
-        <button className="lang-btn active">RU</button>
-        <button className="lang-btn">EN</button>
-      </div>
 
       <div className="profile-block">
         <div className="profile-row">

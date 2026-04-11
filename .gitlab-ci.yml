@@ -16,7 +16,7 @@ backend_imports:
       "${PYTHON314_BIN}" -m venv .venv
       source .venv/bin/activate
       pip install --upgrade pip
-      pip install -e .
+      pip install -e .[dev]
       python -c "from app.main import app; from app.core.config import settings; from app.services.journal import create_activity_entry; print('backend imports OK'); print(app.title); print(settings.environment)"
 
 frontend_build:
@@ -38,3 +38,102 @@ deploy_vm:
     - main
   script:
     - /home/corp.tele2.ru/admin.isaev/netops-assistant/scripts/deploy_vm.sh
+
+backend_ruff:
+  stage: test
+  tags:
+    - netops
+  script:
+    - |
+      cd "$CI_PROJECT_DIR"
+      "${PYTHON314_BIN}" -m venv .venv
+      source .venv/bin/activate
+      pip install --upgrade pip
+      cd backend
+      pip install -e .[dev]
+      cd ..
+      python doctor.py ruff
+
+backend_pytest:
+  stage: test
+  tags:
+    - netops
+  script:
+    - |
+      cd "$CI_PROJECT_DIR"
+      "${PYTHON314_BIN}" -m venv .venv
+      source .venv/bin/activate
+      pip install --upgrade pip
+      cd backend
+      pip install -e .[dev]
+      cd ..
+      python doctor.py pytest
+
+backend_coverage:
+  stage: test
+  tags:
+    - netops
+  coverage: '/TOTAL\s+\d+\s+\d+\s+(\d+%)/'
+  script:
+    - |
+      cd "$CI_PROJECT_DIR"
+      "${PYTHON314_BIN}" -m venv .venv
+      source .venv/bin/activate
+      pip install --upgrade pip
+      cd backend
+      pip install -e .[dev]
+      cd ..
+      python doctor.py coverage
+  artifacts:
+    when: always
+    paths:
+      - backend/coverage.xml
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: backend/coverage.xml
+
+backend_eradicate:
+  stage: test
+  tags:
+    - netops
+  script:
+    - |
+      cd "$CI_PROJECT_DIR"
+      "${PYTHON314_BIN}" -m venv .venv
+      source .venv/bin/activate
+      pip install --upgrade pip
+      cd backend
+      pip install -e .[dev]
+      cd ..
+      python doctor.py eradicate
+
+backend_interrogate:
+  stage: test
+  tags:
+    - netops
+  script:
+    - |
+      cd "$CI_PROJECT_DIR"
+      "${PYTHON314_BIN}" -m venv .venv
+      source .venv/bin/activate
+      pip install --upgrade pip
+      cd backend
+      pip install -e .[dev]
+      cd ..
+      python doctor.py interrogate
+
+backend_pydocstyle:
+  stage: test
+  tags:
+    - netops
+  script:
+    - |
+      cd "$CI_PROJECT_DIR"
+      "${PYTHON314_BIN}" -m venv .venv
+      source .venv/bin/activate
+      pip install --upgrade pip
+      cd backend
+      pip install -e .[dev]
+      cd ..
+      python doctor.py pydocstyle

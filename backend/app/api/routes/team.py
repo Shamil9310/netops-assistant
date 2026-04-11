@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import CurrentUser, require_developer, require_manager
 from app.db.session import get_db
+from app.models.team import Team
 from app.models.user import User, UserRole
 from app.schemas.team import (
     TeamCreateRequest,
@@ -28,7 +29,7 @@ from app.services.auth import get_user_by_username, hash_password
 router = APIRouter()
 
 
-def _to_team_response(team: object) -> TeamResponse:
+def _to_team_response(team: Team) -> TeamResponse:
     """Преобразует ORM-модель Team в схему ответа API."""
     return TeamResponse(
         id=str(team.id),
@@ -61,11 +62,13 @@ def _to_user_response(user: User) -> UserResponse:
 
 
 # ---------------------------------------------------------------------------
-# Teams
+# Команды
 # ---------------------------------------------------------------------------
 
 
-@router.get("/teams", response_model=list[TeamResponse], dependencies=[Depends(require_manager)])
+@router.get(
+    "/teams", response_model=list[TeamResponse], dependencies=[Depends(require_manager)]
+)
 async def list_teams(db: AsyncSession = Depends(get_db)) -> list[TeamResponse]:
     """Список всех команд. Доступен менеджерам и разработчикам."""
     teams = await team_service.get_all_teams(db)
@@ -78,23 +81,42 @@ async def list_teams(db: AsyncSession = Depends(get_db)) -> list[TeamResponse]:
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(require_developer)],
 )
-async def create_team(payload: TeamCreateRequest, db: AsyncSession = Depends(get_db)) -> TeamResponse:
-    """Создаёт новую команду. Только developer."""
-    team = await team_service.create_team(db, payload.name, payload.description, payload.manager_id)
+async def create_team(
+    payload: TeamCreateRequest, db: AsyncSession = Depends(get_db)
+) -> TeamResponse:
+    """Создаёт новую команду. Доступно только разработчику."""
+    team = await team_service.create_team(
+        db,
+        payload.name,
+        payload.description,
+        UUID(payload.manager_id) if payload.manager_id else None,
+    )
     return _to_team_response(team)
 
 
-@router.patch("/teams/{team_id}", response_model=TeamResponse, dependencies=[Depends(require_developer)])
+@router.patch(
+    "/teams/{team_id}",
+    response_model=TeamResponse,
+    dependencies=[Depends(require_developer)],
+)
 async def update_team(
     team_id: UUID,
     payload: TeamUpdateRequest,
     db: AsyncSession = Depends(get_db),
 ) -> TeamResponse:
-    """Обновляет данные команды. Только developer."""
+    """Обновляет данные команды. Доступно только разработчику."""
     team = await team_service.get_team_by_id(db, team_id)
     if team is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Команда не найдена")
-    updated = await team_service.update_team(db, team, payload.name, payload.description, payload.manager_id)
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Команда не найдена"
+        )
+    updated = await team_service.update_team(
+        db,
+        team,
+        payload.name,
+        payload.description,
+        UUID(payload.manager_id) if payload.manager_id else None,
+    )
     return _to_team_response(updated)
 
 
@@ -103,14 +125,20 @@ async def update_team(
     status_code=status.HTTP_204_NO_CONTENT,
     dependencies=[Depends(require_developer)],
 )
-async def add_member(team_id: UUID, user_id: UUID, db: AsyncSession = Depends(get_db)) -> None:
-    """Добавляет пользователя в команду. Только developer."""
+async def add_member(
+    team_id: UUID, user_id: UUID, db: AsyncSession = Depends(get_db)
+) -> None:
+    """Добавляет пользователя в команду. Доступно только разработчику."""
     team = await team_service.get_team_by_id(db, team_id)
     if team is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Команда не найдена")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Команда не найдена"
+        )
     user = await team_service.get_user_by_id(db, user_id)
     if user is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Пользователь не найден")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Пользователь не найден"
+        )
     await team_service.add_member_to_team(db, team, user)
 
 
@@ -119,23 +147,31 @@ async def add_member(team_id: UUID, user_id: UUID, db: AsyncSession = Depends(ge
     status_code=status.HTTP_204_NO_CONTENT,
     dependencies=[Depends(require_developer)],
 )
-async def remove_member(team_id: UUID, user_id: UUID, db: AsyncSession = Depends(get_db)) -> None:
-    """Удаляет пользователя из команды. Только developer."""
+async def remove_member(
+    team_id: UUID, user_id: UUID, db: AsyncSession = Depends(get_db)
+) -> None:
+    """Удаляет пользователя из команды. Доступно только разработчику."""
     team = await team_service.get_team_by_id(db, team_id)
     if team is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Команда не найдена")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Команда не найдена"
+        )
     user = await team_service.get_user_by_id(db, user_id)
     if user is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Пользователь не найден")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Пользователь не найден"
+        )
     await team_service.remove_member_from_team(db, team, user)
 
 
 # ---------------------------------------------------------------------------
-# Users
+# Пользователи
 # ---------------------------------------------------------------------------
 
 
-@router.get("/users", response_model=list[UserResponse], dependencies=[Depends(require_manager)])
+@router.get(
+    "/users", response_model=list[UserResponse], dependencies=[Depends(require_manager)]
+)
 async def list_users(db: AsyncSession = Depends(get_db)) -> list[UserResponse]:
     """Список всех пользователей. Доступен менеджерам и разработчикам."""
     users = await team_service.get_all_users(db)
@@ -143,7 +179,9 @@ async def list_users(db: AsyncSession = Depends(get_db)) -> list[UserResponse]:
 
 
 @router.get("/users/my-team", response_model=list[UserResponse])
-async def my_team_members(current_user: CurrentUser, db: AsyncSession = Depends(get_db)) -> list[UserResponse]:
+async def my_team_members(
+    current_user: CurrentUser, db: AsyncSession = Depends(get_db)
+) -> list[UserResponse]:
     """Возвращает участников команд текущего менеджера.
 
     Менеджер видит только своих подчинённых — ключевое ограничение видимости данных.
@@ -159,11 +197,15 @@ async def my_team_members(current_user: CurrentUser, db: AsyncSession = Depends(
 )
 async def my_team_weekly_summary(
     current_user: CurrentUser,
-    week_start: date = Query(..., description="Понедельник недели в формате YYYY-MM-DD"),
+    week_start: date = Query(
+        ..., description="Понедельник недели в формате YYYY-MM-DD"
+    ),
     db: AsyncSession = Depends(get_db),
 ) -> list[TeamWeeklySummaryResponse]:
-    """Возвращает недельную сводку по сотрудникам manager scope."""
-    summaries = await manager_dashboard_service.get_weekly_team_summary(db, current_user.id, week_start)
+    """Возвращает недельную сводку по сотрудникам, доступным текущему руководителю."""
+    summaries = await manager_dashboard_service.get_weekly_team_summary(
+        db, current_user.id, week_start
+    )
     return [
         TeamWeeklySummaryResponse(
             user_id=str(item.user_id),
@@ -185,20 +227,17 @@ async def export_weekly_report_for_team_member(
     user_id: UUID,
     current_user: CurrentUser,
     request: Request,
-    week_start: date = Query(..., description="Понедельник недели в формате YYYY-MM-DD"),
+    week_start: date = Query(
+        ..., description="Понедельник недели в формате YYYY-MM-DD"
+    ),
     db: AsyncSession = Depends(get_db),
 ) -> Response:
-    """Экспортирует недельный отчёт сотрудника, если он в manager scope."""
-    in_scope = await manager_dashboard_service.is_user_in_manager_scope(db, current_user.id, user_id)
-    if not in_scope:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Сотрудник не относится к вашей команде",
-        )
-
+    """Экспортирует недельный отчёт сотрудника (manager/developer read-only доступ)."""
     team_member = await team_service.get_user_by_id(db, user_id)
     if team_member is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Пользователь не найден")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Пользователь не найден"
+        )
 
     content_md = await reports_service.generate_weekly_report(
         db,
@@ -224,13 +263,105 @@ async def export_weekly_report_for_team_member(
     )
 
 
+@router.get(
+    "/users/{user_id}/reports/daily/export/md",
+    dependencies=[Depends(require_manager)],
+)
+async def export_daily_report_for_user(
+    user_id: UUID,
+    current_user: CurrentUser,
+    request: Request,
+    report_date: date = Query(..., description="Дата отчёта в формате YYYY-MM-DD"),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    """Экспортирует дневной отчёт сотрудника (manager/developer read-only доступ)."""
+    target_user = await team_service.get_user_by_id(db, user_id)
+    if target_user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Пользователь не найден"
+        )
+
+    content_md = await reports_service.generate_daily_report(
+        db,
+        user_id=user_id,
+        report_date=report_date,
+        author_name=target_user.full_name,
+    )
+    await log_access_event(
+        db,
+        user_id=current_user.id,
+        target_user_id=user_id,
+        resource_type="team_daily_report",
+        resource_id=f"{user_id}:{report_date.isoformat()}",
+        action="export_md",
+        request_id=getattr(request.state, "request_id", None),
+    )
+    filename = f"team_daily_{target_user.username}_{report_date.isoformat()}.md"
+    return Response(
+        content=content_md.encode("utf-8"),
+        media_type="text/markdown; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get(
+    "/users/{user_id}/reports/range/export/md",
+    dependencies=[Depends(require_manager)],
+)
+async def export_range_report_for_user(
+    user_id: UUID,
+    current_user: CurrentUser,
+    request: Request,
+    date_from: date = Query(..., description="Начальная дата периода YYYY-MM-DD"),
+    date_to: date = Query(..., description="Конечная дата периода YYYY-MM-DD"),
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    """Экспортирует отчёт сотрудника за произвольный период (manager/developer read-only)."""
+    if date_to < date_from:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="date_to не может быть раньше date_from",
+        )
+
+    target_user = await team_service.get_user_by_id(db, user_id)
+    if target_user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Пользователь не найден"
+        )
+
+    content_md = await reports_service.generate_range_report(
+        db,
+        user_id=user_id,
+        date_from=date_from,
+        date_to=date_to,
+        author_name=target_user.full_name,
+    )
+    await log_access_event(
+        db,
+        user_id=current_user.id,
+        target_user_id=user_id,
+        resource_type="team_range_report",
+        resource_id=f"{user_id}:{date_from.isoformat()}:{date_to.isoformat()}",
+        action="export_md",
+        request_id=getattr(request.state, "request_id", None),
+    )
+    filename = f"team_range_{target_user.username}_{date_from.isoformat()}_{date_to.isoformat()}.md"
+    return Response(
+        content=content_md.encode("utf-8"),
+        media_type="text/markdown; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
 @router.post(
     "/users",
     response_model=UserResponse,
     status_code=status.HTTP_201_CREATED,
     dependencies=[Depends(require_developer)],
 )
-async def create_user(payload: UserCreateRequest, db: AsyncSession = Depends(get_db)) -> UserResponse:
+async def create_user(
+    payload: UserCreateRequest, db: AsyncSession = Depends(get_db)
+) -> UserResponse:
     """Создаёт нового пользователя. Только developer."""
     existing = await get_user_by_username(db, payload.username)
     if existing is not None:
@@ -258,7 +389,11 @@ async def create_user(payload: UserCreateRequest, db: AsyncSession = Depends(get
     return _to_user_response(user)
 
 
-@router.patch("/users/{user_id}/role", response_model=UserResponse, dependencies=[Depends(require_developer)])
+@router.patch(
+    "/users/{user_id}/role",
+    response_model=UserResponse,
+    dependencies=[Depends(require_developer)],
+)
 async def update_user_role(
     user_id: UUID,
     payload: UserUpdateRoleRequest,
@@ -273,7 +408,9 @@ async def update_user_role(
 
     user = await team_service.get_user_by_id(db, user_id)
     if user is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Пользователь не найден")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Пользователь не найден"
+        )
 
     user.role = payload.role
     await db.commit()

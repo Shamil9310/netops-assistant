@@ -12,7 +12,7 @@ from app.services import planned_event as planned_event_service
 
 
 @dataclass
-class _FakeEvent:
+class _PlannedEventStub:
     id: object
     user_id: object
     title: str
@@ -23,7 +23,7 @@ class _FakeEvent:
     linked_journal_entry_id: object | None = None
 
 
-class _FakeSession:
+class _SessionStub:
     def __init__(self) -> None:
         self.added: list[object] = []
 
@@ -47,10 +47,10 @@ class _FakeSession:
 
 
 @pytest.mark.asyncio
-async def test_convert_event_to_activity_entry_happy_path() -> None:
+async def test_convert_event_to_activity_entry_creates_linked_entry() -> None:
     """Проверяет создание journal entry и связывание с planned event."""
-    fake_session = _FakeSession()
-    event = _FakeEvent(
+    session_stub = _SessionStub()
+    event = _PlannedEventStub(
         id=uuid4(),
         user_id=uuid4(),
         title="TrueConf созвон",
@@ -60,7 +60,7 @@ async def test_convert_event_to_activity_entry_happy_path() -> None:
         is_completed=False,
     )
 
-    entry = await planned_event_service.convert_event_to_activity_entry(fake_session, event)  # type: ignore[arg-type]
+    entry = await planned_event_service.convert_event_to_activity_entry(session_stub, event)  # type: ignore[arg-type]
 
     assert entry.title == "TrueConf созвон"
     assert entry.work_date.isoformat() == "2026-04-07"

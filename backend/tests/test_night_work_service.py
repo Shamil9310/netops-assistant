@@ -1,13 +1,16 @@
-"""Тесты бизнес-логики жизненного цикла night work."""
+"""Тесты бизнес-логики жизненного цикла ночных работ."""
 
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from types import SimpleNamespace
 
 import pytest
 
-from app.models.night_work import NightWorkBlockStatus, NightWorkPlanStatus, NightWorkStepStatus
+from app.models.night_work import (
+    NightWorkBlockStatus,
+    NightWorkPlanStatus,
+    NightWorkStepStatus,
+)
 from app.services.night_work import (
     _resolve_finished_at,
     _resolve_started_at,
@@ -16,8 +19,8 @@ from app.services.night_work import (
 )
 
 
-def test_validate_transition_allows_happy_path_for_plan() -> None:
-    """Проверяет валидный переход статуса плана по lifecycle."""
+def test_validate_transition_allows_valid_plan_status_change() -> None:
+    """Проверяет корректный переход статуса плана по жизненному циклу."""
     allowed = {
         NightWorkPlanStatus.DRAFT: {NightWorkPlanStatus.APPROVED},
         NightWorkPlanStatus.APPROVED: {NightWorkPlanStatus.IN_PROGRESS},
@@ -34,7 +37,7 @@ def test_validate_transition_allows_happy_path_for_plan() -> None:
 
 
 def test_validate_transition_rejects_invalid_jump() -> None:
-    """Проверяет edge-case: переход через этапы запрещён."""
+    """Проверяет, что переход через этапы запрещён."""
     allowed = {
         NightWorkPlanStatus.DRAFT: {NightWorkPlanStatus.APPROVED},
         NightWorkPlanStatus.APPROVED: {NightWorkPlanStatus.IN_PROGRESS},
@@ -90,7 +93,7 @@ def test_resolve_started_at_respects_explicit_value() -> None:
 
 
 def test_resolve_finished_at_sets_value_for_terminal_status() -> None:
-    """Проверяет автопроставление finished_at для terminal-статусов."""
+    """Проверяет автопроставление finished_at для конечных статусов."""
     finished_at = _resolve_finished_at(
         current_finished_at=None,
         finished_at_from_request=None,
@@ -100,7 +103,7 @@ def test_resolve_finished_at_sets_value_for_terminal_status() -> None:
 
 
 def test_resolve_finished_at_sets_value_for_blocked_status() -> None:
-    """Проверяет, что blocked считается terminal-статусом исполнения."""
+    """Проверяет, что blocked считается конечным статусом исполнения."""
     finished_at = _resolve_finished_at(
         current_finished_at=None,
         finished_at_from_request=None,
@@ -119,7 +122,7 @@ def test_resolve_finished_at_keeps_none_for_non_terminal_status() -> None:
     assert finished_at is None
 
 
-def test_render_template_text_happy_path() -> None:
+def test_render_template_text_substitutes_known_variables() -> None:
     """Проверяет подстановку переменных в шаблонный текст."""
     rendered = render_template_text(
         "BGP peer {{neighbor_ip}} on {{device}}",
@@ -129,6 +132,9 @@ def test_render_template_text_happy_path() -> None:
 
 
 def test_render_template_text_edge_cases() -> None:
-    """Проверяет edge-cases: None и неизвестные переменные."""
+    """Проверяет случаи с None и неизвестными переменными."""
     assert render_template_text(None, {"var": "value"}) is None
-    assert render_template_text("SR {{sr}} / {{missing}}", {"sr": "SR11683266"}) == "SR SR11683266 / {{missing}}"
+    assert (
+        render_template_text("SR {{sr}} / {{missing}}", {"sr": "SR11683266"})
+        == "SR SR11683266 / {{missing}}"
+    )

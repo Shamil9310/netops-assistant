@@ -23,7 +23,7 @@ def test_normalize_search_query_trims_value_happy_path() -> None:
 
 
 def test_normalize_search_query_returns_none_for_blank_input() -> None:
-    """Проверяет edge-case: пустой и пробельный ввод не должен считаться фильтром."""
+    """Проверяет, что пустой и пробельный ввод не считается фильтром."""
     assert _normalize_search_query("") is None
     assert _normalize_search_query("   ") is None
     assert _normalize_search_query(None) is None
@@ -67,17 +67,18 @@ def test_build_activity_search_filters_contains_expected_predicates() -> None:
         activity_type=ActivityType.TICKET,
         status=ActivityStatus.CLOSED,
         external_ref="SR11683266",
+        service="TrueConf",
         ticket_number="SR11683266",
         date_from=datetime(2026, 4, 1, tzinfo=UTC),
         date_to=datetime(2026, 4, 7, tzinfo=UTC),
     )
 
-    # user_id + query + activity_type + status + external_ref + ticket_number + date_from + date_to
-    assert len(filters) == 8
+    # Один фильтр на пользователя и ещё восемь фильтров по параметрам поиска.
+    assert len(filters) == 9
 
 
 def test_build_activity_search_filters_skips_blank_query() -> None:
-    """Проверяет edge-case: пустой query не должен добавлять полнотекстовый предикат."""
+    """Проверяет, что пустой query не добавляет полнотекстовый предикат."""
     filters = _build_activity_search_filters(
         user_id=uuid4(),
         query="   ",
@@ -88,7 +89,11 @@ def test_build_activity_search_filters_skips_blank_query() -> None:
 def test_build_archive_status_filter_targets_closed_and_cancelled() -> None:
     """Проверяет бизнес-правило архива: только закрытые/отменённые записи."""
     expression = _build_archive_status_filter()
-    sql_text = str(expression.compile(dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True}))
+    sql_text = str(
+        expression.compile(
+            dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True}
+        )
+    )
 
     assert ActivityStatus.CLOSED.value in sql_text
     assert ActivityStatus.CANCELLED.value in sql_text
