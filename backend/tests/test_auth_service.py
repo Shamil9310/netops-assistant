@@ -2,8 +2,17 @@
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 
-from app.services.auth import hash_password, hash_session_token, verify_password
+import pytest
+
+from app.core.config import settings
+from app.services.auth import (
+    ensure_bootstrap_user,
+    hash_password,
+    hash_session_token,
+    verify_password,
+)
 
 # ---------------------------------------------------------------------------
 # Хэширование паролей
@@ -77,3 +86,68 @@ def test_verify_password_empty_password_raises_or_fails() -> None:
     """Пустой пароль не должен совпадать с хэшем непустого."""
     hashed = hash_password("non-empty")
     assert verify_password("", hashed) is False
+
+
+class _BootstrapSessionStub:
+    def __init__(self) -> None:
+        self.executed_statements: list[object] = []
+        self.added_user = None
+        self.committed = False
+
+    async def execute(self, statement: object) -> object:
+        self.executed_statements.append(statement)
+        return SimpleNamespace()
+
+    def add(self, user: object) -> None:
+        self.added_user = user
+
+    async def commit(self) -> None:
+        self.committed = True
+
+
+@pytest.mark.asyncio
+async def test_ensure_bootstrap_user_creates_only_missing_bootstrap_user(
+    monkeypatch,
+) -> None:
+    """Bootstrap создаётся один раз и не затрагивает существующих пользователей."""
+    session = _BootstrapSessionStub()
+
+    async def _get_user_by_username(_session: object, _username: str) -> object | None:
+        return None
+
+    monkeypatch.setattr("app.services.auth.get_user_by_username", _get_user_by_username)
+
+    await ensure_bootstrap_user(session)
+
+    assert session.committed is True
+    assert session.added_user is not None
+    assert session.added_user.username == settings.bootstrap_username
+    assert session.added_user.full_name == settings.bootstrap_full_name
+    assert session.added_user.role == "developer"
+
+
+@pytest.mark.asyncio
+async def test_ensure_bootstrap_user_is_noop_when_user_exists(monkeypatch) -> None:
+    """Повторный запуск не должен удалять или перезаписывать локальных пользователей."""
+    session = _BootstrapSessionStub()
+    existing_user = SimpleNamespace(
+        username=settings.bootstrap_username,
+        full_name="Original Name",
+        password_hash="original-hash",
+        is_active=False,
+        role="employee",
+    )
+
+    async def _get_user_by_username(_session: object, _username: str) -> object | None:
+        return existing_user
+
+    monkeypatch.setattr("app.services.auth.get_user_by_username", _get_user_by_username)
+
+    await ensure_bootstrap_user(session)
+
+    assert session.committed is False
+    assert session.added_user is None
+    assert existing_user.full_name == "Original Name"
+    assert existing_user.password_hash == "original-hash"
+    assert existing_user.is_active is False
+    assert existing_user.role == "employee"

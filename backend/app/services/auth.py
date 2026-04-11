@@ -224,23 +224,27 @@ async def ensure_bootstrap_user(session: AsyncSession) -> None:
     В production пароль нужно сменить сразу после первого входа.
     """
     existing_user = await get_user_by_username(session, settings.bootstrap_username)
-    if existing_user is not None:
+    if existing_user is None:
+        # Начальный пользователь получает роль разработчика,
+        # потому что он нужен для первичной настройки системы.
+        session.add(
+            User(
+                username=settings.bootstrap_username,
+                full_name=settings.bootstrap_full_name,
+                password_hash=hash_password(settings.bootstrap_password),
+                is_active=True,
+                role=UserRole.DEVELOPER.value,
+            )
+        )
+        await session.commit()
+        logger.info(
+            "Bootstrap-пользователь создан: username=%s", settings.bootstrap_username
+        )
         return
 
-    # Начальный пользователь получает роль разработчика,
-    # потому что он нужен для первичной настройки системы.
-    session.add(
-        User(
-            username=settings.bootstrap_username,
-            full_name=settings.bootstrap_full_name,
-            password_hash=hash_password(settings.bootstrap_password),
-            is_active=True,
-            role=UserRole.DEVELOPER.value,
-        )
-    )
-    await session.commit()
     logger.info(
-        "Bootstrap-пользователь создан: username=%s", settings.bootstrap_username
+        "Bootstrap-пользователь уже существует, пропускаем создание: username=%s",
+        settings.bootstrap_username,
     )
 
 

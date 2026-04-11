@@ -1,7 +1,12 @@
+import { cookies } from "next/headers";
+
 import { DeveloperUserCreateForm } from "@/components/developer-user-create-form";
+import { DeveloperUserFlashClearer } from "@/components/developer-user-flash-clearer";
 import { Sidebar } from "@/components/sidebar";
 import { getLocalUsers } from "@/lib/api";
 import { requireUser } from "@/lib/auth";
+
+const FLASH_COOKIE_NAME = "developer_user_creation_flash";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -25,6 +30,31 @@ function getAccountStatusLabel(isActive: boolean): string {
   return isActive ? "активна" : "отключена";
 }
 
+function readCreationFlash(rawValue: string | undefined): {
+  пароль: string;
+  логин: string;
+} {
+  if (!rawValue) {
+    return { пароль: "", логин: "" };
+  }
+
+  try {
+    const parsed = JSON.parse(decodeURIComponent(rawValue)) as {
+      generated_password?: unknown;
+      created_username?: unknown;
+    };
+
+    return {
+      пароль:
+        typeof parsed.generated_password === "string" ? parsed.generated_password : "",
+      логин:
+        typeof parsed.created_username === "string" ? parsed.created_username : "",
+    };
+  } catch {
+    return { пароль: "", логин: "" };
+  }
+}
+
 export default async function DeveloperUsersPage({
   searchParams,
 }: {
@@ -33,13 +63,16 @@ export default async function DeveloperUsersPage({
   const user = await requireUser();
   const users = await getLocalUsers();
   const resolvedParams = searchParams ? await searchParams : {};
-  const hasCreateSuccess = toSingleValue(resolvedParams.create_user_success) === "1";
   const createUserError = toSingleValue(resolvedParams.create_user_error);
-  const generatedPassword = toSingleValue(resolvedParams.generated_password);
-  const createdUsername = toSingleValue(resolvedParams.created_username);
   const hasDeleteSuccess = toSingleValue(resolvedParams.delete_user_success) === "1";
   const deleteUserError = toSingleValue(resolvedParams.delete_user_error);
   const deletedUsername = toSingleValue(resolvedParams.deleted_username);
+  const flashStore = await cookies();
+  const creationFlashRaw = flashStore.get(FLASH_COOKIE_NAME)?.value ?? "";
+  const creationFlash = readCreationFlash(creationFlashRaw);
+  const hasCreateSuccess = creationFlashRaw.length > 0;
+  const generatedPassword = creationFlash.пароль;
+  const createdUsername = creationFlash.логин;
 
   if (user.role !== "developer") {
     return (
@@ -89,6 +122,7 @@ export default async function DeveloperUsersPage({
             {generatedPassword && <p>Сгенерированный пароль: {generatedPassword}</p>}
           </div>
         )}
+        <DeveloperUserFlashClearer enabled={hasCreateSuccess} />
         {deleteUserError && (
           <div className="form-error" style={{ marginTop: 10 }}>
             {deleteUserError}
@@ -110,6 +144,37 @@ export default async function DeveloperUsersPage({
             <div className="page-sub">
               Создание, просмотр и удаление локальных пользователей
             </div>
+          </div>
+        </div>
+
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+            gap: 16,
+            marginBottom: 18,
+          }}
+        >
+          <div className="report-block" style={{ padding: 18 }}>
+            <div className="badge task">Всего</div>
+            <div className="page-title" style={{ fontSize: "2.2rem", marginTop: 10, WebkitTextFillColor: "initial", background: "none", color: "var(--text)" }}>
+              {users?.length ?? 0}
+            </div>
+            <div className="page-sub">Локальные учётные записи</div>
+          </div>
+          <div className="report-block" style={{ padding: 18 }}>
+            <div className="badge bgp">Создано</div>
+            <div className="page-title" style={{ fontSize: "2.2rem", marginTop: 10, WebkitTextFillColor: "initial", background: "none", color: "var(--text)" }}>
+              {hasCreateSuccess ? "1" : "0"}
+            </div>
+            <div className="page-sub">Последняя операция создания</div>
+          </div>
+          <div className="report-block" style={{ padding: 18 }}>
+            <div className="badge acl">Удалено</div>
+            <div className="page-title" style={{ fontSize: "2.2rem", marginTop: 10, WebkitTextFillColor: "initial", background: "none", color: "var(--text)" }}>
+              {hasDeleteSuccess ? "1" : "0"}
+            </div>
+            <div className="page-sub">Последняя операция удаления</div>
           </div>
         </div>
 
