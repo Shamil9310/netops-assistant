@@ -1,44 +1,20 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-
-import { JournalEntryModal } from "@/components/journal-entry-modal";
-import type { JournalActivityStatus } from "@/lib/api";
+import { extractErrorMessage } from "@/lib/api-error";
 
 type Props = {
   entryId: string;
-  ticketNumber: string | null;
-  activityType: string;
-  status: JournalActivityStatus;
-  workDate: string;
-  startedAt: string | null;
-  endedAt: string | null;
-  endedDate: string | null;
-  currentDescription: string | null;
-  currentResolution: string | null;
-  currentContact: string | null;
-  currentTaskUrl: string | null;
 };
 
 export function JournalEntryActions({
   entryId,
-  ticketNumber,
-  activityType,
-  status,
-  workDate,
-  startedAt,
-  endedAt,
-  endedDate,
-  currentDescription,
-  currentResolution,
-  currentContact,
-  currentTaskUrl,
 }: Props) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
 
   async function onDelete() {
     if (!window.confirm("Удалить запись?")) return;
@@ -47,11 +23,11 @@ export function JournalEntryActions({
     try {
       const response = await fetch(`/api/journal/entries/${entryId}`, { method: "DELETE" });
       if (!response.ok) {
-        const responsePayload = (await response.json()) as { detail?: string };
-        setError(responsePayload.detail ?? "Ошибка удаления");
+        const responsePayload = (await response.json()) as unknown;
+        setError(extractErrorMessage(responsePayload, "Ошибка удаления"));
         return;
       }
-      router.refresh();
+      window.location.reload();
     } catch {
       setError("Ошибка удаления");
     } finally {
@@ -60,34 +36,19 @@ export function JournalEntryActions({
   }
 
   return (
-    <>
-      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-        <button type="button" className="btn btn-sm" onClick={() => setIsModalOpen(true)} disabled={isLoading}>
-          Подробно
-        </button>
-        <button type="button" className="btn btn-sm btn-danger" onClick={onDelete} disabled={isLoading}>
-          Удалить
-        </button>
-        {error && <span className="form-error">{error}</span>}
-      </div>
-
-      {isModalOpen && (
-        <JournalEntryModal
-          entryId={entryId}
-          ticketNumber={ticketNumber}
-          activityType={activityType}
-          status={status}
-          workDate={workDate}
-          startedAt={startedAt}
-          endedAt={endedAt}
-          endedDate={endedDate}
-          description={currentDescription}
-          resolution={currentResolution}
-          contact={currentContact}
-          taskUrl={currentTaskUrl}
-          onClose={() => setIsModalOpen(false)}
-        />
-      )}
-    </>
+    <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+      <Link
+        href={`/journal/entries/${entryId}`}
+        className="btn btn-sm"
+        target="_blank"
+        rel="noreferrer"
+      >
+        Подробно
+      </Link>
+      <button type="button" className="btn btn-sm btn-danger" onClick={onDelete} disabled={isLoading}>
+        Удалить
+      </button>
+      {error && <span className="form-error">{error}</span>}
+    </div>
   );
 }
