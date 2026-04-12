@@ -1,10 +1,7 @@
-"use client";
-
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-
 import type { CurrentUser } from "@/lib/api";
+import { getSidebarCounters } from "@/lib/api";
 import { LogoutButton } from "@/components/logout-button";
+import { SidebarNav } from "@/components/sidebar-nav";
 
 function getSections(role: string) {
   const baseSections = [
@@ -14,6 +11,7 @@ function getSections(role: string) {
         { href: "/dashboard", icon: "◈", label: "Дашборд" },
         { href: "/journal", icon: "☰", label: "Журнал" },
         { href: "/study", icon: "◔", label: "Учёба" },
+        { href: "/work-timer", icon: "⏱", label: "Таймер" },
         { href: "/reports", icon: "⬡", label: "Отчёты" },
         { href: "/kanban", icon: "◫", label: "Канбан" },
         { href: "/templates", icon: "◎", label: "Шаблоны" },
@@ -38,16 +36,36 @@ function getSections(role: string) {
   return baseSections;
 }
 
-export function Sidebar({ user }: { user: CurrentUser }) {
-  const pathname = usePathname();
+function StatBadge({ label, value }: { label: string; value: number }) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "center",
+        gap: 10,
+        padding: "8px 10px",
+        borderRadius: 14,
+        background: "rgba(255,255,255,0.04)",
+        border: "1px solid rgba(255,255,255,0.06)",
+      }}
+    >
+      <span className="sidebar-status-note" style={{ margin: 0 }}>
+        {label}
+      </span>
+      <strong style={{ fontSize: 16, color: "var(--text)" }}>{value}</strong>
+    </div>
+  );
+}
+
+export async function Sidebar({ user }: { user: CurrentUser }) {
   const sections = getSections(user.role);
+  const stats = await getSidebarCounters();
   const initials = user.full_name
     .split(" ")
     .slice(0, 2)
     .map((w) => w[0])
     .join("");
-  const isActivePath = (href: string) =>
-    pathname === href || pathname.startsWith(`${href}/`);
 
   return (
     <aside className="nav-col">
@@ -59,25 +77,20 @@ export function Sidebar({ user }: { user: CurrentUser }) {
         </div>
       </div>
 
-      <div className="sidebar-status">
-        <div className="sidebar-status-label">Рабочая зона</div>
-        <div className="sidebar-status-value">{user.role}</div>
-        <div className="sidebar-status-note">Безопасная сессия активна</div>
+      <div className="sidebar-status" style={{ display: "grid", gap: 10 }}>
+        <div>
+          <div className="sidebar-status-label">Рабочая зона</div>
+          <div className="sidebar-status-value">{user.role}</div>
+          <div className="sidebar-status-note">Безопасная сессия активна</div>
+        </div>
+        <div style={{ display: "grid", gap: 8 }}>
+          <StatBadge label="Активные планы" value={stats?.activeStudyPlans ?? 0} />
+          <StatBadge label="Незакрыто сегодня" value={stats?.unresolvedTasks ?? 0} />
+          <StatBadge label="Активные таймеры" value={stats?.activeWorkTimers ?? 0} />
+        </div>
       </div>
 
-      <nav className="nav">
-        {sections.map((section) => (
-          <div key={section.title}>
-            <div className="nav-section">{section.title}</div>
-            {section.items.map(({ href, icon, label }) => (
-              <Link key={href} href={href} className={isActivePath(href) ? "active" : ""}>
-                <span className="nav-icon">{icon}</span>
-                {label}
-              </Link>
-            ))}
-          </div>
-        ))}
-      </nav>
+      <SidebarNav sections={sections} />
 
       <div className="nav-spacer" />
 

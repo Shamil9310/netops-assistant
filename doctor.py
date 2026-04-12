@@ -56,7 +56,7 @@ class DependencyInstallPlan:
 ROOT_DIR = Path(__file__).resolve().parent
 BACKEND_DIR = ROOT_DIR / "backend"
 FRONTEND_DIR = ROOT_DIR / "frontend"
-DEFAULT_BACKEND_COVERAGE_THRESHOLD = 50
+DEFAULT_BACKEND_COVERAGE_THRESHOLD = 95
 FRONTEND_UI_DIRS = (FRONTEND_DIR / "app", FRONTEND_DIR / "components")
 FRONTEND_CODE_DIRS = (
     FRONTEND_DIR / "app",

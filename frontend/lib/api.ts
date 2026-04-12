@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 
 import { CSRF_COOKIE_NAME, SESSION_COOKIE_NAME } from "@/lib/constants";
 import { SERVER_API_BASE_URL } from "@/lib/api-url";
+import { getCurrentWorkDateIso } from "@/lib/work-date";
 
 export type HealthResponse = {
   status: string;
@@ -280,6 +281,88 @@ export type StudyWeeklySummary = {
   completed_checkpoints: StudyCheckpointCompletionSummary[];
 };
 
+export type WorkTimerTaskStatus = "todo" | "in_progress" | "done" | "cancelled";
+export type WorkTimerSessionStatus = "running" | "paused" | "stopped";
+
+export type WorkTimerInterruption = {
+  id: string;
+  session_id: string;
+  reason: string | null;
+  started_at: string;
+  ended_at: string | null;
+  duration_seconds: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type WorkTimerSession = {
+  id: string;
+  task_id: string;
+  status: WorkTimerSessionStatus;
+  tags_snapshot: string[];
+  started_at: string;
+  ended_at: string | null;
+  duration_seconds: number;
+  interruption_seconds: number;
+  interruptions_count: number;
+  created_at: string;
+  updated_at: string;
+  interruptions: WorkTimerInterruption[];
+};
+
+export type WorkTimerTask = {
+  id: string;
+  user_id: string;
+  title: string;
+  description: string | null;
+  task_ref: string | null;
+  task_url: string | null;
+  tags: string[];
+  order_index: number;
+  status: WorkTimerTaskStatus;
+  completed_at: string | null;
+  total_seconds: number;
+  interruption_seconds: number;
+  interruptions_count: number;
+  active_session_id: string | null;
+  active_session_started_at: string | null;
+  created_at: string;
+  updated_at: string;
+  sessions: WorkTimerSession[];
+};
+
+export type WorkTimerDaySummary = {
+  day: string;
+  total_seconds: number;
+  sessions_count: number;
+  interruptions_count: number;
+};
+
+export type WorkTimerTaskSummary = {
+  task_id: string;
+  title: string;
+  total_seconds: number;
+  sessions_count: number;
+  interruptions_count: number;
+  tags: string[];
+};
+
+export type WorkTimerTagSummary = {
+  tag: string;
+  total_seconds: number;
+  sessions_count: number;
+};
+
+export type WorkTimerWeeklySummary = {
+  week_start: string;
+  week_end: string;
+  total_seconds: number;
+  days: WorkTimerDaySummary[];
+  tasks: WorkTimerTaskSummary[];
+  tags: WorkTimerTagSummary[];
+  sessions: WorkTimerSession[];
+};
+
 export type PlanTemplate = {
   id: string;
   user_id: string;
@@ -317,6 +400,12 @@ export type TeamWeeklySummary = {
   total_entries: number;
   by_status: Record<string, number>;
   by_activity_type: Record<string, number>;
+};
+
+export type SidebarCounters = {
+  activeStudyPlans: number;
+  unresolvedTasks: number;
+  activeWorkTimers: number;
 };
 
 export type JournalActivityType = "call" | "ticket" | "meeting" | "task" | "escalation" | "other";
@@ -873,6 +962,106 @@ export async function getStudyWeeklySummary(weekStart: string): Promise<StudyWee
       return null;
     }
     return (await response.json()) as StudyWeeklySummary;
+  } catch {
+    return null;
+  }
+}
+
+export async function getWorkTimerTasks(): Promise<WorkTimerTask[] | null> {
+  const cookieStore = await cookies();
+  const sessionToken = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+  if (!sessionToken) {
+    return null;
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/v1/work-timer/tasks`, {
+      headers: {
+        Cookie: `${SESSION_COOKIE_NAME}=${sessionToken}`,
+      },
+      cache: "no-store",
+    });
+    if (!response.ok) {
+      return null;
+    }
+    return (await response.json()) as WorkTimerTask[];
+  } catch {
+    return null;
+  }
+}
+
+export async function getWorkTimerWeeklySummary(
+  weekStart: string,
+): Promise<WorkTimerWeeklySummary | null> {
+  const cookieStore = await cookies();
+  const sessionToken = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+  if (!sessionToken) {
+    return null;
+  }
+
+  const query = weekStart ? `?week_start=${weekStart}` : "";
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/api/v1/work-timer/weekly-summary${query}`,
+      {
+        headers: {
+          Cookie: `${SESSION_COOKIE_NAME}=${sessionToken}`,
+        },
+        cache: "no-store",
+      },
+    );
+    if (!response.ok) {
+      return null;
+    }
+    return (await response.json()) as WorkTimerWeeklySummary;
+  } catch {
+    return null;
+  }
+}
+
+export async function getSidebarCounters(): Promise<SidebarCounters | null> {
+  const cookieStore = await cookies();
+  const sessionToken = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+  if (!sessionToken) {
+    return null;
+  }
+
+  const workDate = getCurrentWorkDateIso();
+  try {
+    const [studyPlansResponse, dashboardResponse, workTimerResponse] = await Promise.all([
+      fetch(`${API_BASE_URL}/api/v1/study/plans`, {
+        headers: {
+          Cookie: `${SESSION_COOKIE_NAME}=${sessionToken}`,
+        },
+        cache: "no-store",
+      }),
+      fetch(`${API_BASE_URL}/api/v1/dashboard/day?work_date=${workDate}`, {
+        headers: {
+          Cookie: `${SESSION_COOKIE_NAME}=${sessionToken}`,
+        },
+        cache: "no-store",
+      }),
+      fetch(`${API_BASE_URL}/api/v1/work-timer/tasks`, {
+        headers: {
+          Cookie: `${SESSION_COOKIE_NAME}=${sessionToken}`,
+        },
+        cache: "no-store",
+      }),
+    ]);
+
+    if (!studyPlansResponse.ok || !dashboardResponse.ok || !workTimerResponse.ok) {
+      return null;
+    }
+
+    const studyPlans = (await studyPlansResponse.json()) as StudyPlan[];
+    const dashboard = (await dashboardResponse.json()) as DayDashboardResponse;
+    const workTimerTasks = (await workTimerResponse.json()) as WorkTimerTask[];
+
+    return {
+      activeStudyPlans: studyPlans.filter((plan) => plan.status === "active").length,
+      unresolvedTasks: dashboard.status_counters.open + dashboard.status_counters.in_progress,
+      activeWorkTimers: workTimerTasks.filter((task) => task.active_session_id !== null).length,
+    };
   } catch {
     return null;
   }

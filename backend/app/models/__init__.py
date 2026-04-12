@@ -4,6 +4,13 @@ from app.models.journal import ActivityEntry
 from app.models.night_work import NightWorkBlock, NightWorkPlan, NightWorkStep
 from app.models.planned_event import PlannedEvent
 from app.models.report_record import ReportRecord
+from app.models.work_timer import (
+    WorkTimerInterruption,
+    WorkTimerSession,
+    WorkTimerSessionStatus,
+    WorkTimerTask,
+    WorkTimerTaskStatus,
+)
 from app.models.study import (
     StudyCheckpoint,
     StudyChecklistItem,
@@ -28,6 +35,11 @@ __all__ = [
     "PlannedEvent",
     "PlanTemplate",
     "ReportRecord",
+    "WorkTimerInterruption",
+    "WorkTimerSession",
+    "WorkTimerSessionStatus",
+    "WorkTimerTask",
+    "WorkTimerTaskStatus",
     "StudyCheckpoint",
     "StudyChecklistItem",
     "StudyPlan",

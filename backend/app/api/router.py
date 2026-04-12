@@ -11,6 +11,7 @@ from app.api.routes import (
     reports,
     search,
     study,
+    work_timer,
     team,
     templates,
 )
@@ -26,6 +27,7 @@ api_router.include_router(
 api_router.include_router(search.router, prefix="/search", tags=["search"])
 api_router.include_router(plans.router, prefix="/plans", tags=["plans"])
 api_router.include_router(study.router, prefix="/study", tags=["study"])
+api_router.include_router(work_timer.router, prefix="/work-timer", tags=["work-timer"])
 api_router.include_router(reports.router, prefix="/reports", tags=["reports"])
 api_router.include_router(templates.router, prefix="/templates", tags=["templates"])
 api_router.include_router(team.router, prefix="/team", tags=["team"])
