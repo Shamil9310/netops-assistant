@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { QueryProvider } from "@/components/providers/QueryProvider";
 
 export const metadata: Metadata = {
   title: "Ассистент NetOps",
@@ -9,7 +10,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="ru">
-      <body className="app-shell-root">{children}</body>
+      <body className="app-shell-root">
+        <QueryProvider>{children}</QueryProvider>
+      </body>
     </html>
   );
 }
