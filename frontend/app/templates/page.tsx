@@ -1,5 +1,6 @@
 import { Sidebar } from "@/components/sidebar";
 import { TemplateControls } from "@/components/template-controls";
+import { PageHero } from "@/components/page-hero";
 import { getPlanTemplates } from "@/lib/api";
 import { requireUser } from "@/lib/auth";
 
@@ -11,18 +12,18 @@ export default async function TemplatesPage() {
     <div className="shell">
       <Sidebar user={user} />
 
-      <aside className="filter-col">
-        <div className="filter-col-title">Шаблоны</div>
-        <TemplateControls templates={templates ?? []} />
-      </aside>
-
       <main className="content-col">
-        <div className="page-header">
-          <div>
-            <div className="page-title">Шаблоны</div>
-            <div className="page-sub">Управление шаблонами и применение к планам ночных работ</div>
-          </div>
-        </div>
+        <PageHero
+          eyebrow="Библиотека"
+          title="Шаблоны"
+          subtitle="Управление шаблонами и применение к планам ночных работ."
+          stats={[
+            { label: "Шаблонов", value: String((templates ?? []).length), hint: "В библиотеке" },
+            { label: "Активные", value: templates?.some((template) => template.is_active) ? "есть" : "нет", hint: "Используются в работе" },
+            { label: "Фокус", value: "night work", hint: "Основной сценарий" },
+            { label: "Статус", value: "ready", hint: "Панель управления" },
+          ]}
+        />
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 16 }}>
           <div className="report-block" style={{ padding: 18 }}>
@@ -64,6 +65,11 @@ export default async function TemplatesPage() {
           ))}
         </div>
       </main>
+
+      <aside className="filter-col">
+        <div className="filter-col-title">Шаблоны</div>
+        <TemplateControls templates={templates ?? []} />
+      </aside>
     </div>
   );
 }

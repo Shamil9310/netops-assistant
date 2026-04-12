@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import type {
   StudyCheckpoint,
   StudyModule,
@@ -50,7 +51,7 @@ function formatDateTime(value: string | null): string {
 // Учебные треки: ключ, название и краткое описание.
 const STUDY_TRACKS: Array<{ key: StudyPlanTrack; label: string }> = [
   { key: "python", label: "Python" },
-  { key: "networks", label: "Сети" },
+  { key: "networks", label: "Network" },
 ];
 
 function getTrackLabel(track: StudyPlanTrack): string {
@@ -117,6 +118,12 @@ export function StudyWorkspace({
   const [addTopicMode, setAddTopicMode] = useState<"hidden" | "single" | "roadmap">("hidden");
   const [roadmapText, setRoadmapText] = useState("");
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [pendingDelete, setPendingDelete] = useState<
+    | { kind: "plan"; id: string; title: string }
+    | { kind: "module"; id: string; title: string }
+    | { kind: "checkpoint"; id: string; title: string }
+    | null
+  >(null);
 
   const selectedPlan = useMemo(
     () =>
@@ -396,8 +403,7 @@ export function StudyWorkspace({
                         lineHeight: 1,
                       }}
                       onClick={async () => {
-                        if (!window.confirm(`Удалить план «${plan.title}»? Все темы и сессии будут удалены.`)) return;
-                        await submitMutation({ action: "delete_plan", plan_id: plan.id });
+                        setPendingDelete({ kind: "plan", id: plan.id, title: plan.title });
                       }}
                     >
                       ×
@@ -704,14 +710,13 @@ export function StudyWorkspace({
                     is_done: !checkpoint.is_done,
                   });
                 }}
-                onDeleteCheckpoint={async (checkpoint) => {
-                  if (!window.confirm(`Удалить тему «${checkpoint.title}»?`)) return;
-                  await submitMutation({ action: "delete_checkpoint", checkpoint_id: checkpoint.id });
-                }}
-                onDeleteModule={async (module) => {
-                  if (!window.confirm(`Удалить модуль «${module.title}»? Темы останутся в плане без модуля.`)) return;
-                  await submitMutation({ action: "delete_module", module_id: module.id });
-                }}
+                onRequestDelete={(target) =>
+                  setPendingDelete(
+                    target.kind === "module"
+                      ? { kind: "module", id: target.id, title: target.title }
+                      : { kind: "checkpoint", id: target.id, title: target.title },
+                  )
+                }
                 getPlanStudySeconds={getPlanStudySeconds}
               />
             )}
@@ -774,6 +779,41 @@ export function StudyWorkspace({
         </details>
       )}
 
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title={
+          pendingDelete?.kind === "plan"
+            ? "Удалить учебный план?"
+            : pendingDelete?.kind === "module"
+              ? "Удалить модуль?"
+              : "Удалить тему?"
+        }
+        description={
+          pendingDelete?.kind === "plan"
+            ? `План «${pendingDelete.title}» будет удалён вместе со всеми темами и сессиями.`
+            : pendingDelete?.kind === "module"
+              ? `Модуль «${pendingDelete.title}» будет удалён. Темы останутся в плане без привязки к модулю.`
+              : `Тема «${pendingDelete?.title ?? ""}» будет удалена без возможности восстановления.`
+        }
+        confirmLabel="Удалить"
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={async () => {
+          const nextDelete = pendingDelete;
+          setPendingDelete(null);
+          if (!nextDelete) {
+            return;
+          }
+          if (nextDelete.kind === "plan") {
+            await submitMutation({ action: "delete_plan", plan_id: nextDelete.id });
+          } else if (nextDelete.kind === "module") {
+            await submitMutation({ action: "delete_module", module_id: nextDelete.id });
+          } else {
+            await submitMutation({ action: "delete_checkpoint", checkpoint_id: nextDelete.id });
+          }
+        }}
+        isSubmitting={isPending}
+      />
+
       {/* ── Ошибки ── */}
       {error && (
         <div
@@ -813,8 +853,11 @@ type CheckpointListProps = {
   onStart: (checkpoint: StudyCheckpoint) => void;
   onStop: (checkpoint: StudyCheckpoint) => void;
   onToggleDone: (checkpoint: StudyCheckpoint) => void;
-  onDeleteCheckpoint: (checkpoint: StudyCheckpoint) => void;
-  onDeleteModule: (module: StudyModule) => void;
+  onRequestDelete: (
+    target:
+      | { kind: "module"; id: string; title: string }
+      | { kind: "checkpoint"; id: string; title: string },
+  ) => void;
   getPlanStudySeconds: (plan: StudyPlan, checkpointId: string) => number;
 };
 
@@ -826,8 +869,7 @@ function CheckpointList({
   onStart,
   onStop,
   onToggleDone,
-  onDeleteCheckpoint,
-  onDeleteModule,
+  onRequestDelete,
   getPlanStudySeconds,
 }: CheckpointListProps) {
   // Группируем темы по module_id. Темы без модуля попадают в группу null.
@@ -979,7 +1021,7 @@ function CheckpointList({
             aria-label={`Удалить тему ${checkpoint.title}`}
             style={{ borderRadius: 20, fontSize: 12, padding: "3px 8px", opacity: 0.4 }}
             title={isActive ? "Нельзя удалить активную тему" : "Удалить тему"}
-            onClick={() => onDeleteCheckpoint(checkpoint)}
+            onClick={() => onRequestDelete({ kind: "checkpoint", id: checkpoint.id, title: checkpoint.title })}
           >
             ×
           </button>
@@ -1042,7 +1084,7 @@ function CheckpointList({
             disabled={isPending}
             aria-label={`Удалить модуль ${mod.title}`}
             style={{ borderRadius: 20, fontSize: 12, padding: "3px 10px", opacity: 0.45 }}
-            onClick={() => onDeleteModule(mod)}
+            onClick={() => onRequestDelete({ kind: "module", id: mod.id, title: mod.title })}
           >
             ×
           </button>

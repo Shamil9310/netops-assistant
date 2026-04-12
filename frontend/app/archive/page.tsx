@@ -1,4 +1,5 @@
 import { Sidebar } from "@/components/sidebar";
+import { PageHero } from "@/components/page-hero";
 import { getArchiveEntries } from "@/lib/api";
 import { formatDateLabel, formatDateTimeLabel } from "@/lib/date-format";
 import { requireUser } from "@/lib/auth";
@@ -53,66 +54,30 @@ export default async function ArchivePage({ searchParams }: { searchParams?: Sea
     <div className="shell">
       <Sidebar user={user} />
 
-      <aside className="filter-col">
-        <div className="filter-col-title">Архив</div>
-        <form method="get">
-          <div style={{ marginBottom: 20 }}>
-            <div className="filter-date-label">Период</div>
-            <input type="date" name="date_from" className="filter-date-input" defaultValue={dateFrom} />
-            <input type="date" name="date_to" className="filter-date-input" defaultValue={dateTo} />
-          </div>
-
-          <div style={{ marginBottom: 20 }}>
-            <div className="filter-date-label">Тип активности</div>
-            <select name="activity_type" defaultValue={activityType} className="filter-date-input">
-              <option value="">Все типы</option>
-              <option value="call">Звонок</option>
-              <option value="ticket">Заявка</option>
-              <option value="meeting">Встреча</option>
-              <option value="task">Задача</option>
-              <option value="escalation">Эскалация</option>
-              <option value="other">Другое</option>
-            </select>
-          </div>
-
-          <div style={{ marginBottom: 16 }}>
-            <div className="filter-date-label">Внешняя ссылка / SR</div>
-            <input name="external_ref" className="search-input" placeholder="SR11683266" defaultValue={externalRef} />
-          </div>
-          <div style={{ marginBottom: 16 }}>
-            <div className="filter-date-label">Номер заявки</div>
-            <input name="ticket_number" className="search-input" placeholder="SR11683266" defaultValue={ticketNumber} />
-          </div>
-          <div style={{ marginBottom: 16 }}>
-            <div className="filter-date-label">Услуга</div>
-            <input name="service" className="search-input" placeholder="TrueConf" defaultValue={service} />
-          </div>
-
-          <button className="btn btn-primary" type="submit" style={{ width: "100%" }}>
-            Применить фильтры
-          </button>
-        </form>
-      </aside>
-
       <main className="content-col">
-        <div className="page-header">
-          <div>
-            <div className="page-title">Архив</div>
-            <div className="page-sub">История документов, выгрузок и рабочих артефактов</div>
-          </div>
-          <div className="toolbar">
-            <form method="get" style={{ display: "flex", gap: 8 }}>
+        <PageHero
+          eyebrow="История и поиск"
+          title="Архив"
+          subtitle="История документов, выгрузок и рабочих артефактов."
+          actions={
+            <form method="get" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <input type="hidden" name="date_from" value={dateFrom} />
               <input type="hidden" name="date_to" value={dateTo} />
               <input type="hidden" name="activity_type" value={activityType} />
               <input type="hidden" name="external_ref" value={externalRef} />
               <input type="hidden" name="service" value={service} />
               <input type="hidden" name="ticket_number" value={ticketNumber} />
-              <input name="q" defaultValue={q} className="search-input" placeholder="🔍  Поиск по SR, заявке, устройству..." />
+              <input name="q" defaultValue={q} className="search-input" placeholder="Поиск по SR, заявке, устройству..." />
               <button className="btn btn-primary" type="submit">Найти</button>
             </form>
-          </div>
-        </div>
+          }
+          stats={[
+            { label: "Найдено", value: String(archive?.total ?? 0), hint: "Архивных записей" },
+            { label: "Период", value: dateFrom ? formatDateLabel(dateFrom) : "—", hint: "Начало фильтра" },
+            { label: "Тип", value: activityType || "все", hint: "Фильтр по активности" },
+            { label: "Запрос", value: q || "—", hint: "Ключевой поиск" },
+          ]}
+        />
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 16 }}>
           <div className="report-block" style={{ padding: 18 }}>
@@ -167,6 +132,47 @@ export default async function ArchivePage({ searchParams }: { searchParams?: Sea
           ))}
         </div>
       </main>
+
+      <aside className="filter-col">
+        <div className="filter-col-title">Архив</div>
+        <form method="get">
+          <div style={{ marginBottom: 20 }}>
+            <div className="filter-date-label">Период</div>
+            <input type="date" name="date_from" className="filter-date-input" defaultValue={dateFrom} />
+            <input type="date" name="date_to" className="filter-date-input" defaultValue={dateTo} />
+          </div>
+
+          <div style={{ marginBottom: 20 }}>
+            <div className="filter-date-label">Тип активности</div>
+            <select name="activity_type" defaultValue={activityType} className="filter-date-input">
+              <option value="">Все типы</option>
+              <option value="call">Звонок</option>
+              <option value="ticket">Заявка</option>
+              <option value="meeting">Встреча</option>
+              <option value="task">Задача</option>
+              <option value="escalation">Эскалация</option>
+              <option value="other">Другое</option>
+            </select>
+          </div>
+
+          <div style={{ marginBottom: 16 }}>
+            <div className="filter-date-label">Внешняя ссылка / SR</div>
+            <input name="external_ref" className="search-input" placeholder="SR11683266" defaultValue={externalRef} />
+          </div>
+          <div style={{ marginBottom: 16 }}>
+            <div className="filter-date-label">Номер заявки</div>
+            <input name="ticket_number" className="search-input" placeholder="SR11683266" defaultValue={ticketNumber} />
+          </div>
+          <div style={{ marginBottom: 16 }}>
+            <div className="filter-date-label">Услуга</div>
+            <input name="service" className="search-input" placeholder="TrueConf" defaultValue={service} />
+          </div>
+
+          <button className="btn btn-primary" type="submit" style={{ width: "100%" }}>
+            Применить фильтры
+          </button>
+        </form>
+      </aside>
     </div>
   );
 }

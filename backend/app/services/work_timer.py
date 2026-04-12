@@ -16,6 +16,7 @@ from app.models.work_timer import (
 )
 from app.models.user import User
 from app.repositories.work_timer import WorkTimerRepository
+from app.schemas.journal import ActivityEntryCreateRequest
 from app.schemas.work_timer import (
     WorkTimerDaySummary,
     WorkTimerInterruptionResponse,
@@ -28,6 +29,7 @@ from app.schemas.work_timer import (
     WorkTimerTimerActionRequest,
     WorkTimerWeeklySummaryResponse,
 )
+from app.services.journal import create_activity_entry
 
 
 def _utc_now() -> datetime:
@@ -384,10 +386,29 @@ async def _stop_session(
         await session.refresh(interruption)
     session_model.status = WorkTimerSessionStatus.STOPPED.value
     session_model.ended_at = now
-    task.status = WorkTimerTaskStatus.IN_PROGRESS.value
+    task.status = WorkTimerTaskStatus.DONE.value
+    task.completed_at = now
     await session.commit()
     await session.refresh(session_model)
     await repo.update_task(task)
+
+    journal_payload = ActivityEntryCreateRequest(
+        work_date=session_model.started_at.date(),
+        activity_type="ticket" if (task.task_ref or "").strip() else "task",
+        status="closed",
+        title=task.title.strip(),
+        description=task.description,
+        resolution="Закрыто из рабочего таймера",
+        contact=None,
+        service=None,
+        ticket_number=task.task_ref or None,
+        task_url=task.task_url,
+        started_at=session_model.started_at.timetz().replace(tzinfo=None),
+        ended_at=now.timetz().replace(tzinfo=None),
+        ended_date=now.date() if now.date() != session_model.started_at.date() else None,
+    )
+    await create_activity_entry(session, task.user, journal_payload)
+
     fresh_task = await repo.get_task_by_id(task.user_id, task.id)
     return _task_response(fresh_task or task, now)
 

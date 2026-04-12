@@ -17,7 +17,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import CurrentUser
 from app.db.session import get_db
-from app.models.user import User
 from app.schemas.journal import (
     ActivityEntryCreateRequest,
     ActivityEntryListResponse,

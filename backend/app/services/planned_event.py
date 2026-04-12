@@ -23,7 +23,9 @@ async def list_events(
     По умолчанию возвращает только незавершённые события.
     Для архива передать include_completed=True.
     """
-    return await PlannedEventRepository(session).list_for_user(user_id, include_completed)
+    return await PlannedEventRepository(session).list_for_user(
+        user_id, include_completed
+    )
 
 
 async def list_events_for_today(

@@ -3,6 +3,8 @@
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 
+import { ConfirmDialog } from "@/components/confirm-dialog";
+import { CollapsiblePanel } from "@/components/collapsible-panel";
 import { extractErrorMessage } from "@/lib/api-error";
 
 type TemplateOption = {
@@ -52,6 +54,7 @@ export function TemplateControls({ templates }: { templates: TemplateOption[] })
       2,
     ),
   );
+  const [confirmDeleteTemplate, setConfirmDeleteTemplate] = useState<TemplateOption | null>(null);
 
   async function handleCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -171,40 +174,70 @@ export function TemplateControls({ templates }: { templates: TemplateOption[] })
     <div style={{ display: "grid", gap: 12 }}>
       {error && <div className="form-error">{error}</div>}
 
-      <button className="btn btn-sm" type="button" onClick={handleImportDefaults} disabled={isLoading}>
-        Импортировать дефолтные шаблоны
-      </button>
+      <CollapsiblePanel title="Импорт дефолтных шаблонов" subtitle="Готовые шаблоны можно загрузить одним действием.">
+        <button className="btn btn-sm" type="button" onClick={handleImportDefaults} disabled={isLoading}>
+          Импортировать дефолтные шаблоны
+        </button>
+      </CollapsiblePanel>
 
-      <form onSubmit={handleCreate} style={{ display: "grid", gap: 8 }}>
-        <div className="filter-date-label">Новый шаблон</div>
-        <input className="search-input" value={key} onChange={(e) => setKey(e.target.value)} placeholder="key" required />
-        <input className="search-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="name" required />
-        <input className="search-input" value={category} onChange={(e) => setCategory(e.target.value)} placeholder="category" required />
-        <input className="search-input" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="description" />
-        <textarea className="search-input" rows={8} value={payloadText} onChange={(e) => setPayloadText(e.target.value)} />
-        <button className="btn btn-primary" type="submit" disabled={isLoading}>Сохранить шаблон</button>
-      </form>
+      <CollapsiblePanel title="Новый шаблон" subtitle="Создание шаблона по JSON-пакету и форме.">
+        <form onSubmit={handleCreate} style={{ display: "grid", gap: 8 }}>
+          <input className="search-input" value={key} onChange={(e) => setKey(e.target.value)} placeholder="key" required />
+          <input className="search-input" value={name} onChange={(e) => setName(e.target.value)} placeholder="name" required />
+          <input className="search-input" value={category} onChange={(e) => setCategory(e.target.value)} placeholder="category" required />
+          <input className="search-input" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="description" />
+          <textarea className="search-input" rows={8} value={payloadText} onChange={(e) => setPayloadText(e.target.value)} />
+          <button className="btn btn-primary" type="submit" disabled={isLoading}>Сохранить шаблон</button>
+        </form>
+      </CollapsiblePanel>
 
-      <form onSubmit={handleApply} style={{ display: "grid", gap: 8 }}>
-        <div className="filter-date-label">Применить шаблон</div>
-        <select className="filter-date-input" value={selectedTemplateId} onChange={(e) => setSelectedTemplateId(e.target.value)}>
-          <option value="">Выбери шаблон</option>
+      <CollapsiblePanel title="Применить шаблон" subtitle="Собрать новый план из выбранной заготовки.">
+        <form onSubmit={handleApply} style={{ display: "grid", gap: 8 }}>
+          <select className="filter-date-input" value={selectedTemplateId} onChange={(e) => setSelectedTemplateId(e.target.value)}>
+            <option value="">Выбери шаблон</option>
+            {templates.map((template) => (
+              <option key={template.id} value={template.id}>{template.name}</option>
+            ))}
+          </select>
+          <textarea className="search-input" rows={6} value={variablesText} onChange={(e) => setVariablesText(e.target.value)} />
+          <button className="btn btn-sm" type="submit" disabled={isLoading || !selectedTemplateId}>Создать план из шаблона</button>
+        </form>
+      </CollapsiblePanel>
+
+      <CollapsiblePanel title="Удаление шаблонов" subtitle="Список опасных действий тоже сворачиваем.">
+        <div style={{ display: "grid", gap: 8 }}>
           {templates.map((template) => (
-            <option key={template.id} value={template.id}>{template.name}</option>
+            <button
+              key={template.id}
+              className="btn btn-danger btn-sm"
+              type="button"
+              onClick={() => setConfirmDeleteTemplate(template)}
+            >
+              Удалить: {template.name}
+            </button>
           ))}
-        </select>
-        <textarea className="search-input" rows={6} value={variablesText} onChange={(e) => setVariablesText(e.target.value)} />
-        <button className="btn btn-sm" type="submit" disabled={isLoading || !selectedTemplateId}>Создать план из шаблона</button>
-      </form>
+        </div>
+      </CollapsiblePanel>
 
-      <div style={{ display: "grid", gap: 8 }}>
-        <div className="filter-date-label">Удаление шаблонов</div>
-        {templates.map((template) => (
-          <button key={template.id} className="btn btn-danger btn-sm" type="button" onClick={() => handleDelete(template.id)}>
-            Удалить: {template.name}
-          </button>
-        ))}
-      </div>
+      <ConfirmDialog
+        open={confirmDeleteTemplate !== null}
+        title="Удалить шаблон?"
+        description={
+          confirmDeleteTemplate
+            ? `Шаблон «${confirmDeleteTemplate.name}» будет удалён без возможности восстановления.`
+            : "Шаблон будет удалён без возможности восстановления."
+        }
+        confirmLabel="Удалить"
+        onCancel={() => setConfirmDeleteTemplate(null)}
+        onConfirm={async () => {
+          const template = confirmDeleteTemplate;
+          setConfirmDeleteTemplate(null);
+          if (template) {
+            await handleDelete(template.id);
+          }
+        }}
+        isSubmitting={isLoading}
+      />
     </div>
   );
 }

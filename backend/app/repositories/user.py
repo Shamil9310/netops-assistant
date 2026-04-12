@@ -11,7 +11,8 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
-from app.models.user import User, UserSession
+from app.models.user import User
+from app.models.user_session import UserSession
 from app.repositories.base import BaseRepository
 
 
@@ -28,9 +29,7 @@ class UserRepository(BaseRepository[User]):
     async def get_by_id(self, user_id: UUID) -> User | None:
         """Возвращает пользователя по ID с загрузкой его команд."""
         result = await self._session.execute(
-            select(User)
-            .where(User.id == user_id)
-            .options(selectinload(User.teams))
+            select(User).where(User.id == user_id).options(selectinload(User.teams))
         )
         return result.scalar_one_or_none()
 

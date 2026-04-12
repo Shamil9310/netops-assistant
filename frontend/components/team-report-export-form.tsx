@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 
+import { CollapsiblePanel } from "@/components/collapsible-panel";
 import type { TeamMember } from "@/lib/api";
 
 type TeamReportType = "daily" | "weekly" | "range";
@@ -37,79 +38,79 @@ export function TeamReportExportForm({ users }: { users: TeamMember[] }) {
   }
 
   return (
-    <form method="get" action="/api/team/reports/export" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-      <div className="filter-date-label">Выгрузка отчётов сотрудников</div>
-
-      <select
-        className="filter-date-input"
-        name="user_id"
-        value={selectedUserId}
-        onChange={(event) => setSelectedUserId(event.target.value)}
-      >
-        {users.map((member) => (
-          <option key={member.id} value={member.id}>
-            {member.full_name} ({member.username})
-          </option>
-        ))}
-      </select>
-
-      <select
-        className="filter-date-input"
-        name="report_type"
-        value={reportType}
-        onChange={(event) => setReportType(event.target.value as TeamReportType)}
-      >
-        <option value="daily">Дневной</option>
-        <option value="weekly">Недельный</option>
-        <option value="range">За период</option>
-      </select>
-
-      {reportType === "daily" && (
-        <input
-          type="date"
+    <CollapsiblePanel title="Выгрузка отчётов сотрудников" subtitle="Панель компактная и открывается только когда нужна.">
+      <form method="get" action="/api/team/reports/export" style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <select
           className="filter-date-input"
-          name="report_date"
-          value={reportDate}
-          onChange={(event) => setReportDate(event.target.value)}
-          required
-        />
-      )}
+          name="user_id"
+          value={selectedUserId}
+          onChange={(event) => setSelectedUserId(event.target.value)}
+        >
+          {users.map((member) => (
+            <option key={member.id} value={member.id}>
+              {member.full_name} ({member.username})
+            </option>
+          ))}
+        </select>
 
-      {reportType === "weekly" && (
-        <input
-          type="date"
+        <select
           className="filter-date-input"
-          name="week_start"
-          value={weekStart}
-          onChange={(event) => setWeekStart(event.target.value)}
-          required
-        />
-      )}
+          name="report_type"
+          value={reportType}
+          onChange={(event) => setReportType(event.target.value as TeamReportType)}
+        >
+          <option value="daily">Дневной</option>
+          <option value="weekly">Недельный</option>
+          <option value="range">За период</option>
+        </select>
 
-      {reportType === "range" && (
-        <>
+        {reportType === "daily" && (
           <input
             type="date"
             className="filter-date-input"
-            name="date_from"
-            value={dateFrom}
-            onChange={(event) => setDateFrom(event.target.value)}
+            name="report_date"
+            value={reportDate}
+            onChange={(event) => setReportDate(event.target.value)}
             required
           />
+        )}
+
+        {reportType === "weekly" && (
           <input
             type="date"
             className="filter-date-input"
-            name="date_to"
-            value={dateTo}
-            onChange={(event) => setDateTo(event.target.value)}
+            name="week_start"
+            value={weekStart}
+            onChange={(event) => setWeekStart(event.target.value)}
             required
           />
-        </>
-      )}
+        )}
 
-      <button type="submit" className="btn btn-primary">
-        Выгрузить MD
-      </button>
-    </form>
+        {reportType === "range" && (
+          <>
+            <input
+              type="date"
+              className="filter-date-input"
+              name="date_from"
+              value={dateFrom}
+              onChange={(event) => setDateFrom(event.target.value)}
+              required
+            />
+            <input
+              type="date"
+              className="filter-date-input"
+              name="date_to"
+              value={dateTo}
+              onChange={(event) => setDateTo(event.target.value)}
+              required
+            />
+          </>
+        )}
+
+        <button type="submit" className="btn btn-primary">
+          Выгрузить MD
+        </button>
+      </form>
+    </CollapsiblePanel>
   );
 }

@@ -1,6 +1,7 @@
 import { Sidebar } from "@/components/sidebar";
 import { PlannedEventConvertButton } from "@/components/planned-event-convert-button";
 import { PlannedEventCreateForm } from "@/components/planned-event-create-form";
+import { PageHero } from "@/components/page-hero";
 import { getDayDashboard, getHealth } from "@/lib/api";
 import { formatDateLabel, formatDateTimeLabel } from "@/lib/date-format";
 import { requireUser } from "@/lib/auth";
@@ -77,57 +78,24 @@ export default async function TodayPage({ searchParams }: { searchParams?: Searc
     <div className="shell">
       <Sidebar user={user} />
 
-      <aside className="filter-col">
-        <div className="filter-col-title">Контроль дня</div>
-        <form method="GET">
-          <div className="filter-date-label">Рабочая дата</div>
-          <input name="work_date" type="date" className="filter-date-input" defaultValue={selectedWorkDate} />
-          <button className="btn btn-sm" type="submit">Показать</button>
-        </form>
-
-        <div className="filter-divider" />
-        <PlannedEventCreateForm initialWorkDate={selectedWorkDate} />
-
-        <div className="filter-divider" />
-        <div className="filter-group">
-          <div className="filter-group-title">Счётчики</div>
-          <div className="filter-stat-row">
-            <span className="filter-stat-label">Всего</span>
-            <span className="filter-stat-val">{dashboard?.activity_counters.total ?? 0}</span>
-          </div>
-          <div className="filter-stat-row">
-            <span className="filter-stat-label">Заявки</span>
-            <span className="filter-stat-val">{dashboard?.activity_counters.ticket ?? 0}</span>
-          </div>
-          <div className="filter-stat-row">
-            <span className="filter-stat-label">Задачи</span>
-            <span className="filter-stat-val">{dashboard?.activity_counters.task ?? 0}</span>
-          </div>
-          <div className="filter-stat-row">
-            <span className="filter-stat-label">Открыто</span>
-            <span className="filter-stat-val">{dashboard?.status_counters.open ?? 0}</span>
-          </div>
-          <div className="filter-stat-row" style={{ marginTop: 6 }}>
-            <span className="filter-stat-label">Бэкенд</span>
-            <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 600 }}>
-              <span className="status-dot" />
-              {health?.status ?? "недоступен"}
-            </span>
-          </div>
-        </div>
-      </aside>
-
       <main className="content-col">
-        <div className="page-header">
-          <div>
-            <div className="page-title">Сегодня</div>
-            <div className="page-sub">Живая лента рабочего дня для выбранной даты: {formatDateLabel(selectedWorkDate)}</div>
-          </div>
-          <div className="toolbar">
-            <a className="btn btn-primary" href={`/journal?work_date=${selectedWorkDate}`}>+ Запись</a>
-            <a className="btn" href="/reports">Отчёт</a>
-          </div>
-        </div>
+        <PageHero
+          eyebrow="Рабочий день"
+          title="Сегодня"
+          subtitle={`Живая лента рабочего дня для выбранной даты: ${formatDateLabel(selectedWorkDate)}`}
+          actions={
+            <>
+              <a className="btn btn-primary" href={`/journal?work_date=${selectedWorkDate}`}>+ Запись</a>
+              <a className="btn" href="/reports">Отчёт</a>
+            </>
+          }
+          stats={[
+            { label: "Всего", value: String(dashboard?.activity_counters.total ?? 0), hint: "Записи за смену" },
+            { label: "Заявки", value: String(dashboard?.activity_counters.ticket ?? 0), hint: "SR и обращения" },
+            { label: "Задачи", value: String(dashboard?.activity_counters.task ?? 0), hint: "Рабочие действия" },
+            { label: "Backend", value: health?.status ?? "недоступен", hint: "Состояние API" },
+          ]}
+        />
 
         <div
           style={{
@@ -220,6 +188,46 @@ export default async function TodayPage({ searchParams }: { searchParams?: Searc
           ))}
         </div>
       </main>
+
+      <aside className="filter-col">
+        <div className="filter-col-title">Контроль дня</div>
+        <form method="GET">
+          <div className="filter-date-label">Рабочая дата</div>
+          <input name="work_date" type="date" className="filter-date-input" defaultValue={selectedWorkDate} />
+          <button className="btn btn-sm" type="submit">Показать</button>
+        </form>
+
+        <div className="filter-divider" />
+        <PlannedEventCreateForm initialWorkDate={selectedWorkDate} />
+
+        <div className="filter-divider" />
+        <div className="filter-group">
+          <div className="filter-group-title">Счётчики</div>
+          <div className="filter-stat-row">
+            <span className="filter-stat-label">Всего</span>
+            <span className="filter-stat-val">{dashboard?.activity_counters.total ?? 0}</span>
+          </div>
+          <div className="filter-stat-row">
+            <span className="filter-stat-label">Заявки</span>
+            <span className="filter-stat-val">{dashboard?.activity_counters.ticket ?? 0}</span>
+          </div>
+          <div className="filter-stat-row">
+            <span className="filter-stat-label">Задачи</span>
+            <span className="filter-stat-val">{dashboard?.activity_counters.task ?? 0}</span>
+          </div>
+          <div className="filter-stat-row">
+            <span className="filter-stat-label">Открыто</span>
+            <span className="filter-stat-val">{dashboard?.status_counters.open ?? 0}</span>
+          </div>
+          <div className="filter-stat-row" style={{ marginTop: 6 }}>
+            <span className="filter-stat-label">Бэкенд</span>
+            <span style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 600 }}>
+              <span className="status-dot" />
+              {health?.status ?? "недоступен"}
+            </span>
+          </div>
+        </div>
+      </aside>
     </div>
   );
 }

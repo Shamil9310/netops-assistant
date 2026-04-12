@@ -1,44 +1,38 @@
 import { Sidebar } from "@/components/sidebar";
 import { WorkTimerWorkspace } from "@/components/work-timer-workspace";
-import { getWorkTimerTasks, getWorkTimerWeeklySummary } from "@/lib/api";
+import { PageHero } from "@/components/page-hero";
+import { getWorkTimerTasks } from "@/lib/api";
 import { requireUser } from "@/lib/auth";
-
-function getWeekMonday(dateValue: Date): string {
-  const monday = new Date(dateValue);
-  const day = monday.getUTCDay();
-  const offset = day === 0 ? -6 : 1 - day;
-  monday.setUTCDate(monday.getUTCDate() + offset);
-  return monday.toISOString().slice(0, 10);
-}
 
 export default async function WorkTimerPage() {
   const user = await requireUser();
   const tasks = (await getWorkTimerTasks()) ?? [];
-  const weekStart = getWeekMonday(new Date());
-  const weeklySummary = await getWorkTimerWeeklySummary(weekStart);
   const initialTaskId = tasks[0]?.id ?? "";
 
   return (
-    <div className="shell shell-two-col">
+    <div className="shell">
       <Sidebar user={user} />
 
       <main className="content-col">
-        <div className="page-header">
-          <div>
-            <div className="page-title">Рабочий таймер</div>
-            <div className="page-sub">
-              Теги, привязка к задачам, паузы и недельный отчёт по времени
-            </div>
-          </div>
-        </div>
+        <PageHero
+          eyebrow="Фокус"
+          title="Рабочий таймер"
+          subtitle="Номер заявки, старт, пауза, продолжение и закрытие в журнал."
+        />
 
         <WorkTimerWorkspace
           tasks={tasks}
-          weeklySummary={weeklySummary}
           initialTaskId={initialTaskId}
-          weekStart={weekStart}
         />
       </main>
+
+      <aside className="filter-col">
+        <div className="filter-col-title">Новая заявка</div>
+        <div className="focus-note">
+          <div className="focus-note-label">Как работает</div>
+          <p>Введи номер заявки, добавь задачу, запусти таймер и останови его, когда работа закончена.</p>
+        </div>
+      </aside>
     </div>
   );
 }

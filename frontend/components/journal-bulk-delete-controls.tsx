@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { extractErrorMessage } from "@/lib/api-error";
 
 type Props = {
@@ -20,16 +21,10 @@ export function JournalBulkDeleteControls({ totalEntries, workDate }: Props) {
   const [isDeletingAll, setIsDeletingAll] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [confirmAction, setConfirmAction] = useState<"date" | "all" | null>(null);
 
   async function deleteForDate() {
     if (totalEntries === 0) {
-      return;
-    }
-
-    const userConfirmed = window.confirm(
-      "Удалить все записи за выбранную дату? Это действие нельзя отменить."
-    );
-    if (!userConfirmed) {
       return;
     }
 
@@ -58,20 +53,6 @@ export function JournalBulkDeleteControls({ totalEntries, workDate }: Props) {
   }
 
   async function deleteAll() {
-    const userConfirmed = window.confirm(
-      "Удалить вообще все записи журнала? Это действие нельзя отменить."
-    );
-    if (!userConfirmed) {
-      return;
-    }
-
-    const secondConfirmation = window.confirm(
-      "Подтверди ещё раз: будут удалены все записи журнала текущего пользователя."
-    );
-    if (!secondConfirmation) {
-      return;
-    }
-
     setIsDeletingAll(true);
     setError(null);
     setSuccess(null);
@@ -104,7 +85,7 @@ export function JournalBulkDeleteControls({ totalEntries, workDate }: Props) {
         <button
           type="button"
           className="btn btn-sm"
-          onClick={deleteForDate}
+          onClick={() => setConfirmAction("date")}
           disabled={isDeletingForDate || isDeletingAll || totalEntries === 0}
           title={
             totalEntries === 0
@@ -117,7 +98,7 @@ export function JournalBulkDeleteControls({ totalEntries, workDate }: Props) {
         <button
           type="button"
           className="btn btn-sm btn-danger"
-          onClick={deleteAll}
+          onClick={() => setConfirmAction("all")}
           disabled={isDeletingForDate || isDeletingAll}
           title="Удалить вообще все записи журнала текущего пользователя"
         >
@@ -126,6 +107,27 @@ export function JournalBulkDeleteControls({ totalEntries, workDate }: Props) {
       </div>
       {error && <span className="form-error">{error}</span>}
       {success && <span className="form-success">{success}</span>}
+      <ConfirmDialog
+        open={confirmAction !== null}
+        title={confirmAction === "all" ? "Удалить все записи?" : "Очистить выбранную дату?"}
+        description={
+          confirmAction === "all"
+            ? "Будут удалены все записи журнала текущего пользователя."
+            : "Будут удалены все записи только за выбранную рабочую дату."
+        }
+        confirmLabel={confirmAction === "all" ? "Удалить всё" : "Очистить дату"}
+        onCancel={() => setConfirmAction(null)}
+        onConfirm={async () => {
+          const nextAction = confirmAction;
+          setConfirmAction(null);
+          if (nextAction === "all") {
+            await deleteAll();
+          } else if (nextAction === "date") {
+            await deleteForDate();
+          }
+        }}
+        isSubmitting={isDeletingForDate || isDeletingAll}
+      />
     </div>
   );
 }

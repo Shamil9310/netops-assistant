@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { extractErrorMessage } from "@/lib/api-error";
 
 type Props = {
@@ -26,12 +27,9 @@ export function JournalEntryDetail({
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
 
   async function onDelete() {
-    if (!window.confirm("Удалить запись?")) {
-      return;
-    }
-
     setError(null);
     setIsLoading(true);
     try {
@@ -74,13 +72,31 @@ export function JournalEntryDetail({
       </div>
 
       <div className="modal-footer">
-        <button type="button" className="btn btn-sm btn-danger" onClick={onDelete} disabled={isLoading}>
+        <button
+          type="button"
+          className="btn btn-sm btn-danger"
+          onClick={() => setIsConfirmOpen(true)}
+          disabled={isLoading}
+        >
           Удалить
         </button>
         <button type="button" className="btn btn-sm" onClick={() => router.push(backHref)}>
           Закрыть
         </button>
       </div>
+
+      <ConfirmDialog
+        open={isConfirmOpen}
+        title="Удалить запись?"
+        description={`Запись «${title}» будет удалена без возможности восстановления.`}
+        confirmLabel="Удалить"
+        onCancel={() => setIsConfirmOpen(false)}
+        onConfirm={async () => {
+          setIsConfirmOpen(false);
+          await onDelete();
+        }}
+        isSubmitting={isLoading}
+      />
     </div>
   );
 }

@@ -94,49 +94,6 @@ export default async function DeveloperUsersPage({
     <div className="shell shell-developer">
       <Sidebar user={user} />
 
-      <aside className="filter-col developer-filter-col">
-        <div className="filter-col-title">Учётные записи</div>
-        <div className="report-block developer-form-block">
-          <div className="report-header">
-            <div>
-              <div className="report-header-title">Новая локальная учётная запись</div>
-              <div className="report-header-sub">
-                Доступные роли: разработчик, начальник, пользователь.
-              </div>
-            </div>
-          </div>
-          <div className="developer-form-body">
-            <DeveloperUserCreateForm />
-          </div>
-        </div>
-        {createUserError && (
-          <div className="form-error" style={{ marginTop: 10 }}>
-            {createUserError}
-          </div>
-        )}
-        {hasCreateSuccess && (
-          <div className="focus-note" style={{ marginTop: 10 }}>
-            <div className="focus-note-label">Создано</div>
-            <p>Локальный пользователь успешно создан.</p>
-            {createdUsername && <p>Логин: {createdUsername}</p>}
-            {generatedPassword && <p>Сгенерированный пароль: {generatedPassword}</p>}
-          </div>
-        )}
-        <DeveloperUserFlashClearer enabled={hasCreateSuccess} />
-        {deleteUserError && (
-          <div className="form-error" style={{ marginTop: 10 }}>
-            {deleteUserError}
-          </div>
-        )}
-        {hasDeleteSuccess && (
-          <div className="focus-note" style={{ marginTop: 10 }}>
-            <div className="focus-note-label">Удалено</div>
-            <p>Учётная запись удалена.</p>
-            {deletedUsername && <p>Логин: {deletedUsername}</p>}
-          </div>
-        )}
-      </aside>
-
       <main className="content-col">
         <div className="page-header">
           <div>
@@ -227,6 +184,49 @@ export default async function DeveloperUsersPage({
           </div>
         </div>
       </main>
+
+      <aside className="filter-col developer-filter-col">
+        <div className="filter-col-title">Учётные записи</div>
+        <div className="report-block developer-form-block">
+          <div className="report-header">
+            <div>
+              <div className="report-header-title">Новая локальная учётная запись</div>
+              <div className="report-header-sub">
+                Доступные роли: разработчик, начальник, пользователь.
+              </div>
+            </div>
+          </div>
+          <div className="developer-form-body">
+            <DeveloperUserCreateForm />
+          </div>
+        </div>
+        {createUserError && (
+          <div className="form-error" style={{ marginTop: 10 }}>
+            {createUserError}
+          </div>
+        )}
+        {hasCreateSuccess && (
+          <div className="focus-note" style={{ marginTop: 10 }}>
+            <div className="focus-note-label">Создано</div>
+            <p>Локальный пользователь успешно создан.</p>
+            {createdUsername && <p>Логин: {createdUsername}</p>}
+            {generatedPassword && <p>Сгенерированный пароль: {generatedPassword}</p>}
+          </div>
+        )}
+        <DeveloperUserFlashClearer enabled={hasCreateSuccess} />
+        {deleteUserError && (
+          <div className="form-error" style={{ marginTop: 10 }}>
+            {deleteUserError}
+          </div>
+        )}
+        {hasDeleteSuccess && (
+          <div className="focus-note" style={{ marginTop: 10 }}>
+            <div className="focus-note-label">Удалено</div>
+            <p>Учётная запись удалена.</p>
+            {deletedUsername && <p>Логин: {deletedUsername}</p>}
+          </div>
+        )}
+      </aside>
     </div>
   );
 }

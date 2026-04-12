@@ -25,13 +25,13 @@ export default async function LoginPage({ searchParams }: LoginPageProps) {
           <div className="auth-brand-mark">NA</div>
           <div>
             <div className="auth-brand-name">Ассистент NetOps</div>
-            <div className="auth-brand-sub">Рабочее пространство Аврора</div>
+            <div className="auth-brand-sub">Современный рабочий кабинет</div>
           </div>
         </div>
 
         <div className="auth-title">Вход в систему</div>
         <div className="auth-sub">
-          Используй рабочую учётную запись для доступа к журналу, отчётам и планам изменений.
+          Используй рабочую учётную запись для доступа к журналу, отчётам, планам и таймеру.
         </div>
 
         <LoginForm has_error={has_error} />

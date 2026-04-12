@@ -197,3 +197,54 @@ export const bulkJournalImportSchema = z.object({
 });
 
 export type BulkJournalImportFormData = z.infer<typeof bulkJournalImportSchema>;
+
+/**
+ * Схема быстрой формы создания записи журнала.
+ * Используется на клиенте для мгновенной проверки обязательных полей.
+ */
+export const journalQuickCreateSchema = z.object({
+  work_date: z.string().min(1, "Рабочая дата обязательна"),
+  ticket_number: z
+    .string()
+    .max(64, "Номер заявки не должен превышать 64 символа")
+    .optional()
+    .or(z.literal("")),
+  service: z
+    .string()
+    .max(256, "Название услуги не должно превышать 256 символов")
+    .optional()
+    .or(z.literal("")),
+});
+
+export type JournalQuickCreateFormData = z.infer<typeof journalQuickCreateSchema>;
+
+/**
+ * Схема создания планового события.
+ */
+export const plannedEventCreateSchema = z.object({
+  event_type: z.enum(["meeting", "task", "night_work_prep"], {
+    error: "Выберите тип события",
+  }),
+  title: z
+    .string()
+    .min(2, "Заголовок должен содержать не менее 2 символов")
+    .max(256, "Заголовок не должен превышать 256 символов"),
+  description: z
+    .string()
+    .max(5000, "Описание не должно превышать 5000 символов")
+    .optional()
+    .or(z.literal("")),
+  external_ref: z
+    .string()
+    .max(256, "Внешняя ссылка не должна превышать 256 символов")
+    .optional()
+    .or(z.literal("")),
+  scheduled_at: z
+    .string()
+    .regex(
+      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/,
+      "Формат даты и времени: ГГГГ-ММ-ДДTЧЧ:ММ",
+    ),
+});
+
+export type PlannedEventCreateFormData = z.infer<typeof plannedEventCreateSchema>;

@@ -44,21 +44,10 @@ function DashboardMetric({
   hint: string;
 }) {
   return (
-    <div className="report-block" style={{ padding: 18, minHeight: 150 }}>
-      <div className="badge task">{label}</div>
-      <div
-        className="page-title"
-        style={{
-          fontSize: "2.4rem",
-          marginTop: 12,
-          WebkitTextFillColor: "initial",
-          background: "none",
-          color: "var(--text)",
-        }}
-      >
-        {value}
-      </div>
-      <div className="page-sub">{hint}</div>
+    <div className="dashboard-hero-mini">
+      <div className="dashboard-hero-mini-label">{label}</div>
+      <div className="dashboard-hero-mini-value">{value}</div>
+      <div className="dashboard-hero-mini-hint">{hint}</div>
     </div>
   );
 }

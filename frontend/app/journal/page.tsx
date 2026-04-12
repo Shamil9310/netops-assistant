@@ -4,6 +4,7 @@ import { JournalDateFilter } from "@/components/journal-date-filter";
 import { JournalDeduplicateButton } from "@/components/journal-deduplicate-button";
 import { JournalBulkDeleteControls } from "@/components/journal-bulk-delete-controls";
 import { JournalEntrySelectionList } from "@/components/journal-entry-selection-list";
+import { PageHero } from "@/components/page-hero";
 import { getJournalEntries } from "@/lib/api";
 import type { JournalEntry } from "@/lib/api";
 import { formatDateLabel } from "@/lib/date-format";
@@ -32,46 +33,36 @@ export default async function JournalPage({ searchParams }: { searchParams?: Sea
     <div className="shell">
       <Sidebar user={user} />
 
-      <aside className="filter-col">
-        <div className="filter-col-title">Журнал</div>
-        <JournalCreateForm key={selectedWorkDate} initialWorkDate={selectedWorkDate} />
-      </aside>
-
       <main className="content-col">
-        <div className="page-header">
-          <div>
-            <div className="page-title">Журнал</div>
-            <div className="page-sub">Записи за рабочую дату {formatDateLabel(selectedWorkDate)}</div>
-          </div>
-          <div className="toolbar">
-            <JournalDateFilter initialDate={selectedWorkDate} />
-            <JournalDeduplicateButton
-              duplicateCount={duplicateCount}
-              workDate={selectedWorkDate}
-            />
-            <JournalBulkDeleteControls
-              totalEntries={journalEntries.length}
-              workDate={selectedWorkDate}
-            />
-          </div>
-        </div>
+        <PageHero
+          eyebrow="Оперативный журнал"
+          title="Журнал"
+          subtitle={`Записи за рабочую дату ${formatDateLabel(selectedWorkDate)}. Здесь создаём и очищаем рабочую историю.`}
+          actions={
+            <>
+              <JournalDateFilter initialDate={selectedWorkDate} />
+              <JournalDeduplicateButton duplicateCount={duplicateCount} workDate={selectedWorkDate} />
+              <JournalBulkDeleteControls totalEntries={journalEntries.length} workDate={selectedWorkDate} />
+            </>
+          }
+          stats={[
+            { label: "Записей", value: isJournalUnavailable ? "—" : String(journalEntries.length), hint: "За выбранную дату" },
+            { label: "Дубликаты", value: isJournalUnavailable ? "—" : String(duplicateCount), hint: "Нужно убрать" },
+            { label: "Дата", value: formatDateLabel(selectedWorkDate), hint: "Рабочий день" },
+          ]}
+        />
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 16 }}>
-          <div className="report-block" style={{ padding: 18 }}>
-            <div className="badge task">Записей</div>
-            <div className="page-title" style={{ fontSize: "2.2rem", marginTop: 10, WebkitTextFillColor: "initial", background: "none", color: "var(--text)" }}>
-              {isJournalUnavailable ? "—" : journalEntries.length}
-            </div>
-            <div className="page-sub">
-              {isJournalUnavailable ? "Не удалось загрузить журнал" : "За выбранную дату"}
-            </div>
+        <div className="focus-note" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+          <div>
+            <div className="focus-note-label">Сводка</div>
+            <p style={{ margin: 0 }}>
+              {isJournalUnavailable
+                ? "Не удалось загрузить журнал"
+                : `За выбранную дату доступно ${journalEntries.length} записей, дубликатов ${duplicateCount}.`}
+            </p>
           </div>
-          <div className="report-block" style={{ padding: 18 }}>
-            <div className="badge acl">Дата</div>
-            <div className="page-title" style={{ fontSize: "2.2rem", marginTop: 10, WebkitTextFillColor: "initial", background: "none", color: "var(--text)" }}>
-              {formatDateLabel(selectedWorkDate)}
-            </div>
-            <div className="page-sub">Рабочий день</div>
+          <div className="page-sub" style={{ whiteSpace: "nowrap" }}>
+            {formatDateLabel(selectedWorkDate)}
           </div>
         </div>
 
@@ -83,6 +74,11 @@ export default async function JournalPage({ searchParams }: { searchParams?: Sea
           isJournalUnavailable={isJournalUnavailable}
         />
       </main>
+
+      <aside className="filter-col">
+        <div className="filter-col-title">Журнал</div>
+        <JournalCreateForm key={selectedWorkDate} initialWorkDate={selectedWorkDate} />
+      </aside>
     </div>
   );
 }

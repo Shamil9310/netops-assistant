@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { extractErrorMessage } from "@/lib/api-error";
 import { formatDateLabel } from "@/lib/date-format";
 import type { JournalEntry } from "@/lib/api";
@@ -30,6 +31,7 @@ export function JournalEntrySelectionList({
   const [selectedEntryIds, setSelectedEntryIds] = useState<string[]>([]);
   const [isDeletingSelected, setIsDeletingSelected] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
 
   const serviceOptions = useMemo(() => {
     const uniqueServices = new Set<string>();
@@ -119,13 +121,6 @@ export function JournalEntrySelectionList({
 
   async function deleteSelectedEntries() {
     if (selectedEntryIds.length === 0) {
-      return;
-    }
-
-    const userConfirmed = window.confirm(
-      `Удалить выбранные записи (${selectedEntryIds.length})? Это действие нельзя отменить.`
-    );
-    if (!userConfirmed) {
       return;
     }
 
@@ -266,7 +261,7 @@ export function JournalEntrySelectionList({
           <button
             type="button"
             className="btn btn-sm btn-danger"
-            onClick={deleteSelectedEntries}
+            onClick={() => setIsConfirmOpen(true)}
             disabled={isDeletingSelected || selectedCount === 0}
             title={
               selectedCount === 0
@@ -279,6 +274,18 @@ export function JournalEntrySelectionList({
         </div>
       </div>
       {error && <div className="form-error" style={{ marginBottom: 12 }}>{error}</div>}
+      <ConfirmDialog
+        open={isConfirmOpen}
+        title="Удалить выбранные записи?"
+        description={`Будет удалено ${selectedEntryIds.length} записей журнала. Это действие нельзя отменить.`}
+        confirmLabel="Удалить"
+        onCancel={() => setIsConfirmOpen(false)}
+        onConfirm={async () => {
+          setIsConfirmOpen(false);
+          await deleteSelectedEntries();
+        }}
+        isSubmitting={isDeletingSelected}
+      />
       {filteredEntries.length === 0 && (
         <div className="plan-list" style={{ marginBottom: 12 }}>
           <div className="plan-item">

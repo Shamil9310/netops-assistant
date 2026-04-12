@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { extractErrorMessage } from "@/lib/api-error";
 
 type Props = {
@@ -13,6 +14,7 @@ export function PlannedEventConvertButton({ eventId }: Props) {
   const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
 
   async function onConvert() {
     setError(null);
@@ -35,7 +37,6 @@ export function PlannedEventConvertButton({ eventId }: Props) {
   }
 
   async function onDelete() {
-    if (!window.confirm("Удалить плановое событие?")) return;
     setError(null);
     setIsSubmitting(true);
     try {
@@ -60,10 +61,22 @@ export function PlannedEventConvertButton({ eventId }: Props) {
       <button type="button" className="btn btn-sm" onClick={onConvert} disabled={isSubmitting}>
         В журнал
       </button>
-      <button type="button" className="btn btn-sm btn-danger" onClick={onDelete} disabled={isSubmitting}>
+      <button type="button" className="btn btn-sm btn-danger" onClick={() => setIsConfirmOpen(true)} disabled={isSubmitting}>
         Удалить
       </button>
       {error && <span className="form-error">{error}</span>}
+      <ConfirmDialog
+        open={isConfirmOpen}
+        title="Удалить плановое событие?"
+        description="Событие исчезнет из плана дня и восстановить его будет нельзя."
+        confirmLabel="Удалить"
+        onCancel={() => setIsConfirmOpen(false)}
+        onConfirm={async () => {
+          setIsConfirmOpen(false);
+          await onDelete();
+        }}
+        isSubmitting={isSubmitting}
+      />
     </div>
   );
 }

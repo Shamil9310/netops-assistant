@@ -1,4 +1,5 @@
 import { Sidebar } from "@/components/sidebar";
+import { PageHero } from "@/components/page-hero";
 import { getMyTeamMembers, getTeamWeeklySummary } from "@/lib/api";
 import { requireUser } from "@/lib/auth";
 
@@ -32,28 +33,18 @@ export default async function TeamPage() {
     <div className="shell">
       <Sidebar user={user} />
 
-      <aside className="filter-col">
-        <div className="filter-col-title">Командный контур</div>
-        <div className="focus-note">
-          <div className="focus-note-label">Только просмотр</div>
-          <p>Страница показывает сотрудников команды для роли начальника без редактирования чужих данных.</p>
-        </div>
-
-        <div className="filter-divider" />
-
-        <div className="focus-note">
-          <div className="focus-note-label">Недельная сводка</div>
-          <p>Текущая неделя: {weekStart}. Сводка собирается по дневному журналу всей команды.</p>
-        </div>
-      </aside>
-
       <main className="content-col">
-        <div className="page-header">
-          <div>
-            <div className="page-title">Команда</div>
-            <div className="page-sub">Сотрудники моего контура и их роли</div>
-          </div>
-        </div>
+        <PageHero
+          eyebrow="Командный контур"
+          title="Команда"
+          subtitle="Сотрудники моего контура и их роли."
+          stats={[
+            { label: "Участники", value: String((members ?? []).length), hint: "В моём контуре" },
+            { label: "Неделя", value: weekStart, hint: "Старт отчётного периода" },
+            { label: "Отчёты", value: String(weeklySummary?.reduce((sum, item) => sum + item.total_entries, 0) ?? 0), hint: "Записей за неделю" },
+            { label: "Статус", value: "view", hint: "Без редактирования" },
+          ]}
+        />
 
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 16 }}>
           <div className="report-block" style={{ padding: 18 }}>
@@ -144,6 +135,21 @@ export default async function TeamPage() {
           )}
         </div>
       </main>
+
+      <aside className="filter-col">
+        <div className="filter-col-title">Командный контур</div>
+        <div className="focus-note">
+          <div className="focus-note-label">Только просмотр</div>
+          <p>Страница показывает сотрудников команды для роли начальника без редактирования чужих данных.</p>
+        </div>
+
+        <div className="filter-divider" />
+
+        <div className="focus-note">
+          <div className="focus-note-label">Недельная сводка</div>
+          <p>Текущая неделя: {weekStart}. Сводка собирается по дневному журналу всей команды.</p>
+        </div>
+      </aside>
     </div>
   );
 }

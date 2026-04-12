@@ -6,7 +6,7 @@ import { SidebarNav } from "@/components/sidebar-nav";
 function getSections(role: string) {
   const baseSections = [
     {
-      title: "Разделы",
+      title: "Рабочие зоны",
       items: [
         { href: "/dashboard", icon: "◈", label: "Дашборд" },
         { href: "/journal", icon: "☰", label: "Журнал" },
@@ -19,14 +19,14 @@ function getSections(role: string) {
       ],
     },
     {
-      title: "Команда",
+      title: "Контур",
       items: [{ href: "/team", icon: "◉", label: "Состав" }],
     },
   ];
 
   if (role === "developer") {
     baseSections.push({
-      title: "Сервис",
+      title: "Служебные",
       items: [
         { href: "/developer", icon: "◌", label: "Разработчик" },
         { href: "/developer/users", icon: "◎", label: "Учётки" },
@@ -73,15 +73,15 @@ export async function Sidebar({ user }: { user: CurrentUser }) {
         <div className="brand-mark">NA</div>
         <div>
           <div className="brand-title">Ассистент NetOps</div>
-          <div className="brand-subtitle">Рабочее пространство для сетевых операций</div>
+          <div className="brand-subtitle">Единый кабинет для рабочих операций</div>
         </div>
       </div>
 
       <div className="sidebar-status" style={{ display: "grid", gap: 10 }}>
         <div>
-          <div className="sidebar-status-label">Рабочая зона</div>
+          <div className="sidebar-status-label">Сессия</div>
           <div className="sidebar-status-value">{user.role}</div>
-          <div className="sidebar-status-note">Безопасная сессия активна</div>
+          <div className="sidebar-status-note">Интерфейс готов к работе</div>
         </div>
         <div style={{ display: "grid", gap: 8 }}>
           <StatBadge label="Активные планы" value={stats?.activeStudyPlans ?? 0} />

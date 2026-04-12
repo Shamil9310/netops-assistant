@@ -4,7 +4,7 @@ import { QueryProvider } from "@/components/providers/QueryProvider";
 
 export const metadata: Metadata = {
   title: "Ассистент NetOps",
-  description: "Рабочее пространство для ежедневных операций, отчётов и планов ночных работ",
+  description: "Современное рабочее пространство для операций, отчётов, планов и таймера",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

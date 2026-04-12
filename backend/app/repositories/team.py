@@ -25,9 +25,7 @@ class TeamRepository(BaseRepository[Team]):
     async def get_by_id(self, team_id: UUID) -> Team | None:
         """Возвращает команду по ID с участниками или None."""
         result = await self._session.execute(
-            select(Team)
-            .where(Team.id == team_id)
-            .options(selectinload(Team.members))
+            select(Team).where(Team.id == team_id).options(selectinload(Team.members))
         )
         return result.scalar_one_or_none()
 
@@ -63,8 +61,6 @@ class TeamRepository(BaseRepository[Team]):
     async def get_user_by_id(self, user_id: UUID) -> User | None:
         """Возвращает пользователя по ID с командами или None."""
         result = await self._session.execute(
-            select(User)
-            .where(User.id == user_id)
-            .options(selectinload(User.teams))
+            select(User).where(User.id == user_id).options(selectinload(User.teams))
         )
         return result.scalar_one_or_none()

@@ -6,7 +6,6 @@ from datetime import datetime, UTC
 from app.services.search import (
     _normalize_search_query,
     _validate_search_arguments,
-    _build_archive_status_filter,
 )
 
 

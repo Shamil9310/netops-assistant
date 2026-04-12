@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { extractErrorMessage } from "@/lib/api-error";
 
 type Props = {
@@ -21,16 +22,10 @@ export function JournalDeduplicateButton({ duplicateCount, workDate }: Props) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [isConfirmOpen, setIsConfirmOpen] = useState(false);
 
   async function onDeduplicate() {
     if (duplicateCount === 0) {
-      return;
-    }
-
-    const userConfirmed = window.confirm(
-      "Удалить дубли по номеру заявки за выбранную дату? Будут удалены только повторные записи."
-    );
-    if (!userConfirmed) {
       return;
     }
 
@@ -65,7 +60,7 @@ export function JournalDeduplicateButton({ duplicateCount, workDate }: Props) {
       <button
         type="button"
         className="btn btn-sm"
-        onClick={onDeduplicate}
+        onClick={() => setIsConfirmOpen(true)}
         disabled={isSubmitting || duplicateCount === 0}
         title={
           duplicateCount === 0
@@ -77,6 +72,18 @@ export function JournalDeduplicateButton({ duplicateCount, workDate }: Props) {
       </button>
       {error && <span className="form-error">{error}</span>}
       {success && <span className="form-success">{success}</span>}
+      <ConfirmDialog
+        open={isConfirmOpen}
+        title="Удалить дубли?"
+        description="Будут удалены только повторные записи по номеру заявки за выбранную дату."
+        confirmLabel="Удалить дубли"
+        onCancel={() => setIsConfirmOpen(false)}
+        onConfirm={async () => {
+          setIsConfirmOpen(false);
+          await onDeduplicate();
+        }}
+        isSubmitting={isSubmitting}
+      />
     </div>
   );
 }

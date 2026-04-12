@@ -31,14 +31,6 @@ export default async function DeveloperPage() {
     <div className="shell shell-developer">
       <Sidebar user={user} />
 
-      <aside className="filter-col developer-filter-col">
-        <div className="filter-col-title">Разработчик</div>
-        <div className="focus-note">
-          <div className="focus-note-label">Разделы</div>
-          <p>Управление учётными записями вынесено на отдельную страницу в сервисном меню.</p>
-        </div>
-      </aside>
-
       <main className="content-col">
         <div className="page-header">
           <div>
@@ -87,6 +79,14 @@ LDAP-адаптер: запланировано
 наблюдаемость: запланировано</pre>
         </div>
       </main>
+
+      <aside className="filter-col developer-filter-col">
+        <div className="filter-col-title">Разработчик</div>
+        <div className="focus-note">
+          <div className="focus-note-label">Разделы</div>
+          <p>Управление учётными записями вынесено на отдельную страницу в сервисном меню.</p>
+        </div>
+      </aside>
     </div>
   );
 }

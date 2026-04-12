@@ -96,9 +96,7 @@ class StudyRepository(BaseRepository[StudyPlan]):
         )
         return result.scalar_one_or_none()
 
-    async def get_active_session_for_user(
-        self, user_id: UUID
-    ) -> StudySession | None:
+    async def get_active_session_for_user(self, user_id: UUID) -> StudySession | None:
         """Возвращает активную (незавершённую) сессию пользователя среди всех планов."""
         result = await self._session.execute(
             select(StudySession)
@@ -109,9 +107,7 @@ class StudyRepository(BaseRepository[StudyPlan]):
         )
         return result.scalar_one_or_none()
 
-    async def get_active_session_for_plan(
-        self, plan_id: UUID
-    ) -> StudySession | None:
+    async def get_active_session_for_plan(self, plan_id: UUID) -> StudySession | None:
         """Возвращает активную сессию конкретного плана."""
         result = await self._session.execute(
             select(StudySession)

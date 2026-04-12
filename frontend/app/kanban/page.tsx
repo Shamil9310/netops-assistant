@@ -1,6 +1,7 @@
 import { Sidebar } from "@/components/sidebar";
 import { NightWorkControls } from "@/components/night-work-controls";
 import { PlanKanbanWorkspace } from "@/components/plan-kanban-workspace";
+import { PageHero } from "@/components/page-hero";
 import { getNightWorkPlans } from "@/lib/api";
 import { requireUser } from "@/lib/auth";
 
@@ -50,14 +51,19 @@ export default async function KanbanPage({ searchParams }: { searchParams?: Sear
       <Sidebar user={user} />
 
       <main className="content-col">
-        <div className="report-block" style={{ padding: 18 }}>
-          <div className="report-header" style={{ marginBottom: 16 }}>
-            <div>
-              <div className="report-header-title">Планирование</div>
-              <div className="report-header-sub">Управление ночными работами остаётся в основном рабочем поле, без третьей колонки.</div>
-            </div>
-          </div>
+        <PageHero
+          eyebrow="Планирование ночных работ"
+          title="Канбан"
+          subtitle="Управление ночными работами остаётся в основном рабочем поле, без лишней третьей колонки."
+          stats={[
+            { label: "Планов", value: String((plans ?? []).length), hint: "Всего карточек" },
+            { label: "Активный", value: activePlan?.title ?? "—", hint: "Выбранный план" },
+            { label: "Статус", value: activePlan?.status ?? "—", hint: "Текущее состояние" },
+            { label: "Старт", value: formatDateTimeLabel(activePlan?.started_at ?? null), hint: "Начало работы" },
+          ]}
+        />
 
+        <div className="report-block" style={{ padding: 18 }}>
           <NightWorkControls
             selectedPlanId={activePlan?.id ?? ""}
             selectedPlanTitle={activePlan?.title ?? ""}

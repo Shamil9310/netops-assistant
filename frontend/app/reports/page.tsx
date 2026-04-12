@@ -1,10 +1,6 @@
 import { Sidebar } from "@/components/sidebar";
-import { ReportFinalizeButton } from "@/components/report-finalize-button";
 import { ReportGenerateForm } from "@/components/report-generate-form";
-import { ReportRegenerateDraftButton } from "@/components/report-regenerate-draft-button";
-import { ReportRefreshButton } from "@/components/report-refresh-button";
-import { TeamReportExportForm } from "@/components/team-report-export-form";
-import { getReportHistory, getReportPreview, getTeamUsers } from "@/lib/api";
+import { getReportPreview } from "@/lib/api";
 import { formatDateLabel, formatDateTimeLabel } from "@/lib/date-format";
 import { requireUser } from "@/lib/auth";
 
@@ -17,24 +13,10 @@ function toSingleValue(value: string | string[] | undefined): string {
   return value ?? "";
 }
 
-function getReportTypeLabel(reportType: string): string {
-  const labels: Record<string, string> = {
-    daily: "День",
-    weekly: "Неделя",
-    range: "Период",
-    night_work_result: "Ночные работы",
-  };
-  return labels[reportType] ?? reportType;
-}
-
 export default async function ReportsPage({ searchParams }: { searchParams?: SearchParams }) {
   const user = await requireUser();
-  const history = await getReportHistory();
-  const isManagerOrDeveloper = user.role === "manager" || user.role === "developer";
-  const teamUsers = isManagerOrDeveloper ? await getTeamUsers() : null;
   const reportIdFromUrl = toSingleValue(searchParams?.report_id);
-  const teamExportError = toSingleValue(searchParams?.team_export_error);
-  const selectedReportId = reportIdFromUrl || history?.[0]?.id || "";
+  const selectedReportId = reportIdFromUrl;
   const preview = selectedReportId ? await getReportPreview(selectedReportId) : null;
   const publicApiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 
@@ -42,140 +24,37 @@ export default async function ReportsPage({ searchParams }: { searchParams?: Sea
     <div className="shell">
       <Sidebar user={user} />
 
-      {/* Filter col */}
-      <aside className="filter-col">
-        <div className="filter-col-title">Параметры</div>
-
-        <div className="filter-group" style={{ marginBottom: 20 }}>
-          <ReportGenerateForm />
-        </div>
-
-        {isManagerOrDeveloper && (
-          <>
-            <div className="filter-divider" />
-
-            <div className="filter-group" style={{ marginBottom: 20 }}>
-              <TeamReportExportForm users={teamUsers ?? []} />
-            </div>
-          </>
-        )}
-
-        <div className="filter-divider" />
-
-        <div className="filter-group" style={{ marginBottom: 20 }}>
-          <div className="filter-group-title">История генераций</div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {(history ?? []).slice(0, 20).map((record) => (
-              <a
-                key={record.id}
-                href={`/reports?report_id=${record.id}`}
-                className={record.id === selectedReportId ? "filter-chip active" : "filter-chip"}
-                style={{ textAlign: "left" }}
-              >
-                <span className="chip-dot" style={{ background: "var(--blue)" }} />
-                {getReportTypeLabel(record.report_type)}
-                <span className="chip-count">{formatDateLabel(record.period_from)}</span>
-              </a>
-            ))}
-            {(history ?? []).length === 0 && (
-                <div className="focus-note">
-                  <div className="focus-note-label">Нет данных</div>
-                <p>Сначала сгенерируй отчёт через API бэкенда.</p>
-                </div>
-              )}
-          </div>
-        </div>
-
-        {teamExportError && (
-          <div className="form-error" style={{ marginBottom: 12 }}>
-            {teamExportError}
-          </div>
-        )}
-
-        <div className="focus-note">
-          <div className="focus-note-label">Примечание</div>
-          <p>UI работает с уже сгенерированными отчётами: предпросмотр, история и экспорт.</p>
-        </div>
-      </aside>
-
-      {/* Content */}
       <main className="content-col">
-        <div className="page-header">
-          <div>
-            <div className="page-title">Отчёты</div>
-            <div className="page-sub">Предпросмотр, история и экспорт сгенерированных отчётов</div>
-          </div>
-        </div>
-
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 16 }}>
-          <div className="report-block" style={{ padding: 18 }}>
-            <div className="badge task">История</div>
-            <div className="page-title" style={{ fontSize: "2.2rem", marginTop: 10, WebkitTextFillColor: "initial", background: "none", color: "var(--text)" }}>
-              {(history ?? []).length}
-            </div>
-            <div className="page-sub">Сгенерированных отчётов</div>
-          </div>
-          <div className="report-block" style={{ padding: 18 }}>
-            <div className="badge bgp">Выбран</div>
-            <div className="page-title" style={{ fontSize: "2.2rem", marginTop: 10, WebkitTextFillColor: "initial", background: "none", color: "var(--text)" }}>
-              {selectedReportId ? "1" : "0"}
-            </div>
-            <div className="page-sub">Активный предпросмотр</div>
-          </div>
-          <div className="report-block" style={{ padding: 18 }}>
-            <div className="badge acl">Доступ</div>
-            <div className="page-title" style={{ fontSize: "2.2rem", marginTop: 10, WebkitTextFillColor: "initial", background: "none", color: "var(--text)" }}>
-              {isManagerOrDeveloper ? "полный" : "ограничен"}
-            </div>
-            <div className="page-sub">Роль пользователя</div>
-          </div>
-        </div>
-
-        <div className="section-label">
-          {preview ? `${getReportTypeLabel(preview.report_type)} · ${formatDateLabel(preview.period_from)} — ${formatDateLabel(preview.period_to)}` : "Отчёт не выбран"}
-        </div>
-
-        <div className="report-block">
-          {preview ? (
-            <>
-              <div className="report-header">
-                <div>
-                  <div className="report-header-title">
-                    {getReportTypeLabel(preview.report_type)} · {formatDateLabel(preview.period_from)} — {formatDateLabel(preview.period_to)}
-                  </div>
-                  <div className="report-header-sub">Сформирован: {formatDateTimeLabel(preview.generated_at)} · {user.full_name}</div>
-                  <div className="report-header-sub">Статус: {preview.report_status}</div>
-                  {preview.report_status === "final" && preview.updates_after_finalization > 0 && (
-                    <div className="report-header-sub">
-                      После фиксации добавлено новых записей: {preview.updates_after_finalization}
-                    </div>
-                  )}
-                </div>
-                <div style={{ display: "flex", gap: 8 }}>
-                  {preview.report_status === "draft" && <ReportRefreshButton reportId={preview.report_id} />}
-                  {preview.report_status === "draft" && <ReportFinalizeButton reportId={preview.report_id} />}
-                  {preview.report_status === "final" && preview.updates_after_finalization > 0 && (
-                    <ReportRegenerateDraftButton reportId={preview.report_id} />
-                  )}
-                </div>
-              </div>
-              <pre className="export">{preview.content_md}</pre>
-              <div className="export-bar">
-                <span className="export-label">Скачать:</span>
-                <a className="export-btn" href={`${publicApiBaseUrl}/api/v1/reports/${preview.report_id}/export/txt`}>📄 TXT</a>
-                <a className="export-btn" href={`${publicApiBaseUrl}/api/v1/reports/${preview.report_id}/export/md`}>📝 MD</a>
-                <a className="export-btn" href={`${publicApiBaseUrl}/api/v1/reports/${preview.report_id}/export/docx`}>DOCX</a>
-                <a className="export-btn" href={`${publicApiBaseUrl}/api/v1/reports/${preview.report_id}/export/pdf`}>PDF</a>
-              </div>
-            </>
-          ) : (
-            <div className="focus-note">
-              <div className="focus-note-label">Нет выбранного отчёта</div>
-              <p>Сгенерируй отчёт через API бэкенда и открой его из истории.</p>
-            </div>
-          )}
+        <div className="focus-note" style={{ maxWidth: 640 }}>
+          <div className="focus-note-label">Отчёты</div>
+          <p>Выбери период слева, собери файл и скачай его справа.</p>
         </div>
       </main>
+
+      <aside className="filter-col">
+        <div className="filter-col-title">Параметры</div>
+        <ReportGenerateForm />
+        {preview ? (
+          <div className="report-tool">
+            <div className="filter-group-title">Готовый файл</div>
+            <div className="focus-note">
+              <div className="focus-note-label">Собран</div>
+              <p>
+                {formatDateLabel(preview.period_from)} — {formatDateLabel(preview.period_to)}
+              </p>
+              <p>Файл готов к скачиванию.</p>
+            </div>
+            <a className="btn btn-primary" href={`${publicApiBaseUrl}/api/v1/reports/${preview.report_id}/export/md`}>
+              Скачать файл
+            </a>
+          </div>
+        ) : (
+          <div className="focus-note">
+            <div className="focus-note-label">Файл не собран</div>
+            <p>Укажи период и нажми кнопку сбора.</p>
+          </div>
+        )}
+      </aside>
     </div>
   );
 }

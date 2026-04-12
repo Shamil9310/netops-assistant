@@ -1,5 +1,6 @@
 import { Sidebar } from "@/components/sidebar";
 import { StudyWorkspace } from "@/components/study-workspace";
+import { PageHero } from "@/components/page-hero";
 import { getStudyPlans, getStudyWeeklySummary } from "@/lib/api";
 import { requireUser } from "@/lib/auth";
 
@@ -23,12 +24,17 @@ export default async function StudyPage() {
       <Sidebar user={user} />
 
       <main className="content-col">
-        <div className="page-header">
-          <div>
-            <div className="page-title">Учёба</div>
-            <div className="page-sub">Учебные планы, чекпоинты, чеклист и учёт времени по сессиям</div>
-          </div>
-        </div>
+        <PageHero
+          eyebrow="План развития"
+          title="Учёба"
+          subtitle="Учебные планы, чекпоинты, чеклист и учёт времени по сессиям."
+          stats={[
+            { label: "Планов", value: String(plans.length), hint: "В каталоге" },
+            { label: "Неделя", value: weekStart, hint: "Старт периода" },
+            { label: "Активный", value: plans[0]?.title ?? "—", hint: "Стартовый план" },
+            { label: "Сессии", value: String(weeklySummary?.sessions.length ?? 0), hint: "За неделю" },
+          ]}
+        />
 
         <StudyWorkspace
           plans={plans}

@@ -10,8 +10,8 @@ export type JournalEntriesResponse = ActivityEntry[];
 async function apiFetch<T>(url: string, options?: RequestInit): Promise<T> {
   const res = await fetch(url, options);
   if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw new Error(body?.detail ?? `Ошибка запроса: ${res.status}`);
+    const errorBody = await res.json().catch(() => ({}));
+    throw new Error(errorBody?.detail ?? `Ошибка запроса: ${res.status}`);
   }
   return res.json() as Promise<T>;
 }
