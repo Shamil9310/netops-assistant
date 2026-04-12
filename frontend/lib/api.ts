@@ -177,6 +177,109 @@ export type NightWorkPlan = {
   blocks: NightWorkBlock[];
 };
 
+export type StudyPlanStatus = "draft" | "active" | "completed" | "cancelled";
+export type StudySessionStatus = "running" | "paused" | "stopped";
+export type StudyPlanTrack = "python" | "networks";
+
+export type StudyModule = {
+  id: string;
+  plan_id: string;
+  title: string;
+  description: string | null;
+  order_index: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type StudyCheckpoint = {
+  id: string;
+  plan_id: string;
+  module_id: string | null;
+  title: string;
+  description: string | null;
+  order_index: number;
+  progress_percent: number;
+  is_done: boolean;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type StudyChecklistItem = {
+  id: string;
+  plan_id: string;
+  checkpoint_id: string | null;
+  title: string;
+  description: string | null;
+  order_index: number;
+  is_done: boolean;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type StudySession = {
+  id: string;
+  plan_id: string;
+  checkpoint_id: string | null;
+  status: StudySessionStatus;
+  progress_percent: number;
+  started_at: string;
+  ended_at: string | null;
+  duration_seconds: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type StudyPlan = {
+  id: string;
+  user_id: string;
+  title: string;
+  description: string | null;
+  track: StudyPlanTrack;
+  status: StudyPlanStatus;
+  total_seconds: number;
+  active_session_id: string | null;
+  active_session_started_at: string | null;
+  created_at: string;
+  updated_at: string;
+  modules: StudyModule[];
+  checkpoints: StudyCheckpoint[];
+  checklist_items: StudyChecklistItem[];
+  sessions: StudySession[];
+};
+
+export type StudyWeeklyDaySummary = {
+  day: string;
+  total_seconds: number;
+  sessions_count: number;
+};
+
+export type StudyWeeklyPlanSummary = {
+  plan_id: string;
+  title: string;
+  total_seconds: number;
+  sessions_count: number;
+};
+
+export type StudyCheckpointCompletionSummary = {
+  checkpoint_id: string;
+  plan_id: string;
+  plan_title: string;
+  title: string;
+  completed_at: string;
+};
+
+export type StudyWeeklySummary = {
+  week_start: string;
+  week_end: string;
+  total_seconds: number;
+  days: StudyWeeklyDaySummary[];
+  plans: StudyWeeklyPlanSummary[];
+  sessions: StudySession[];
+  completed_checkpoints: StudyCheckpointCompletionSummary[];
+};
+
 export type PlanTemplate = {
   id: string;
   user_id: string;
@@ -723,6 +826,53 @@ export async function getNightWorkPlans(): Promise<NightWorkPlan[] | null> {
       return null;
     }
     return (await response.json()) as NightWorkPlan[];
+  } catch {
+    return null;
+  }
+}
+
+export async function getStudyPlans(): Promise<StudyPlan[] | null> {
+  const cookieStore = await cookies();
+  const sessionToken = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+  if (!sessionToken) {
+    return null;
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/v1/study/plans`, {
+      headers: {
+        Cookie: `${SESSION_COOKIE_NAME}=${sessionToken}`,
+      },
+      cache: "no-store",
+    });
+    if (!response.ok) {
+      return null;
+    }
+    return (await response.json()) as StudyPlan[];
+  } catch {
+    return null;
+  }
+}
+
+export async function getStudyWeeklySummary(weekStart: string): Promise<StudyWeeklySummary | null> {
+  const cookieStore = await cookies();
+  const sessionToken = cookieStore.get(SESSION_COOKIE_NAME)?.value;
+  if (!sessionToken) {
+    return null;
+  }
+
+  const query = weekStart ? `?week_start=${weekStart}` : "";
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/v1/study/weekly-summary${query}`, {
+      headers: {
+        Cookie: `${SESSION_COOKIE_NAME}=${sessionToken}`,
+      },
+      cache: "no-store",
+    });
+    if (!response.ok) {
+      return null;
+    }
+    return (await response.json()) as StudyWeeklySummary;
   } catch {
     return null;
   }
