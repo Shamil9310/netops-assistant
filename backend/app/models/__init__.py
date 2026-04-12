@@ -4,6 +4,15 @@ from app.models.journal import ActivityEntry
 from app.models.night_work import NightWorkBlock, NightWorkPlan, NightWorkStep
 from app.models.planned_event import PlannedEvent
 from app.models.report_record import ReportRecord
+from app.models.study import (
+    StudyCheckpoint,
+    StudyChecklistItem,
+    StudyPlan,
+    StudyPlanStatus,
+    StudyPlanTrack,
+    StudySession,
+    StudySessionStatus,
+)
 from app.models.team import Team
 from app.models.template import PlanTemplate
 from app.models.user import User
@@ -19,6 +28,13 @@ __all__ = [
     "PlannedEvent",
     "PlanTemplate",
     "ReportRecord",
+    "StudyCheckpoint",
+    "StudyChecklistItem",
+    "StudyPlan",
+    "StudyPlanStatus",
+    "StudyPlanTrack",
+    "StudySession",
+    "StudySessionStatus",
     "Team",
     "User",
     "UserSession",

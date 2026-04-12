@@ -13,6 +13,7 @@ function getSections(role: string) {
       items: [
         { href: "/dashboard", icon: "◈", label: "Дашборд" },
         { href: "/journal", icon: "☰", label: "Журнал" },
+        { href: "/study", icon: "◔", label: "Учёба" },
         { href: "/reports", icon: "⬡", label: "Отчёты" },
         { href: "/kanban", icon: "◫", label: "Канбан" },
         { href: "/templates", icon: "◎", label: "Шаблоны" },
