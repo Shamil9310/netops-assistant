@@ -10,7 +10,10 @@ from app.api.routes import (
     plans,
     reports,
     search,
+<<<<<<< HEAD
     study,
+=======
+>>>>>>> origin/main
     team,
     templates,
 )
