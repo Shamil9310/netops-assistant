@@ -55,11 +55,18 @@ async def lifespan(_: FastAPI):
     logger.info("Остановка приложения")
 
 
+# В production отключаем Swagger UI и ReDoc:
+# документация API не должна быть публично доступна на боевом сервере.
+_docs_url = None if settings.environment == "production" else "/docs"
+_redoc_url = None if settings.environment == "production" else "/redoc"
+
 app = FastAPI(
     title=settings.app_name,
     version="0.1.0",
     description="API для NetOps Assistant",
     lifespan=lifespan,
+    docs_url=_docs_url,
+    redoc_url=_redoc_url,
 )
 
 app.add_middleware(
