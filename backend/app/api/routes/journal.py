@@ -10,14 +10,14 @@ from fastapi import (
     File,
     HTTPException,
     Query,
-    Request,
     UploadFile,
     status,
 )
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import settings
+from app.api.deps import CurrentUser
 from app.db.session import get_db
+from app.models.user import User
 from app.schemas.journal import (
     ActivityEntryCreateRequest,
     ActivityEntryListResponse,
@@ -30,7 +30,6 @@ from app.schemas.journal import (
     JournalDeduplicationResponse,
     JournalSelectedDeleteRequest,
 )
-from app.services.auth import get_current_user
 from app.services.journal import (
     create_activity_entry,
     delete_activity_entries_for_date,
@@ -48,27 +47,6 @@ from app.services.journal import (
 )
 
 router = APIRouter()
-
-
-async def require_authenticated_user(
-    request: Request,
-    session: AsyncSession,
-):
-    """Возвращает текущего пользователя или поднимает 401.
-
-    Отдельная функция нужна затем, чтобы journal API не дублировал
-    авторизационную проверку в каждом endpoint.
-    """
-    session_token = request.cookies.get(settings.session_cookie_name)
-    current_user = await get_current_user(session, session_token)
-
-    if current_user is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Требуется авторизация",
-        )
-
-    return current_user
 
 
 def to_activity_entry_response(activity_entry) -> ActivityEntryResponse:
@@ -107,14 +85,13 @@ def to_activity_entry_response(activity_entry) -> ActivityEntryResponse:
 
 @router.get("/entries", response_model=ActivityEntryListResponse)
 async def get_activity_entries(
-    request: Request,
+    current_user: CurrentUser,
     work_date: date = Query(
         description="Рабочая дата, за которую нужно вернуть записи"
     ),
     db: AsyncSession = Depends(get_db),
 ) -> ActivityEntryListResponse:
     """Возвращает записи текущего пользователя за выбранную рабочую дату."""
-    current_user = await require_authenticated_user(request, db)
     activity_entries = await list_activity_entries_for_date(
         session=db,
         user_id=str(current_user.id),
@@ -135,7 +112,7 @@ async def get_activity_entries(
 )
 async def post_activity_entry(
     payload: ActivityEntryCreateRequest,
-    request: Request,
+    current_user: CurrentUser,
     db: AsyncSession = Depends(get_db),
 ) -> ActivityEntryResponse:
     """Создаёт новую запись журнала.
@@ -144,7 +121,6 @@ async def post_activity_entry(
     пользователь может создать запись за любой work_date,
     и именно по этой дате запись потом попадёт в дневной отчёт.
     """
-    current_user = await require_authenticated_user(request, db)
     try:
         activity_entry = await create_activity_entry(
             session=db,
@@ -163,11 +139,10 @@ async def post_activity_entry(
 async def patch_activity_entry(
     entry_id: UUID,
     payload: ActivityEntryUpdateRequest,
-    request: Request,
+    current_user: CurrentUser,
     db: AsyncSession = Depends(get_db),
 ) -> ActivityEntryResponse:
     """Редактирует запись журнала владельца."""
-    current_user = await require_authenticated_user(request, db)
     entry = await get_activity_entry_by_id(db, str(current_user.id), str(entry_id))
     if entry is None:
         raise HTTPException(
@@ -186,11 +161,10 @@ async def patch_activity_entry(
 @router.get("/entries/{entry_id}", response_model=ActivityEntryResponse)
 async def get_activity_entry(
     entry_id: UUID,
-    request: Request,
+    current_user: CurrentUser,
     db: AsyncSession = Depends(get_db),
 ) -> ActivityEntryResponse:
     """Возвращает одну запись журнала владельца."""
-    current_user = await require_authenticated_user(request, db)
     entry = await get_activity_entry_by_id(db, str(current_user.id), str(entry_id))
     if entry is None:
         raise HTTPException(
@@ -202,11 +176,10 @@ async def get_activity_entry(
 @router.delete("/entries/{entry_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def remove_activity_entry(
     entry_id: UUID,
-    request: Request,
+    current_user: CurrentUser,
     db: AsyncSession = Depends(get_db),
 ) -> None:
     """Удаляет запись журнала владельца."""
-    current_user = await require_authenticated_user(request, db)
     entry = await get_activity_entry_by_id(db, str(current_user.id), str(entry_id))
     if entry is None:
         raise HTTPException(
@@ -217,14 +190,13 @@ async def remove_activity_entry(
 
 @router.post("/entries/delete-for-date", response_model=JournalBulkDeleteResponse)
 async def remove_activity_entries_for_date(
-    request: Request,
+    current_user: CurrentUser,
     work_date: date = Query(
         description="Рабочая дата, за которую нужно удалить все записи"
     ),
     db: AsyncSession = Depends(get_db),
 ) -> JournalBulkDeleteResponse:
     """Удаляет все записи текущего пользователя за выбранную рабочую дату."""
-    current_user = await require_authenticated_user(request, db)
     removed_count = await delete_activity_entries_for_date(
         session=db,
         user_id=str(current_user.id),
@@ -239,11 +211,10 @@ async def remove_activity_entries_for_date(
 
 @router.post("/entries/delete-all", response_model=JournalBulkDeleteResponse)
 async def remove_all_activity_entries(
-    request: Request,
+    current_user: CurrentUser,
     db: AsyncSession = Depends(get_db),
 ) -> JournalBulkDeleteResponse:
     """Удаляет все записи журнала текущего пользователя."""
-    current_user = await require_authenticated_user(request, db)
     removed_count = await delete_all_activity_entries(
         session=db,
         user_id=str(current_user.id),
@@ -258,11 +229,10 @@ async def remove_all_activity_entries(
 @router.post("/entries/delete-selected", response_model=JournalBulkDeleteResponse)
 async def remove_selected_activity_entries(
     payload: JournalSelectedDeleteRequest,
-    request: Request,
+    current_user: CurrentUser,
     db: AsyncSession = Depends(get_db),
 ) -> JournalBulkDeleteResponse:
     """Удаляет только выбранные записи журнала текущего пользователя."""
-    current_user = await require_authenticated_user(request, db)
     removed_count = await delete_selected_activity_entries(
         session=db,
         user_id=str(current_user.id),
@@ -277,14 +247,13 @@ async def remove_selected_activity_entries(
 
 @router.post("/entries/deduplicate", response_model=JournalDeduplicationResponse)
 async def deduplicate_activity_entries(
-    request: Request,
+    current_user: CurrentUser,
     work_date: date = Query(
         description="Рабочая дата, в рамках которой нужно удалить дубли"
     ),
     db: AsyncSession = Depends(get_db),
 ) -> JournalDeduplicationResponse:
     """Удаляет дубли журналa текущего пользователя за выбранную рабочую дату."""
-    current_user = await require_authenticated_user(request, db)
     removed_count, duplicate_ticket_numbers = (
         await delete_duplicate_activity_entries_for_date(
             session=db,
@@ -306,11 +275,10 @@ async def deduplicate_activity_entries(
 )
 async def import_activity_entries(
     payload: BulkJournalImportRequest,
-    request: Request,
+    current_user: CurrentUser,
     db: AsyncSession = Depends(get_db),
 ) -> BulkJournalImportResponse:
     """Импортирует несколько записей журнала из текста."""
-    current_user = await require_authenticated_user(request, db)
     try:
         created_entries, warnings = await import_activity_entries_from_text(
             session=db,
@@ -331,12 +299,11 @@ async def import_activity_entries(
 
 @router.post("/entries/import/preview", response_model=BulkJournalImportPreviewResponse)
 async def preview_activity_entries(
+    _: CurrentUser,
     payload: BulkJournalImportRequest,
-    request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> BulkJournalImportPreviewResponse:
     """Показывает, как текст будет распознан, без сохранения в базу."""
-    await require_authenticated_user(request, db)
     preview_items, warnings = preview_activity_entries_from_text(payload)
     return BulkJournalImportPreviewResponse(
         total=len(preview_items),
@@ -351,12 +318,11 @@ async def preview_activity_entries(
     status_code=status.HTTP_201_CREATED,
 )
 async def import_activity_entries_from_excel(
-    request: Request,
+    current_user: CurrentUser,
     file: Annotated[UploadFile, File(description="Excel-файл с выгрузкой обращений")],
     db: AsyncSession = Depends(get_db),
 ) -> BulkJournalImportResponse:
     """Импортирует записи журнала из Excel-файла."""
-    current_user = await require_authenticated_user(request, db)
     workbook_bytes = await file.read()
 
     try:
@@ -382,12 +348,11 @@ async def import_activity_entries_from_excel(
     response_model=BulkJournalImportPreviewResponse,
 )
 async def preview_activity_entries_from_excel(
-    request: Request,
+    _: CurrentUser,
     file: Annotated[UploadFile, File(description="Excel-файл с выгрузкой обращений")],
     db: AsyncSession = Depends(get_db),
 ) -> BulkJournalImportPreviewResponse:
     """Показывает предпросмотр Excel-импорта без сохранения в базу."""
-    await require_authenticated_user(request, db)
     workbook_bytes = await file.read()
 
     try:

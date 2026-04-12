@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse
 
 from app.api.router import api_router
 from app.core.config import settings
+from app.core.logging import configure_logging, request_id_var
 from app.db.session import SessionLocal
 from app.services.auth import ensure_bootstrap_user
 from app.services.schema_guard import (
@@ -30,6 +31,7 @@ async def lifespan(_: FastAPI):
     Схема БД управляется через Alembic — create_all() здесь не вызывается.
     При остановке: FastAPI сам закрывает соединения.
     """
+    configure_logging(settings.environment)
     logger.info("Старт приложения, окружение: %s", settings.environment)
 
     async with SessionLocal() as session:
@@ -79,6 +81,8 @@ async def request_id_middleware(request: Request, call_next):
     """
     request_id = request.headers.get("X-Request-ID") or str(uuid4())
     request.state.request_id = request_id
+    # Записываем request_id в contextvars, чтобы он был доступен в форматтере логов.
+    token = request_id_var.set(request_id)
     started_at = perf_counter()
 
     try:
@@ -94,6 +98,9 @@ async def request_id_middleware(request: Request, call_next):
             status_code=500,
             content={"detail": "Internal Server Error", "request_id": request_id},
         )
+    finally:
+        # Сбрасываем request_id из контекста после завершения запроса.
+        request_id_var.reset(token)
 
     duration_ms = round((perf_counter() - started_at) * 1000, 2)
     response.headers["X-Request-ID"] = request_id
