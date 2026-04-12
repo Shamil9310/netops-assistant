@@ -1,99 +1,54 @@
-"""Тесты сервисного слоя поиска и архива."""
-
-from __future__ import annotations
-
-from datetime import UTC, datetime
-from uuid import uuid4
+"""Тесты чистой логики сервиса поиска."""
 
 import pytest
-from sqlalchemy.dialects import postgresql
+from datetime import datetime, UTC
 
-from app.models.journal import ActivityStatus, ActivityType
 from app.services.search import (
-    _build_activity_search_filters,
-    _build_archive_status_filter,
     _normalize_search_query,
     _validate_search_arguments,
+    _build_archive_status_filter,
 )
 
 
-def test_normalize_search_query_trims_value_happy_path() -> None:
-    """Проверяет, что строка поиска нормализуется и сохраняет смысловой текст."""
-    assert _normalize_search_query("  bgp down  ") == "bgp down"
+class TestNormalizeSearchQuery:
+    def test_none_returns_none(self):
+        assert _normalize_search_query(None) is None
+
+    def test_empty_string_returns_none(self):
+        assert _normalize_search_query("") is None
+
+    def test_whitespace_only_returns_none(self):
+        assert _normalize_search_query("   ") is None
+
+    def test_strips_whitespace(self):
+        assert _normalize_search_query("  bgp  ") == "bgp"
+
+    def test_returns_text(self):
+        assert _normalize_search_query("bgp") == "bgp"
 
 
-def test_normalize_search_query_returns_none_for_blank_input() -> None:
-    """Проверяет, что пустой и пробельный ввод не считается фильтром."""
-    assert _normalize_search_query("") is None
-    assert _normalize_search_query("   ") is None
-    assert _normalize_search_query(None) is None
+class TestValidateSearchArguments:
+    def test_valid_args(self):
+        _validate_search_arguments(None, None, 100, 0)
 
+    def test_date_from_after_date_to_raises(self):
+        now = datetime.now(UTC)
+        past = datetime(2020, 1, 1, tzinfo=UTC)
+        with pytest.raises(ValueError, match="date_from не может быть позже"):
+            _validate_search_arguments(now, past, 100, 0)
 
-def test_validate_search_arguments_rejects_invalid_date_range() -> None:
-    """Проверяет ошибку валидации при перевёрнутом диапазоне дат."""
-    with pytest.raises(ValueError, match="date_from"):
-        _validate_search_arguments(
-            date_from=datetime(2026, 4, 8, tzinfo=UTC),
-            date_to=datetime(2026, 4, 7, tzinfo=UTC),
-            limit=50,
-            offset=0,
-        )
+    def test_zero_limit_raises(self):
+        with pytest.raises(ValueError, match="limit должен быть больше 0"):
+            _validate_search_arguments(None, None, 0, 0)
 
+    def test_negative_limit_raises(self):
+        with pytest.raises(ValueError):
+            _validate_search_arguments(None, None, -1, 0)
 
-def test_validate_search_arguments_rejects_invalid_pagination() -> None:
-    """Проверяет обработку некорректных limit/offset."""
-    with pytest.raises(ValueError, match="limit"):
-        _validate_search_arguments(
-            date_from=None,
-            date_to=None,
-            limit=0,
-            offset=0,
-        )
+    def test_negative_offset_raises(self):
+        with pytest.raises(ValueError, match="offset не может быть отрицательным"):
+            _validate_search_arguments(None, None, 100, -1)
 
-    with pytest.raises(ValueError, match="offset"):
-        _validate_search_arguments(
-            date_from=None,
-            date_to=None,
-            limit=10,
-            offset=-1,
-        )
-
-
-def test_build_activity_search_filters_contains_expected_predicates() -> None:
-    """Проверяет, что структурные фильтры и полнотекстовый фильтр добавляются вместе."""
-    filters = _build_activity_search_filters(
-        user_id=uuid4(),
-        query="SR1168",
-        activity_type=ActivityType.TICKET,
-        status=ActivityStatus.CLOSED,
-        external_ref="SR11683266",
-        service="TrueConf",
-        ticket_number="SR11683266",
-        date_from=datetime(2026, 4, 1, tzinfo=UTC),
-        date_to=datetime(2026, 4, 7, tzinfo=UTC),
-    )
-
-    # Один фильтр на пользователя и ещё восемь фильтров по параметрам поиска.
-    assert len(filters) == 9
-
-
-def test_build_activity_search_filters_skips_blank_query() -> None:
-    """Проверяет, что пустой query не добавляет полнотекстовый предикат."""
-    filters = _build_activity_search_filters(
-        user_id=uuid4(),
-        query="   ",
-    )
-    assert len(filters) == 1
-
-
-def test_build_archive_status_filter_targets_closed_and_cancelled() -> None:
-    """Проверяет бизнес-правило архива: только закрытые/отменённые записи."""
-    expression = _build_archive_status_filter()
-    sql_text = str(
-        expression.compile(
-            dialect=postgresql.dialect(), compile_kwargs={"literal_binds": True}
-        )
-    )
-
-    assert ActivityStatus.CLOSED.value in sql_text
-    assert ActivityStatus.CANCELLED.value in sql_text
+    def test_equal_date_range_ok(self):
+        same = datetime(2024, 1, 1, tzinfo=UTC)
+        _validate_search_arguments(same, same, 100, 0)

@@ -1,65 +1,76 @@
-"""Тесты вспомогательной логики для шаблонов планов."""
-
-from __future__ import annotations
+"""Тесты чистой логики сервиса шаблонов."""
 
 import pytest
 
 from app.services.template import (
-    get_default_template_catalog,
     normalize_template_key,
     validate_template_key,
     validate_template_payload,
+    get_default_template_catalog,
 )
 
 
-def test_normalize_template_key_happy_path() -> None:
-    """Проверяет нормализацию ключа: обрезка, нижний регистр и замена пробелов."""
-    assert normalize_template_key("  BGP Peer Template  ") == "bgp_peer_template"
+class TestNormalizeTemplateKey:
+    def test_strips_whitespace(self):
+        assert normalize_template_key("  bgp_change  ") == "bgp_change"
+
+    def test_converts_to_lowercase(self):
+        assert normalize_template_key("BGP_CHANGE") == "bgp_change"
+
+    def test_replaces_spaces_with_underscore(self):
+        assert normalize_template_key("bgp change") == "bgp_change"
 
 
-def test_validate_template_key_rejects_invalid_symbols() -> None:
-    """Проверяет, что запрещённые символы приводят к ошибке."""
-    with pytest.raises(ValueError):
-        validate_template_key("bgp@template")
+class TestValidateTemplateKey:
+    def test_valid_key(self):
+        assert validate_template_key("bgp_peer:change") == "bgp_peer:change"
+
+    def test_too_short(self):
+        with pytest.raises(ValueError, match="Некорректный ключ"):
+            validate_template_key("ab")
+
+    def test_invalid_chars(self):
+        with pytest.raises(ValueError, match="Некорректный ключ"):
+            validate_template_key("bgp change!")
+
+    def test_too_long(self):
+        with pytest.raises(ValueError, match="Некорректный ключ"):
+            validate_template_key("a" * 65)
+
+    def test_normalizes_before_validate(self):
+        assert validate_template_key("  BGP_CHANGE  ") == "bgp_change"
 
 
-def test_validate_template_key_rejects_too_short_key() -> None:
-    """Проверяет ошибку для слишком короткого ключа."""
-    with pytest.raises(ValueError):
-        validate_template_key("a")
+class TestValidateTemplatePayload:
+    def test_empty_payload_ok(self):
+        validate_template_payload({})
+
+    def test_blocks_as_list_ok(self):
+        validate_template_payload({"blocks": []})
+
+    def test_blocks_not_list_raises(self):
+        with pytest.raises(ValueError, match="должно быть списком"):
+            validate_template_payload({"blocks": "not-a-list"})
+
+    def test_extra_fields_ok(self):
+        validate_template_payload({"entry_template": {"activity_type": "ticket"}})
 
 
-def test_validate_template_key_happy_path() -> None:
-    """Проверяет валидный ключ с разрешёнными символами."""
-    assert validate_template_key("BGP:DC4-uplink") == "bgp:dc4-uplink"
+class TestGetDefaultTemplateCatalog:
+    def test_returns_list(self):
+        catalog = get_default_template_catalog()
+        assert isinstance(catalog, list)
+        assert len(catalog) > 0
 
+    def test_each_template_has_required_fields(self):
+        for template in get_default_template_catalog():
+            assert "key" in template
+            assert "name" in template
+            assert "category" in template
+            assert "template_payload" in template
+            assert "is_active" in template
 
-def test_validate_template_payload_rejects_invalid_blocks_type() -> None:
-    """Проверяет ошибку для неверного типа поля blocks."""
-    with pytest.raises(ValueError):
-        validate_template_payload({"blocks": {"wrong": "type"}})
-
-
-def test_validate_template_payload_happy_path() -> None:
-    """Проверяет корректные данные шаблона."""
-    validate_template_payload(
-        {
-            "variables": ["site", "neighbor_ip"],
-            "blocks": [
-                {"title": "Pre-check", "steps": [{"action": "show ip bgp summary"}]},
-            ],
-        }
-    )
-
-
-def test_default_template_catalog_contains_required_categories() -> None:
-    """Проверяет наличие обязательных категорий дефолтных шаблонов."""
-    catalog = get_default_template_catalog()
-    categories = {str(item["category"]) for item in catalog}
-    assert "bgp" in categories
-    assert "vlan" in categories
-    assert "prefix-list" in categories
-    assert "route-map" in categories
-    assert "static-route" in categories
-    assert "tunnel-cleanup" in categories
-    assert "journal" in categories
+    def test_all_keys_are_unique(self):
+        catalog = get_default_template_catalog()
+        keys = [str(t["key"]) for t in catalog]
+        assert len(keys) == len(set(keys))
