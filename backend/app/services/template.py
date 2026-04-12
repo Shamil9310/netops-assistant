@@ -3,10 +3,10 @@ from __future__ import annotations
 import re
 from uuid import UUID
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.template import PlanTemplate
+from app.repositories.template import TemplateRepository
 
 _KEY_PATTERN = re.compile(r"^[a-z0-9:_-]{3,64}$")
 
@@ -218,42 +218,21 @@ async def list_templates(
     is_active: bool | None = None,
 ) -> list[PlanTemplate]:
     """Возвращает шаблоны пользователя с необязательной фильтрацией."""
-    query = (
-        select(PlanTemplate)
-        .where(PlanTemplate.user_id == user_id)
-        .order_by(PlanTemplate.created_at.desc())
-    )
-    if category is not None:
-        query = query.where(PlanTemplate.category == category)
-    if is_active is not None:
-        query = query.where(PlanTemplate.is_active == is_active)
-
-    result = await session.execute(query)
-    return list(result.scalars().all())
+    return await TemplateRepository(session).list_for_user(user_id, category, is_active)
 
 
 async def get_template_by_id(
     session: AsyncSession, template_id: UUID, user_id: UUID
 ) -> PlanTemplate | None:
     """Возвращает шаблон по ID в пределах библиотеки пользователя."""
-    result = await session.execute(
-        select(PlanTemplate)
-        .where(PlanTemplate.id == template_id)
-        .where(PlanTemplate.user_id == user_id)
-    )
-    return result.scalar_one_or_none()
+    return await TemplateRepository(session).get_by_id(template_id, user_id)
 
 
 async def get_template_by_key(
     session: AsyncSession, key: str, user_id: UUID
 ) -> PlanTemplate | None:
     """Возвращает шаблон по ключу в пределах библиотеки пользователя."""
-    result = await session.execute(
-        select(PlanTemplate)
-        .where(PlanTemplate.key == key)
-        .where(PlanTemplate.user_id == user_id)
-    )
-    return result.scalar_one_or_none()
+    return await TemplateRepository(session).get_by_key(key, user_id)
 
 
 async def create_template(
@@ -279,10 +258,7 @@ async def create_template(
         template_payload=template_payload,
         is_active=is_active,
     )
-    session.add(template)
-    await session.commit()
-    await session.refresh(template)
-    return template
+    return await TemplateRepository(session).save(template)
 
 
 async def update_template(
@@ -310,25 +286,23 @@ async def update_template(
     if is_active is not None:
         template.is_active = is_active
 
-    await session.commit()
-    await session.refresh(template)
-    return template
+    return await TemplateRepository(session).update(template)
 
 
 async def delete_template(session: AsyncSession, template: PlanTemplate) -> None:
     """Удаляет шаблон пользователя из БД."""
-    await session.delete(template)
-    await session.commit()
+    await TemplateRepository(session).delete(template)
 
 
 async def import_default_templates(
     session: AsyncSession, user_id: UUID
 ) -> list[PlanTemplate]:
     """Импортирует дефолтные шаблоны в библиотеку пользователя."""
+    repo = TemplateRepository(session)
     imported: list[PlanTemplate] = []
     for default_template in get_default_template_catalog():
         key = str(default_template["key"])
-        existing = await get_template_by_key(session, key, user_id)
+        existing = await repo.get_by_key(key, user_id)
         if existing is not None:
             continue
         template = PlanTemplate(
@@ -340,11 +314,8 @@ async def import_default_templates(
             template_payload=dict(default_template["template_payload"]),  # type: ignore[call-overload]
             is_active=bool(default_template["is_active"]),
         )
-        session.add(template)
         imported.append(template)
 
     if imported:
-        await session.commit()
-        for template in imported:
-            await session.refresh(template)
+        return await repo.save_all(imported)
     return imported

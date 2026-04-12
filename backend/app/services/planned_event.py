@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 import logging
-from datetime import UTC, date, datetime, timedelta
+from datetime import date, datetime
 from uuid import UUID
 
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.journal import ActivityEntry, ActivityStatus, ActivityType
 from app.models.planned_event import PlannedEvent, PlannedEventType
+from app.repositories.planned_event import PlannedEventRepository
 
 logger = logging.getLogger(__name__)
 
@@ -23,16 +23,7 @@ async def list_events(
     По умолчанию возвращает только незавершённые события.
     Для архива передать include_completed=True.
     """
-    query = select(PlannedEvent).where(PlannedEvent.user_id == user_id)
-
-    if not include_completed:
-        query = query.where(PlannedEvent.is_completed.is_(False))
-
-    # Сортируем по времени начала — ближайшие события первыми.
-    query = query.order_by(PlannedEvent.scheduled_at.asc())
-
-    result = await session.execute(query)
-    return list(result.scalars().all())
+    return await PlannedEventRepository(session).list_for_user(user_id, include_completed)
 
 
 async def list_events_for_today(
@@ -43,37 +34,14 @@ async def list_events_for_today(
     Используется для auto-include в дашборд текущего дня:
     события, запланированные на сегодня, автоматически попадают в дневной обзор.
     """
-    now = datetime.now(UTC)
-    day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    day_end = day_start + timedelta(days=1) - timedelta(microseconds=1)
-
-    result = await session.execute(
-        select(PlannedEvent)
-        .where(PlannedEvent.user_id == user_id)
-        .where(PlannedEvent.scheduled_at >= day_start)
-        .where(PlannedEvent.scheduled_at <= day_end)
-        .order_by(PlannedEvent.scheduled_at.asc())
-    )
-    return list(result.scalars().all())
+    return await PlannedEventRepository(session).list_for_today(user_id)
 
 
 async def list_events_for_date(
     session: AsyncSession, user_id: UUID, work_date: date
 ) -> list[PlannedEvent]:
     """Возвращает плановые события на указанную рабочую дату."""
-    day_start = datetime(
-        work_date.year, work_date.month, work_date.day, 0, 0, 0, tzinfo=UTC
-    )
-    day_end = day_start + timedelta(days=1) - timedelta(microseconds=1)
-
-    result = await session.execute(
-        select(PlannedEvent)
-        .where(PlannedEvent.user_id == user_id)
-        .where(PlannedEvent.scheduled_at >= day_start)
-        .where(PlannedEvent.scheduled_at <= day_end)
-        .order_by(PlannedEvent.scheduled_at.asc())
-    )
-    return list(result.scalars().all())
+    return await PlannedEventRepository(session).list_for_date(user_id, work_date)
 
 
 async def get_event_by_id(
@@ -83,12 +51,7 @@ async def get_event_by_id(
 
     Двойная проверка защищает от IDOR — нельзя получить чужое событие по ID.
     """
-    result = await session.execute(
-        select(PlannedEvent)
-        .where(PlannedEvent.id == event_id)
-        .where(PlannedEvent.user_id == user_id)
-    )
-    return result.scalar_one_or_none()
+    return await PlannedEventRepository(session).get_by_id(event_id, user_id)
 
 
 async def create_event(
@@ -109,16 +72,14 @@ async def create_event(
         external_ref=external_ref,
         scheduled_at=scheduled_at,
     )
-    session.add(event)
-    await session.commit()
-    await session.refresh(event)
+    result = await PlannedEventRepository(session).save(event)
     logger.info(
         "Создано плановое событие: id=%s, user_id=%s, type=%s",
-        event.id,
+        result.id,
         user_id,
         event_type,
     )
-    return event
+    return result
 
 
 async def update_event(
@@ -148,15 +109,12 @@ async def update_event(
     if linked_journal_entry_id is not None:
         event.linked_journal_entry_id = linked_journal_entry_id
 
-    await session.commit()
-    await session.refresh(event)
-    return event
+    return await PlannedEventRepository(session).update(event)
 
 
 async def delete_event(session: AsyncSession, event: PlannedEvent) -> None:
     """Удаляет плановое событие."""
-    await session.delete(event)
-    await session.commit()
+    await PlannedEventRepository(session).delete(event)
     logger.info("Удалено плановое событие: id=%s", event.id)
 
 
