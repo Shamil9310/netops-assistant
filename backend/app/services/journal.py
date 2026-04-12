@@ -7,11 +7,11 @@ from typing import TypedDict, cast
 from uuid import UUID
 
 from openpyxl import load_workbook  # type: ignore[import-untyped]
-from sqlalchemy import Select, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.journal import ActivityEntry, ActivityStatus, ActivityType
 from app.models.user import User
+from app.repositories.journal import JournalRepository
 from app.schemas.journal import (
     ActivityEntryCreateRequest,
     ActivityEntryUpdateRequest,
@@ -74,17 +74,8 @@ async def list_activity_entries_for_date(
     - одна и та же дата может дополняться позже;
     - отчёт за день строится по work_date, а не по created_at.
     """
-    statement: Select[tuple[ActivityEntry]] = (
-        select(ActivityEntry)
-        .where(ActivityEntry.user_id == user_id)
-        .where(ActivityEntry.work_date == work_date)
-        .order_by(
-            ActivityEntry.started_at.asc().nullslast(), ActivityEntry.created_at.asc()
-        )
-    )
-
-    result = await session.execute(statement)
-    return list(result.scalars().all())
+    repo = JournalRepository(session)
+    return await repo.list_for_date(user_id=user_id, work_date=work_date)
 
 
 async def create_activity_entry(
@@ -99,17 +90,20 @@ async def create_activity_entry(
     - ended_date отвечает за реальную дату закрытия задачи;
     - если ended_date не передана, считаем, что запись закрыта в work_date.
     """
+    repo = JournalRepository(session)
+
     effective_ended_date = payload.ended_date or payload.work_date
     if effective_ended_date < payload.work_date:
         raise ValueError("Дата окончания не может быть раньше рабочей даты")
 
     started_at_value = payload.started_at
     if started_at_value is None:
-        started_at_value = await _get_last_finished_time_for_date(
-            session=session,
+        last_finished = await repo.get_last_finished_time_for_date(
             user_id=user.id,
             work_date=payload.work_date,
         )
+        if last_finished is not None:
+            started_at_value = last_finished.timetz().replace(tzinfo=None)
 
     started_at_dt = _combine_work_date_and_time(payload.work_date, started_at_value)
     ended_at_dt = _combine_work_date_and_time(effective_ended_date, payload.ended_at)
@@ -137,11 +131,7 @@ async def create_activity_entry(
         finished_at=ended_at_dt,
     )
 
-    session.add(activity_entry)
-    await session.commit()
-    await session.refresh(activity_entry)
-
-    return activity_entry
+    return await repo.save(activity_entry)
 
 
 async def get_activity_entry_by_id(
@@ -150,12 +140,8 @@ async def get_activity_entry_by_id(
     entry_id: str,
 ) -> ActivityEntry | None:
     """Возвращает запись по ID в рамках пользователя-владельца."""
-    result = await session.execute(
-        select(ActivityEntry)
-        .where(ActivityEntry.user_id == user_id)
-        .where(ActivityEntry.id == entry_id)
-    )
-    return result.scalar_one_or_none()
+    repo = JournalRepository(session)
+    return await repo.get_by_id(user_id=user_id, entry_id=entry_id)
 
 
 async def update_activity_entry(
@@ -170,6 +156,8 @@ async def update_activity_entry(
     комбинацию полей, если часть значений пришла в запросе, а часть осталась
     в существующей записи.
     """
+    repo = JournalRepository(session)
+
     original_work_date = entry.work_date
     original_started_at = entry.started_at
     original_finished_at = entry.finished_at
@@ -256,15 +244,13 @@ async def update_activity_entry(
     elif "work_date" in payload.model_fields_set and original_finished_at is not None:
         entry.finished_at = effective_finished_dt
 
-    await session.commit()
-    await session.refresh(entry)
-    return entry
+    return await repo.update(entry)
 
 
 async def delete_activity_entry(session: AsyncSession, entry: ActivityEntry) -> None:
     """Удаляет запись журнала."""
-    await session.delete(entry)
-    await session.commit()
+    repo = JournalRepository(session)
+    await repo.delete(entry)
 
 
 async def delete_activity_entries_for_date(
@@ -278,20 +264,8 @@ async def delete_activity_entries_for_date(
     пользователь может ошибочно импортировать или создать много записей,
     и тогда удобнее удалить весь день целиком, чем очищать его вручную по одной.
     """
-    result = await session.execute(
-        select(ActivityEntry)
-        .where(ActivityEntry.user_id == user_id)
-        .where(ActivityEntry.work_date == work_date)
-    )
-    entries = list(result.scalars().all())
-
-    if not entries:
-        return 0
-
-    for entry in entries:
-        await session.delete(entry)
-    await session.commit()
-    return len(entries)
+    repo = JournalRepository(session)
+    return await repo.delete_for_date(user_id=user_id, work_date=work_date)
 
 
 async def delete_all_activity_entries(
@@ -303,18 +277,8 @@ async def delete_all_activity_entries(
     Это максимально опасное действие, поэтому само бизнес-правило остаётся простым:
     удаляем только собственные записи пользователя и никогда не затрагиваем чужой журнал.
     """
-    result = await session.execute(
-        select(ActivityEntry).where(ActivityEntry.user_id == user_id)
-    )
-    entries = list(result.scalars().all())
-
-    if not entries:
-        return 0
-
-    for entry in entries:
-        await session.delete(entry)
-    await session.commit()
-    return len(entries)
+    repo = JournalRepository(session)
+    return await repo.delete_all(user_id=user_id)
 
 
 async def delete_selected_activity_entries(
@@ -328,26 +292,8 @@ async def delete_selected_activity_entries(
     - удаляем только записи, которые принадлежат текущему пользователю;
     - неизвестные или чужие id просто не затрагиваются.
     """
-    normalized_entry_ids = [
-        entry_id.strip() for entry_id in entry_ids if entry_id.strip()
-    ]
-    if not normalized_entry_ids:
-        return 0
-
-    result = await session.execute(
-        select(ActivityEntry)
-        .where(ActivityEntry.user_id == user_id)
-        .where(ActivityEntry.id.in_(normalized_entry_ids))
-    )
-    entries = list(result.scalars().all())
-
-    if not entries:
-        return 0
-
-    for entry in entries:
-        await session.delete(entry)
-    await session.commit()
-    return len(entries)
+    repo = JournalRepository(session)
+    return await repo.delete_selected(user_id=user_id, entry_ids=entry_ids)
 
 
 async def delete_duplicate_activity_entries_for_date(
@@ -362,18 +308,8 @@ async def delete_duplicate_activity_entries_for_date(
     Сохраняем самую раннюю запись, потому что она обычно является
     первичной фиксацией работы, а остальные появляются из повторного импорта.
     """
-    result = await session.execute(
-        select(ActivityEntry)
-        .where(ActivityEntry.user_id == user_id)
-        .where(ActivityEntry.work_date == work_date)
-        .where(ActivityEntry.ticket_number.is_not(None))
-        .order_by(
-            ActivityEntry.ticket_number.asc(),
-            ActivityEntry.created_at.asc(),
-            ActivityEntry.id.asc(),
-        )
-    )
-    entries = list(result.scalars().all())
+    repo = JournalRepository(session)
+    entries = await repo.list_with_ticket_for_date(user_id=user_id, work_date=work_date)
 
     removed_count = 0
     duplicate_ticket_numbers: list[str] = []
@@ -411,6 +347,7 @@ async def import_activity_entries_from_text(
     - строки с SR/задачами под этим заголовком;
     - секцию "Взята в работу" для задач в процессе.
     """
+    repo = JournalRepository(session)
     parsed_items, warnings = _parse_bulk_import_text(payload)
 
     created_entries: list[ActivityEntry] = []
@@ -437,12 +374,7 @@ async def import_activity_entries_from_text(
     if not created_entries:
         raise ValueError("Не удалось распознать записи для импорта")
 
-    session.add_all(created_entries)
-    await session.commit()
-    for entry in created_entries:
-        await session.refresh(entry)
-
-    return created_entries, warnings
+    return await repo.save_all(created_entries), warnings
 
 
 async def import_activity_entries_from_excel_workbook(
@@ -458,14 +390,17 @@ async def import_activity_entries_from_excel_workbook(
     - номер заявки и услуга переносятся в журнал как основные атрибуты;
     - дубликаты по связке `ticket_number + work_date` не создаём повторно.
     """
+    repo = JournalRepository(session)
     parsed_items, warnings = parse_excel_workbook_preview(workbook_bytes)
     if not parsed_items:
         raise ValueError("Не удалось найти корректные строки в Excel-файле")
 
-    existing_pairs = await _get_existing_ticket_pairs_for_import(
-        session=session,
+    ticket_date_pairs = {
+        (str(item["ticket_number"]), item["work_date"]) for item in parsed_items
+    }
+    existing_pairs = await repo.get_existing_ticket_pairs(
         user_id=user.id,
-        parsed_items=parsed_items,
+        ticket_date_pairs=ticket_date_pairs,
     )
 
     created_entries: list[ActivityEntry] = []
@@ -510,12 +445,7 @@ async def import_activity_entries_from_excel_workbook(
             "Все строки из Excel-файла уже есть в журнале или не содержат корректных данных"
         )
 
-    session.add_all(created_entries)
-    await session.commit()
-    for entry in created_entries:
-        await session.refresh(entry)
-
-    return created_entries, warnings
+    return await repo.save_all(created_entries), warnings
 
 
 def preview_activity_entries_from_excel_workbook(
@@ -622,18 +552,12 @@ async def list_entries_for_date(
     Это важно, потому что сотрудник может занести запись позже, но она всё равно
     должна попасть в отчёт за исходную рабочую дату.
     """
-    result = await session.execute(
-        select(ActivityEntry)
-        .where(ActivityEntry.user_id == user_id)
-        .where(ActivityEntry.work_date >= day_start.date())
-        .where(ActivityEntry.work_date <= day_end.date())
-        .order_by(
-            ActivityEntry.work_date.asc(),
-            ActivityEntry.started_at.asc().nullslast(),
-            ActivityEntry.created_at.asc(),
-        )
+    repo = JournalRepository(session)
+    return await repo.list_for_date_range(
+        user_id=user_id,
+        date_from=day_start.date(),
+        date_to=day_end.date(),
     )
-    return list(result.scalars().all())
 
 
 def _combine_work_date_and_time(work_date: date, value: time | None) -> datetime | None:
@@ -685,30 +609,6 @@ def _resolve_updated_end_date(
     if "work_date" in payload.model_fields_set:
         return effective_work_date + (original_finished_at.date() - original_work_date)
     return original_finished_at.date()
-
-
-async def _get_last_finished_time_for_date(
-    session: AsyncSession,
-    user_id: UUID,
-    work_date: date,
-) -> time | None:
-    """Возвращает время завершения последней записи за рабочую дату.
-
-    Это нужно для автоподстановки времени начала в форме:
-    следующая запись часто начинается сразу после предыдущей.
-    """
-    result = await session.execute(
-        select(ActivityEntry.finished_at)
-        .where(ActivityEntry.user_id == user_id)
-        .where(ActivityEntry.work_date == work_date)
-        .where(ActivityEntry.finished_at.is_not(None))
-        .order_by(ActivityEntry.finished_at.desc(), ActivityEntry.created_at.desc())
-        .limit(1)
-    )
-    finished_at = result.scalar_one_or_none()
-    if finished_at is None:
-        return None
-    return finished_at.timetz().replace(tzinfo=None)
 
 
 def _parse_bulk_import_text(
@@ -869,35 +769,6 @@ def _build_excel_import_title(ticket_number: str) -> str:
     return ticket_number[:_MAX_ACTIVITY_TITLE_LENGTH]
 
 
-async def _get_existing_ticket_pairs_for_import(
-    session: AsyncSession,
-    user_id: UUID,
-    parsed_items: list[ParsedExcelImportItem],
-) -> set[tuple[str, date]]:
-    """Возвращает уже существующие пары `ticket_number + work_date` для защиты от дублей."""
-    unique_pairs = {
-        (str(item["ticket_number"]), item["work_date"]) for item in parsed_items
-    }
-    if not unique_pairs:
-        return set()
-
-    filters = [
-        (ActivityEntry.ticket_number == ticket_number)
-        & (ActivityEntry.work_date == work_date)
-        for ticket_number, work_date in unique_pairs
-    ]
-    result = await session.execute(
-        select(ActivityEntry.ticket_number, ActivityEntry.work_date)
-        .where(ActivityEntry.user_id == user_id)
-        .where(or_(*filters))
-    )
-    return {
-        (ticket_number, work_date)
-        for ticket_number, work_date in result.all()
-        if ticket_number is not None
-    }
-
-
 def _parse_import_date(value: str) -> date:
     """Парсит дату из заголовка секции вида dd.mm.yy или dd.mm.yyyy."""
     day, month, year = value.split(".")
@@ -933,6 +804,7 @@ def _parse_import_title_and_links(value: str) -> tuple[str, str | None, str | No
 
 
 def _extract_ticket_number_from_text(value: str) -> str | None:
+    """Извлекает номер заявки из произвольного текста."""
     match = TICKET_NUMBER_RE.search(value)
     if match:
         return f"SR{match.group('number')}"
